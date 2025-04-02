@@ -1,19 +1,25 @@
 // server.js
-import express from 'express';
-import cors from 'cors';
-import { saveUser, saveInquiry, linkUserToInquiry, getUser } from './firestoreService.js';
+import express from "express";
+import cors from "cors";
+import { 
+  saveUser, 
+  saveInquiry, 
+  linkUserToInquiry, 
+  getUser, 
+  queryUsers 
+} from "./firestoreService.js";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // Health check endpoint
-app.get('/ping', (req, res) => {
-  res.send('Server is running ✓');
+app.get("/ping", (req, res) => {
+  res.send("Server is running ✓");
 });
 
-// GET user by ID endpoint
-app.get('/user/:id', async (req, res) => {
+// Retrieve a user by ID
+app.get("/user/:id", async (req, res) => {
   try {
     const user = await getUser(req.params.id);
     res.status(200).json(user);
@@ -23,69 +29,52 @@ app.get('/user/:id', async (req, res) => {
   }
 });
 
-// POST endpoint to save a user
-app.post('/user', async (req, res) => {
+// Create or update a user
+app.post("/user", async (req, res) => {
   try {
     await saveUser(req.body);
-    res.status(200).send('User saved ✓');
+    res.status(200).send("User saved ✓");
   } catch (error) {
     console.error(error);
-    res.status(500).send('Error saving user');
+    res.status(500).send("Error saving user");
   }
 });
 
-// POST endpoint to save an inquiry
-app.post('/inquiry', async (req, res) => {
+// Create or update an inquiry
+app.post("/inquiry", async (req, res) => {
   try {
     await saveInquiry(req.body);
-    res.status(200).send('Inquiry saved ✓');
+    res.status(200).send("Inquiry saved ✓");
   } catch (error) {
     console.error(error);
-    res.status(500).send('Error saving inquiry');
+    res.status(500).send("Error saving inquiry");
   }
 });
 
-// POST endpoint to link a user to an inquiry
-app.post('/link', async (req, res) => {
+// Create or update a link between user and inquiry
+app.post("/link", async (req, res) => {
   try {
     await linkUserToInquiry(req.body);
-    res.status(200).send('Link created ✓');
+    res.status(200).send("Link created ✓");
   } catch (error) {
     console.error(error);
-    res.status(500).send('Error linking user to inquiry');
+    res.status(500).send("Error linking user to inquiry");
   }
 });
 
-// Optional: Self-invoking function to insert test data
-(async () => {
+// Query users with filters passed as query parameters (e.g. /users?userType=2&location=Jerusalem)
+app.get("/users", async (req, res) => {
   try {
-    await saveUser({
-      id: "user123",
-      name: "Alice",
-      phone: "0501234567",
-      location: "Jerusalem",
-      userType: 2,
-    });
-
-    await saveInquiry({
-      id: "inq456",
-      date: "2025-04-02",
-      height: 165,
-      sex: "F",
-      photo: "https://url-to-photo.jpg",
-    });
-
-    await linkUserToInquiry({
-      userID: "user123",
-      inquiryID: "inq456",
-    });
-
-    console.log("Test data written successfully.");
+    const filters = req.query;
+    const users = await queryUsers(filters);
+    res.status(200).json(users);
   } catch (error) {
-    console.error("Error writing test data:", error);
+    console.error(error);
+    res.status(500).send("Error querying users");
   }
-})();
+});
 
+// Start the server
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`Backend server running at http://localhost:${PORT}`);

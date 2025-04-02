@@ -2,7 +2,7 @@
 import admin from "firebase-admin";
 import { readFileSync } from "fs";
 
-// Load your private key (ensure the file name matches your actual key file)
+// Load your Firebase service account key (ensure the filename is correct)
 const serviceAccount = JSON.parse(
   readFileSync("privateKey.json", "utf8")
 );

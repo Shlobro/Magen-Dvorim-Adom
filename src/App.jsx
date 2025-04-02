@@ -1,7 +1,11 @@
+// src/App.jsx
+import React from 'react';
+import AdminPanel from './AdminPanel'; // <-- Make sure this file exists in /src
+
 function App() {
   return (
-    <div className="p-6 bg-green-100 text-green-800 font-bold rounded">
-      Tailwind is working! ✅
+    <div style={{ padding: '20px' }}>
+      <AdminPanel />
     </div>
   );
 }

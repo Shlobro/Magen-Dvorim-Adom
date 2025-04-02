@@ -1,15 +1,5 @@
 import { saveUser, saveInquiry, linkUserToInquiry } from "./firestoreService.js";
-import { getUser } from './firestoreService.js';
 
-app.get('/user/:id', async (req, res) => {
-  try {
-    const user = await getUser(req.params.id);
-    res.status(200).json(user);
-  } catch (error) {
-    console.error(error);
-    res.status(404).send("User not found");
-  }
-});
 
 
 (async () => {
