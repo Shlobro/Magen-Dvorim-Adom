@@ -1,4 +1,4 @@
-import { saveUser, saveInquiry, linkUserToInquiry } from "./firestoreService.js";
+import { saveUser, saveInquiry, linkUserToInquiry } from "./services/firestoreService.js";
 
 
 
