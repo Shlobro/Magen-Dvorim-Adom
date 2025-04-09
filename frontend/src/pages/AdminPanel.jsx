@@ -470,6 +470,7 @@ function AdminPanel() {
                   >
                     <option value="user">User</option>
                     <option value="inquiry">Inquiry</option>
+                    <option value="link">userToInquiry</option>
                   </select>
                 </div>
 
@@ -512,10 +513,10 @@ function AdminPanel() {
                   <Button
                     onClick={async () => {
                       try {
-                        const res = await axios.get(`http://localhost:3001/${selectedCollection === 'user' ? 'users' : 'inquiry'}`, {
+                        const res = await axios.get(`http://localhost:3001/${selectedCollection}`, {
                           params: { [selectedField]: selectedValue }
-                        });
-                        setQueryResults(res.data);
+                        }).then(res=>{ console.log(res.data);});
+                        //setQueryResults(res.data);
                       } catch (err) {
                         console.error(err);
                         alert("Query failed: " + err.message);
