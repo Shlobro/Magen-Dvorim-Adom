@@ -6,6 +6,7 @@ import { Button } from '/frontend/src/components/ui/Button';
 import { Input } from '/frontend/src/components/ui/input';
 import { Label } from '/frontend/src/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '/frontend/src/components/ui/Tabs';
+import { useEffect } from 'react';
 
 function AdminPanel() {
   const [activeTab, setActiveTab] = useState('user');
@@ -35,6 +36,25 @@ function AdminPanel() {
   });
   const [queryResults, setQueryResults] = useState([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [selectedCollection, setSelectedCollection] = useState('user');
+  const [availableFields, setAvailableFields] = useState([]);
+  const [selectedField, setSelectedField] = useState('');
+  const [availableValues, setAvailableValues] = useState([]);
+  const [selectedValue, setSelectedValue] = useState('');
+
+  useEffect(() => {
+    if (!selectedCollection) return;
+    axios.get(`http://localhost:3001/api/filters/${selectedCollection}/fields`)
+      .then(res => setAvailableFields(res.data.fields))
+      .catch(err => console.error("Failed to load fields:", err));
+  }, [selectedCollection]);
+
+  useEffect(() => {
+    if (!selectedCollection || !selectedField) return;
+    axios.get(`http://localhost:3001/api/filters/${selectedCollection}/filters/${selectedField}`)
+      .then(res => setAvailableValues(res.data.values))
+      .catch(err => console.error("Failed to load values:", err));
+  }, [selectedField, selectedCollection]);
 
   // Use a ref to control the hidden file input
   const fileInputRef = useRef(null);
@@ -160,7 +180,7 @@ function AdminPanel() {
                 Query Users
               </TabsTrigger>
             </TabsList>
-  
+
             {/* USER MANAGEMENT */}
             <TabsContent value="user">
               <div className="space-y-6">
@@ -259,7 +279,7 @@ function AdminPanel() {
                 </div>
               </div>
             </TabsContent>
-  
+
             {/* INQUIRY MANAGEMENT */}
             <TabsContent value="inquiry">
               <div className="space-y-6">
@@ -287,7 +307,7 @@ function AdminPanel() {
                     </Label>
                   </div>
                   <div tp>
-                    <Input 
+                    <Input
                       id="inquiry-date"
                       name="date"
                       placeholder="Date"
@@ -331,7 +351,7 @@ function AdminPanel() {
                     />
                   </div>
                 </div>
-  
+
                 {/* Photo Upload Section */}
                 <div>
                   <div>
@@ -364,14 +384,14 @@ function AdminPanel() {
                         <img
                           src={inquiryForm.photo}
                           alt="Uploaded Preview"
-                      style={{ width: '500px', height: 'auto' }}
-                      className="mt-2 rounded-md shadow-md"
+                          style={{ width: '500px', height: 'auto' }}
+                          className="mt-2 rounded-md shadow-md"
                         />
                       </div>
                     )}
                   </div>
                 </div>
-  
+
                 <div className="pt-2 text-center">
                   <Button
                     onClick={submitInquiry}
@@ -382,7 +402,7 @@ function AdminPanel() {
                 </div>
               </div>
             </TabsContent>
-  
+
             {/* LINK MANAGEMENT */}
             <TabsContent value="link">
               <div className="space-y-6">
@@ -430,83 +450,91 @@ function AdminPanel() {
                 </div>
               </div>
             </TabsContent>
-  
+
             {/* QUERY USERS */}
             <TabsContent value="query">
-              <div className="space-y-6">
+              <div className="space-y-4">
+                {/* Select Collection */}
                 <div>
-                  <div>
-                    <Label htmlFor="query-userType" className="block text-sm font-medium text-gray-700">
-                      User Type Filter:
-                    </Label>
-                  </div>
-                  <div>
-                    <Input
-                      id="query-userType"
-                      name="userType"
-                      placeholder="User Type"
-                      onChange={handleChange(setQueryFilters)}
-                      className="mt-1 w-full border-gray-300 rounded-md shadow-sm"
-                    />
-                  </div>
+                  <Label htmlFor="collection">Select Collection:</Label>
+                  <select
+                    id="collection"
+                    value={selectedCollection}
+                    onChange={(e) => {
+                      setSelectedCollection(e.target.value);
+                      setSelectedField('');
+                      setAvailableValues([]);
+                      setSelectedValue('');
+                    }}
+                    className="mt-1 w-full border-gray-300 rounded-md shadow-sm"
+                  >
+                    <option value="user">User</option>
+                    <option value="inquiry">Inquiry</option>
+                  </select>
                 </div>
+
+                {/* Select Field */}
                 <div>
-                  <div>
-                    <Label htmlFor="query-location" className="block text-sm font-medium text-gray-700">
-                      Location Filter:
-                    </Label>
-                  </div>
-                  <div>
-                    <Input
-                      id="query-location"
-                      name="location"
-                      placeholder="Location"
-                      onChange={handleChange(setQueryFilters)}
-                      className="mt-1 w-full border-gray-300 rounded-md shadow-sm"
-                    />
-                  </div>
+                  <Label htmlFor="field">Select Field:</Label>
+                  <select
+                    id="field"
+                    value={selectedField}
+                    onChange={(e) => {
+                      setSelectedField(e.target.value);
+                      setSelectedValue('');
+                    }}
+                    className="mt-1 w-full border-gray-300 rounded-md shadow-sm"
+                  >
+                    <option value="">-- Select Field --</option>
+                    {availableFields.map((field, idx) => (
+                      <option key={idx} value={field}>{field}</option>
+                    ))}
+                  </select>
                 </div>
-                <div className="pt-2 text-center">
+
+                {/* Select Value */}
+                <div>
+                  <Label htmlFor="value">Select Value:</Label>
+                  <select
+                    id="value"
+                    value={selectedValue}
+                    onChange={(e) => setSelectedValue(e.target.value)}
+                    className="mt-1 w-full border-gray-300 rounded-md shadow-sm"
+                  >
+                    <option value="">-- Select Value --</option>
+                    {availableValues.map((val, idx) => (
+                      <option key={idx} value={val}>{val}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-center pt-2">
                   <Button
-                    onClick={queryUsers}
+                    onClick={async () => {
+                      try {
+                        const res = await axios.get(`http://localhost:3001/${selectedCollection === 'user' ? 'users' : 'inquiry'}`, {
+                          params: { [selectedField]: selectedValue }
+                        });
+                        setQueryResults(res.data);
+                      } catch (err) {
+                        console.error(err);
+                        alert("Query failed: " + err.message);
+                      }
+                    }}
                     className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition"
                   >
-                    Query Users
+                    Query
                   </Button>
                 </div>
-                <div className="mt-6">
-                  <h3 className="text-lg font-bold text-gray-800">Results:</h3>
-                  {queryResults.length === 0 ? (
-                    <p>No users found.</p>
-                  ) : (
-                    queryResults.map((user, index) => (
-                      <div key={index} className="border p-4 rounded-md mb-4">
-                        <p>
-                          <span className="font-bold">ID:</span> {user.id}
-                        </p>
-                        <p>
-                          <span className="font-bold">Name:</span> {user.name}
-                        </p>
-                        <p>
-                          <span className="font-bold">Phone:</span> {user.phone}
-                        </p>
-                        <p>
-                          <span className="font-bold">Location:</span> {user.location}
-                        </p>
-                        <p>
-                          <span className="font-bold">User Type:</span> {user.userType}
-                        </p>
-                      </div>
-                    ))
-                  )}
-                </div>
               </div>
+
+
             </TabsContent>
           </Tabs>
         </CardContent>
       </div>
     </div>
   );
-}  
+}
 
 export default AdminPanel;
