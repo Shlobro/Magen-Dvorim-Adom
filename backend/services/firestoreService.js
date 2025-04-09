@@ -36,3 +36,28 @@ export async function queryUsers(filters) {
   snapshot.forEach(doc => results.push(doc.data()));
   return results;
 }
+
+// Get all field names from a collection (based on 1 document sample)
+export async function getAvailableFields(collectionName) {
+  const snapshot = await db.collection(collectionName).get();
+  const fieldSet = new Set();
+  snapshot.forEach(doc => {
+    Object.keys(doc.data()).forEach(field => fieldSet.add(field));
+  });
+  return Array.from(fieldSet);
+}
+
+
+// Get distinct values for a specific field in a collection
+export async function getFilterOptions(collectionName, fieldName) {
+  const snapshot = await db.collection(collectionName).get();
+  const values = new Set();
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    if (fieldName in data && data[fieldName] !== undefined) {
+      values.add(data[fieldName]);
+    }
+  });
+  return Array.from(values);
+}
+
