@@ -3,13 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "scripts": {
-    "start": "concurrently \"cd backend && node server.js\" \"npm run dev\"",
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
+ "scripts": {
+  "start": "concurrently \"cd backend && node server.js\" \"npm run dev\"",
+  "dev": "vite --host",
+  "build": "vite build",
+  "lint": "eslint .",
+  "preview": "vite preview"
+},
   "dependencies": {
     "axios": "^1.8.4",
     "cloudinary": "^2.6.0",
