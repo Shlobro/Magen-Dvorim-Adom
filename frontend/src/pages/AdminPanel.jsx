@@ -3,8 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '/frontend/src/components/ui/Card';
 import { Button } from '/frontend/src/components/ui/Button';
-import { Input } from '/frontend/src/components/ui/input';
-import { Label } from '/frontend/src/components/ui/label';
+import { Input } from '/frontend/src/components/ui/Input';
+import { Label } from '/frontend/src/components/ui/Label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '/frontend/src/components/ui/Tabs';
 
 function AdminPanel() {
