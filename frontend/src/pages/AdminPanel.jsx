@@ -1,12 +1,11 @@
 // frontend/src/pages/AdminPanel.jsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '/frontend/src/components/ui/Card';
 import { Button } from '/frontend/src/components/ui/Button';
 import { Input } from '/frontend/src/components/ui/input';
 import { Label } from '/frontend/src/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '/frontend/src/components/ui/Tabs';
-import { useEffect } from 'react';
 
 function AdminPanel() {
   const [activeTab, setActiveTab] = useState('user');
@@ -42,19 +41,28 @@ function AdminPanel() {
   const [availableValues, setAvailableValues] = useState([]);
   const [selectedValue, setSelectedValue] = useState('');
 
+  // Define the base API URL dynamically.
+  // On your PC, create an .env.local file with VITE_API_URL=http://10.0.0.14:3001
+  // If undefined, it falls back to localhost.
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+  // Load available fields for the selected collection
   useEffect(() => {
     if (!selectedCollection) return;
-    axios.get(`http://localhost:3001/api/filters/${selectedCollection}/fields`)
-      .then(res => setAvailableFields(res.data.fields))
-      .catch(err => console.error("Failed to load fields:", err));
-  }, [selectedCollection]);
+    axios
+      .get(`${API_URL}/api/filters/${selectedCollection}/fields`)
+      .then((res) => setAvailableFields(res.data.fields))
+      .catch((err) => console.error("Failed to load fields:", err));
+  }, [selectedCollection, API_URL]);
 
+  // Load available filter values for the selected field
   useEffect(() => {
     if (!selectedCollection || !selectedField) return;
-    axios.get(`http://localhost:3001/api/filters/${selectedCollection}/filters/${selectedField}`)
-      .then(res => setAvailableValues(res.data.values))
-      .catch(err => console.error("Failed to load values:", err));
-  }, [selectedField, selectedCollection]);
+    axios
+      .get(`${API_URL}/api/filters/${selectedCollection}/filters/${selectedField}`)
+      .then((res) => setAvailableValues(res.data.values))
+      .catch((err) => console.error("Failed to load values:", err));
+  }, [selectedField, selectedCollection, API_URL]);
 
   // Use a ref to control the hidden file input
   const fileInputRef = useRef(null);
@@ -64,7 +72,7 @@ function AdminPanel() {
     setter((prev) => ({ ...prev, [name]: value }));
   };
 
-  // New: visible button triggers hidden file input
+  // Visible button triggers hidden file input
   const triggerFileInput = () => {
     if (!inquiryForm.id) {
       alert("Please fill out the Inquiry ID before selecting a photo.");
@@ -73,7 +81,7 @@ function AdminPanel() {
     fileInputRef.current.click();
   };
 
-  // Modified photo upload handler
+  // Photo upload handler
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return; // No file selected
@@ -86,7 +94,6 @@ function AdminPanel() {
       return;
     }
 
-    // If for some reason inquiry ID is still not set, show an alert and clear input
     if (!inquiryForm.id) {
       alert('Please fill out the Inquiry ID before uploading the photo.');
       e.target.value = null;
@@ -99,7 +106,7 @@ function AdminPanel() {
 
     try {
       setUploadingPhoto(true);
-      const res = await axios.post('http://localhost:3001/inquiry/upload-photo', formData);
+      const res = await axios.post(`${API_URL}/inquiry/upload-photo`, formData);
       setInquiryForm((prev) => ({ ...prev, photo: res.data.photoUrl }));
       alert('Photo uploaded and saved to Firestore.');
     } catch (err) {
@@ -107,7 +114,6 @@ function AdminPanel() {
       alert('Upload failed: ' + err.message);
     } finally {
       setUploadingPhoto(false);
-      // Clear the file input so user must re-select if needed
       e.target.value = null;
     }
   };
@@ -115,7 +121,7 @@ function AdminPanel() {
   // Placeholder submission functions
   const submitUser = async () => {
     try {
-      const res = await axios.post('http://localhost:3001/user', userForm);
+      const res = await axios.post(`${API_URL}/user`, userForm);
       alert(res.data);
     } catch (err) {
       console.error(err);
@@ -125,7 +131,7 @@ function AdminPanel() {
 
   const submitInquiry = async () => {
     try {
-      const res = await axios.post('http://localhost:3001/inquiry', inquiryForm);
+      const res = await axios.post(`${API_URL}/inquiry`, inquiryForm);
       alert(res.data);
     } catch (err) {
       console.error(err);
@@ -135,7 +141,7 @@ function AdminPanel() {
 
   const submitLink = async () => {
     try {
-      const res = await axios.post('http://localhost:3001/link', linkForm);
+      const res = await axios.post(`${API_URL}/link`, linkForm);
       alert(res.data);
     } catch (err) {
       console.error(err);
@@ -145,7 +151,7 @@ function AdminPanel() {
 
   const queryUsers = async () => {
     try {
-      const res = await axios.get('http://localhost:3001/users', {
+      const res = await axios.get(`${API_URL}/users`, {
         params: queryFilters,
       });
       setQueryResults(res.data);
