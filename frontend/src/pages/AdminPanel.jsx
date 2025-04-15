@@ -45,7 +45,6 @@ function AdminPanel() {
   // On your PC, create an .env.local file with VITE_API_URL=http://10.0.0.14:3001
   // If undefined, it falls back to localhost.
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
   // Load available fields for the selected collection
   useEffect(() => {
     if (!selectedCollection) return;
