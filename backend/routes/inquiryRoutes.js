@@ -51,4 +51,28 @@ router.get('/:id/photo', async (req, res) => {
   }
 });
 
+// GET /inquiry with optional filters (e.g., ?status=pending)
+router.get('/', async (req, res) => {
+  try {
+    const filters = req.query;
+    let queryRef = db.collection('inquiry');
+
+    // Apply filters (same logic used in user query)
+    Object.keys(filters).forEach(key => {
+      if (filters[key] !== "") {
+        queryRef = queryRef.where(key, '==', filters[key]);
+      }
+    });
+
+    const snapshot = await queryRef.get();
+    const results = [];
+    snapshot.forEach(doc => results.push(doc.data()));
+
+    res.status(200).json(results);
+  } catch (error) {
+    console.error("Error querying inquiries:", error);
+    res.status(500).send("Error retrieving inquiries");
+  }
+});
+
 export default router;
