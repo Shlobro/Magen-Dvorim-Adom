@@ -1,4 +1,5 @@
 // frontend/src/pages/AdminPanel.jsx
+
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '/frontend/src/components/ui/Card';
@@ -7,17 +8,32 @@ import { Input } from '/frontend/src/components/ui/Input';
 import { Label } from '/frontend/src/components/ui/Label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '/frontend/src/components/ui/Tabs';
 
+/**
+ * AdminPanel.jsx
+ * 
+ * A multi-tab administrative interface for managing Firestore documents,
+ * including users, inquiries, links, and performing filtered queries.
+ * 
+ * Features:
+ * - Create/update users and inquiries
+ * - Upload and preview inquiry photos
+ * - Establish relationships (links) between users and inquiries
+ * - Execute field-based query operations with dynamic filters
+ */
 function AdminPanel() {
-  const [activeTab, setActiveTab] = useState('user');
+  // ====== State: UI control and form data ======
+  const [activeTab, setActiveTab] = useState('user'); // Currently selected tab
 
-  // Form states
   const [userForm, setUserForm] = useState({
     id: '',
     name: '',
     phone: '',
     location: '',
     userType: '',
+    password: '',
+    qulification: '',
   });
+
   const [inquiryForm, setInquiryForm] = useState({
     id: '',
     date: '',
@@ -25,28 +41,36 @@ function AdminPanel() {
     status: '',
     photo: '',
   });
+
   const [linkForm, setLinkForm] = useState({
     userID: '',
     inquiryID: '',
   });
+
   const [queryFilters, setQueryFilters] = useState({
     userType: '',
     location: '',
   });
-  const [queryResults, setQueryResults] = useState([]);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [selectedCollection, setSelectedCollection] = useState('user');
-  const [availableFields, setAvailableFields] = useState([]);
-  const [selectedField, setSelectedField] = useState('');
-  const [availableValues, setAvailableValues] = useState([]);
-  const [selectedValue, setSelectedValue] = useState('');
 
-  // Define the base API URL dynamically.
-  // On your PC, create an .env.local file with VITE_API_URL=http://10.0.0.14:3001
-  // If undefined, it falls back to localhost.
+  const [queryResults, setQueryResults] = useState([]);
+
+  const [uploadingPhoto, setUploadingPhoto] = useState(false); // Photo upload state
+
+  // ====== State: Dynamic filters ======
+  const [selectedCollection, setSelectedCollection] = useState('user'); // Selected collection for filter query
+  const [availableFields, setAvailableFields] = useState([]);            // Field options from backend
+  const [selectedField, setSelectedField] = useState('');               // Field selected for value filter
+  const [availableValues, setAvailableValues] = useState([]);          // Available values for a selected field
+  const [selectedValue, setSelectedValue] = useState('');              // Value chosen by user
+
+  const fileInputRef = useRef(null); // Reference to the hidden file input element
+
+  // ====== Config: API Endpoint ======
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-  // Load available fields for the selected collection
+  /**
+   * Load field names when a collection is selected
+   */
   useEffect(() => {
     if (!selectedCollection) return;
     axios
@@ -55,7 +79,9 @@ function AdminPanel() {
       .catch((err) => console.error("Failed to load fields:", err));
   }, [selectedCollection, API_URL]);
 
-  // Load available filter values for the selected field
+  /**
+   * Load possible values when a field is selected
+   */
   useEffect(() => {
     if (!selectedCollection || !selectedField) return;
     axios
@@ -64,15 +90,18 @@ function AdminPanel() {
       .catch((err) => console.error("Failed to load values:", err));
   }, [selectedField, selectedCollection, API_URL]);
 
-  // Use a ref to control the hidden file input
-  const fileInputRef = useRef(null);
-
+  /**
+   * Handle form field changes
+   * @param {Function} setter - React setState function
+   */
   const handleChange = (setter) => (e) => {
     const { name, value } = e.target;
     setter((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Visible button triggers hidden file input
+  /**
+   * Trigger the hidden file input for photo uploads
+   */
   const triggerFileInput = () => {
     if (!inquiryForm.id) {
       alert("Please fill out the Inquiry ID before selecting a photo.");
@@ -81,15 +110,16 @@ function AdminPanel() {
     fileInputRef.current.click();
   };
 
-  // Photo upload handler
+  /**
+   * Validate, upload, and preview photo
+   */
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file) return; // No file selected
+    if (!file) return;
 
     const validImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!validImageTypes.includes(file.type)) {
       alert('Only image files (JPG, PNG, WEBP, GIF) are allowed.');
-      // Clear the file input for re-selection
       e.target.value = null;
       return;
     }
@@ -118,7 +148,9 @@ function AdminPanel() {
     }
   };
 
-  // Placeholder submission functions
+  /**
+   * Submit user form data to the server
+   */
   const submitUser = async () => {
     try {
       const res = await axios.post(`${API_URL}/user`, userForm);
@@ -129,6 +161,9 @@ function AdminPanel() {
     }
   };
 
+  /**
+   * Submit inquiry form data to the server
+   */
   const submitInquiry = async () => {
     try {
       const res = await axios.post(`${API_URL}/inquiry`, inquiryForm);
@@ -139,6 +174,9 @@ function AdminPanel() {
     }
   };
 
+  /**
+   * Submit a link between a user and an inquiry
+   */
   const submitLink = async () => {
     try {
       const res = await axios.post(`${API_URL}/link`, linkForm);
@@ -149,6 +187,9 @@ function AdminPanel() {
     }
   };
 
+  /**
+   * Query users with the applied filters
+   */
   const queryUsers = async () => {
     try {
       const res = await axios.get(`${API_URL}/users`, {
@@ -161,6 +202,10 @@ function AdminPanel() {
     }
   };
 
+  // The JSX layout continues here for rendering the tabbed interface and forms.
+  // Each TabsContent section should include properly labeled form controls,
+  // data bindings to their respective state objects, and submission handlers
+  
   return (
     <div className="min-h-screen bg-gray-100 py-8">
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md">

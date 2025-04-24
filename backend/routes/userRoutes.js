@@ -1,9 +1,16 @@
 // backend/routes/userRoutes.js
+
 import express from 'express';
 import { getUser, saveUser, queryUsers } from '../services/firestoreService.js';
+import db from '../services/firebaseAdmin.js'; // Required for direct Firestore updates
 
 const router = express.Router();
 
+
+// ==================================================================
+// GET /user/:id
+// Retrieve a user document by its unique Firestore document ID
+// ==================================================================
 router.get('/:id', async (req, res) => {
   try {
     const user = await getUser(req.params.id);
@@ -14,6 +21,11 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+
+// =====================================================
+// POST /user/
+// Save a new user document to Firestore
+// =====================================================
 router.post('/', async (req, res) => {
   try {
     await saveUser(req.body);
@@ -24,6 +36,11 @@ router.post('/', async (req, res) => {
   }
 });
 
+
+// ===================================================================
+// GET /user/
+// Query users using optional filter parameters (e.g., role, email)
+// ===================================================================
 router.get('/', async (req, res) => {
   try {
     const filters = req.query;
@@ -35,31 +52,43 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST (or update) password for a given inquiry ID
+
+// ===================================================================
+// POST /user/:id/password
+// Update the password field of a related inquiry document
+// ⚠️ Note: This currently updates the "inquiry" collection, not "user"
+// ===================================================================
 router.post('/:id/password', async (req, res) => {
   try {
-      const { id } = req.params;
-      const { password } = req.body;
+    const { id } = req.params;
+    const { password } = req.body;
 
-      if (!password) {
-          return res.status(400).send("Password is required");
-      }
+    if (!password) {
+      return res.status(400).send("Password is required");
+    }
 
-      // Update the 'password' field in the 'inquiry' document
-      await db.collection("inquiry").doc(id).update({ password });
+    await db.collection("inquiry").doc(id).update({ password });
 
-      res.status(200).send("Password saved");
+    res.status(200).send("Password saved");
   } catch (error) {
-      console.error("Error saving password:", error);
-      res.status(500).send("Error saving password");
+    console.error("Error saving password:", error);
+    res.status(500).send("Error saving password");
   }
 });
-// POST to update user data (e.g., qualifications, email, location, etc.)
+
+
+// ========================================================================
+// POST /user/:id/update
+// Update specific fields of a user document (e.g., name, email, location)
+// Only fields provided in the request body are updated
+// ========================================================================
 router.post('/:id/update', async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
+
     await db.collection("user").doc(id).update(updateData);
+
     res.status(200).send("User updated ✓");
   } catch (error) {
     console.error(error);
