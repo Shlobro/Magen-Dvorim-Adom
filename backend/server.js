@@ -4,6 +4,7 @@ import cors from 'cors';
 import userRoutes from './routes/userRoutes.js';
 import inquiryRoutes from './routes/inquiryRoutes.js';
 import linkRoutes from './routes/linkRoutes.js';
+import filterRoutes from './routes/filterRoutes.js'
 
 const app = express();
 app.use(cors());
@@ -18,6 +19,7 @@ app.get('/ping', (req, res) => {
 app.use('/user', userRoutes);
 app.use('/inquiry', inquiryRoutes);
 app.use('/link', linkRoutes);
+app.use('/api/filters', filterRoutes);
 
 const PORT = 3001;
 app.listen(PORT, () => {

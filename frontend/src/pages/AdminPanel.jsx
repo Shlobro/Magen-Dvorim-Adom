@@ -1,10 +1,10 @@
 // frontend/src/pages/AdminPanel.jsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '/frontend/src/components/ui/Card';
 import { Button } from '/frontend/src/components/ui/Button';
-import { Input } from '/frontend/src/components/ui/input';
-import { Label } from '/frontend/src/components/ui/label';
+import { Input } from '/frontend/src/components/ui/Input';
+import { Label } from '/frontend/src/components/ui/Label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '/frontend/src/components/ui/Tabs';
 
 function AdminPanel() {
@@ -35,6 +35,34 @@ function AdminPanel() {
   });
   const [queryResults, setQueryResults] = useState([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [selectedCollection, setSelectedCollection] = useState('user');
+  const [availableFields, setAvailableFields] = useState([]);
+  const [selectedField, setSelectedField] = useState('');
+  const [availableValues, setAvailableValues] = useState([]);
+  const [selectedValue, setSelectedValue] = useState('');
+
+  // Define the base API URL dynamically.
+  // On your PC, create an .env.local file with VITE_API_URL=http://10.0.0.14:3001
+  // If undefined, it falls back to localhost.
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+  // Load available fields for the selected collection
+  useEffect(() => {
+    if (!selectedCollection) return;
+    axios
+      .get(`${API_URL}/api/filters/${selectedCollection}/fields`)
+      .then((res) => setAvailableFields(res.data.fields))
+      .catch((err) => console.error("Failed to load fields:", err));
+  }, [selectedCollection, API_URL]);
+
+  // Load available filter values for the selected field
+  useEffect(() => {
+    if (!selectedCollection || !selectedField) return;
+    axios
+      .get(`${API_URL}/api/filters/${selectedCollection}/filters/${selectedField}`)
+      .then((res) => setAvailableValues(res.data.values))
+      .catch((err) => console.error("Failed to load values:", err));
+  }, [selectedField, selectedCollection, API_URL]);
 
   // Use a ref to control the hidden file input
   const fileInputRef = useRef(null);
@@ -44,7 +72,7 @@ function AdminPanel() {
     setter((prev) => ({ ...prev, [name]: value }));
   };
 
-  // New: visible button triggers hidden file input
+  // Visible button triggers hidden file input
   const triggerFileInput = () => {
     if (!inquiryForm.id) {
       alert("Please fill out the Inquiry ID before selecting a photo.");
@@ -53,7 +81,7 @@ function AdminPanel() {
     fileInputRef.current.click();
   };
 
-  // Modified photo upload handler
+  // Photo upload handler
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return; // No file selected
@@ -66,7 +94,6 @@ function AdminPanel() {
       return;
     }
 
-    // If for some reason inquiry ID is still not set, show an alert and clear input
     if (!inquiryForm.id) {
       alert('Please fill out the Inquiry ID before uploading the photo.');
       e.target.value = null;
@@ -79,7 +106,7 @@ function AdminPanel() {
 
     try {
       setUploadingPhoto(true);
-      const res = await axios.post('http://localhost:3001/inquiry/upload-photo', formData);
+      const res = await axios.post(`${API_URL}/inquiry/upload-photo`, formData);
       setInquiryForm((prev) => ({ ...prev, photo: res.data.photoUrl }));
       alert('Photo uploaded and saved to Firestore.');
     } catch (err) {
@@ -87,7 +114,6 @@ function AdminPanel() {
       alert('Upload failed: ' + err.message);
     } finally {
       setUploadingPhoto(false);
-      // Clear the file input so user must re-select if needed
       e.target.value = null;
     }
   };
@@ -95,7 +121,7 @@ function AdminPanel() {
   // Placeholder submission functions
   const submitUser = async () => {
     try {
-      const res = await axios.post('http://localhost:3001/user', userForm);
+      const res = await axios.post(`${API_URL}/user`, userForm);
       alert(res.data);
     } catch (err) {
       console.error(err);
@@ -105,7 +131,7 @@ function AdminPanel() {
 
   const submitInquiry = async () => {
     try {
-      const res = await axios.post('http://localhost:3001/inquiry', inquiryForm);
+      const res = await axios.post(`${API_URL}/inquiry`, inquiryForm);
       alert(res.data);
     } catch (err) {
       console.error(err);
@@ -115,7 +141,7 @@ function AdminPanel() {
 
   const submitLink = async () => {
     try {
-      const res = await axios.post('http://localhost:3001/link', linkForm);
+      const res = await axios.post(`${API_URL}/link`, linkForm);
       alert(res.data);
     } catch (err) {
       console.error(err);
@@ -125,7 +151,7 @@ function AdminPanel() {
 
   const queryUsers = async () => {
     try {
-      const res = await axios.get('http://localhost:3001/users', {
+      const res = await axios.get(`${API_URL}/users`, {
         params: queryFilters,
       });
       setQueryResults(res.data);
@@ -160,7 +186,7 @@ function AdminPanel() {
                 Query Users
               </TabsTrigger>
             </TabsList>
-  
+
             {/* USER MANAGEMENT */}
             <TabsContent value="user">
               <div className="space-y-6">
@@ -259,7 +285,7 @@ function AdminPanel() {
                 </div>
               </div>
             </TabsContent>
-  
+
             {/* INQUIRY MANAGEMENT */}
             <TabsContent value="inquiry">
               <div className="space-y-6">
@@ -287,7 +313,7 @@ function AdminPanel() {
                     </Label>
                   </div>
                   <div tp>
-                    <Input 
+                    <Input
                       id="inquiry-date"
                       name="date"
                       placeholder="Date"
@@ -331,7 +357,7 @@ function AdminPanel() {
                     />
                   </div>
                 </div>
-  
+
                 {/* Photo Upload Section */}
                 <div>
                   <div>
@@ -364,14 +390,14 @@ function AdminPanel() {
                         <img
                           src={inquiryForm.photo}
                           alt="Uploaded Preview"
-                      style={{ width: '500px', height: 'auto' }}
-                      className="mt-2 rounded-md shadow-md"
+                          style={{ width: '500px', height: 'auto' }}
+                          className="mt-2 rounded-md shadow-md"
                         />
                       </div>
                     )}
                   </div>
                 </div>
-  
+
                 <div className="pt-2 text-center">
                   <Button
                     onClick={submitInquiry}
@@ -382,7 +408,7 @@ function AdminPanel() {
                 </div>
               </div>
             </TabsContent>
-  
+
             {/* LINK MANAGEMENT */}
             <TabsContent value="link">
               <div className="space-y-6">
@@ -430,83 +456,92 @@ function AdminPanel() {
                 </div>
               </div>
             </TabsContent>
-  
+
             {/* QUERY USERS */}
             <TabsContent value="query">
-              <div className="space-y-6">
+              <div className="space-y-4">
+                {/* Select Collection */}
                 <div>
-                  <div>
-                    <Label htmlFor="query-userType" className="block text-sm font-medium text-gray-700">
-                      User Type Filter:
-                    </Label>
-                  </div>
-                  <div>
-                    <Input
-                      id="query-userType"
-                      name="userType"
-                      placeholder="User Type"
-                      onChange={handleChange(setQueryFilters)}
-                      className="mt-1 w-full border-gray-300 rounded-md shadow-sm"
-                    />
-                  </div>
+                  <Label htmlFor="collection">Select Collection:</Label>
+                  <select
+                    id="collection"
+                    value={selectedCollection}
+                    onChange={(e) => {
+                      setSelectedCollection(e.target.value);
+                      setSelectedField('');
+                      setAvailableValues([]);
+                      setSelectedValue('');
+                    }}
+                    className="mt-1 w-full border-gray-300 rounded-md shadow-sm"
+                  >
+                    <option value="user">User</option>
+                    <option value="inquiry">Inquiry</option>
+                    <option value="link">userToInquiry</option>
+                  </select>
                 </div>
+
+                {/* Select Field */}
                 <div>
-                  <div>
-                    <Label htmlFor="query-location" className="block text-sm font-medium text-gray-700">
-                      Location Filter:
-                    </Label>
-                  </div>
-                  <div>
-                    <Input
-                      id="query-location"
-                      name="location"
-                      placeholder="Location"
-                      onChange={handleChange(setQueryFilters)}
-                      className="mt-1 w-full border-gray-300 rounded-md shadow-sm"
-                    />
-                  </div>
+                  <Label htmlFor="field">Select Field:</Label>
+                  <select
+                    id="field"
+                    value={selectedField}
+                    onChange={(e) => {
+                      setSelectedField(e.target.value);
+                      setSelectedValue('');
+                    }}
+                    className="mt-1 w-full border-gray-300 rounded-md shadow-sm"
+                  >
+                    <option value="">-- Select Field --</option>
+                    {availableFields.map((field, idx) => (
+                      <option key={idx} value={field}>{field}</option>
+                    ))}
+                  </select>
                 </div>
-                <div className="pt-2 text-center">
+
+                {/* Select Value */}
+                <div>
+                  <Label htmlFor="value">Select Value:</Label>
+                  <select
+                    id="value"
+                    value={selectedValue}
+                    onChange={(e) => setSelectedValue(e.target.value)}
+                    className="mt-1 w-full border-gray-300 rounded-md shadow-sm"
+                  >
+                    <option value="">-- Select Value --</option>
+                    {availableValues.map((val, idx) => (
+                      <option key={idx} value={val}>{val}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-center pt-2">
                   <Button
-                    onClick={queryUsers}
+                    onClick={async () => {
+                      try {
+                        const res = await axios.get(`http://localhost:3001/${selectedCollection}`, {
+                          params: { [selectedField]: selectedValue }
+                        }).then(res=>{ console.log(res.data);});
+                        //setQueryResults(res.data);
+                      } catch (err) {
+                        console.error(err);
+                        alert("Query failed: " + err.message);
+                      }
+                    }}
                     className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition"
                   >
-                    Query Users
+                    Query
                   </Button>
                 </div>
-                <div className="mt-6">
-                  <h3 className="text-lg font-bold text-gray-800">Results:</h3>
-                  {queryResults.length === 0 ? (
-                    <p>No users found.</p>
-                  ) : (
-                    queryResults.map((user, index) => (
-                      <div key={index} className="border p-4 rounded-md mb-4">
-                        <p>
-                          <span className="font-bold">ID:</span> {user.id}
-                        </p>
-                        <p>
-                          <span className="font-bold">Name:</span> {user.name}
-                        </p>
-                        <p>
-                          <span className="font-bold">Phone:</span> {user.phone}
-                        </p>
-                        <p>
-                          <span className="font-bold">Location:</span> {user.location}
-                        </p>
-                        <p>
-                          <span className="font-bold">User Type:</span> {user.userType}
-                        </p>
-                      </div>
-                    ))
-                  )}
-                </div>
               </div>
+
+
             </TabsContent>
           </Tabs>
         </CardContent>
       </div>
     </div>
   );
-}  
+}
 
 export default AdminPanel;

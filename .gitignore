@@ -23,3 +23,4 @@ dist-ssr
 *.sln
 *.sw?
 backend/privateKey.json
+.env*
