@@ -35,6 +35,23 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET password by user ID
+router.get('/:id/password', async (req, res) => {
+  try {
+      const userId = req.params.id;
+      const doc = await db.collection("user").doc(userId).get();
+
+      if (!doc.exists) {
+          return res.status(404).send("User not found");
+      }
+
+      const data = doc.data();
+      res.status(200).json({ password: data.password });
+  } catch (error) {
+      console.error("Error fetching password:", error);
+      res.status(500).send("Server error");
+  }
+});
 
 // POST (or update) password for a given inquiry ID
 router.post('/:id/password', async (req, res) => {
@@ -53,19 +70,6 @@ router.post('/:id/password', async (req, res) => {
   } catch (error) {
       console.error("Error saving password:", error);
       res.status(500).send("Error saving password");
-  }
-});
-
-// POST to update user data (e.g., qualifications, email, location, etc.)
-router.post('/:id/update', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateData = req.body;
-    await db.collection("user").doc(id).update(updateData);
-    res.status(200).send("User updated ✓");
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Error updating user");
   }
 });
 
