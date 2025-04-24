@@ -75,4 +75,38 @@ router.get('/', async (req, res) => {
   }
 });
 
+// POST to assign a volunteer to an inquiry
+router.post('/:id/assign-volunteer', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { volunteerId } = req.body;
+    await db.collection("inquiry").doc(id).update({ assignedVolunteer: volunteerId });
+    res.status(200).send("Volunteer assigned ✓");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Error assigning volunteer");
+  }
+});
+
+// POST to update inquiry status, feedback, or volunteer comments
+router.post('/:id/update-status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, volunteerComment, feedback, height } = req.body;
+    const updates = {
+      ...(status && { status }),
+      ...(volunteerComment && { volunteerComment }),
+      ...(feedback && { feedback }),
+      ...(height && { height }),
+      lastStatusChange: new Date().toISOString()
+    };
+    await db.collection("inquiry").doc(id).update(updates);
+    res.status(200).send("Inquiry status updated ✓");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Error updating inquiry");
+  }
+});
+
+
 export default router;
