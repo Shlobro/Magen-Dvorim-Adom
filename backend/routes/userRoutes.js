@@ -2,14 +2,13 @@
 
 import express from 'express';
 import { getUser, saveUser, queryUsers } from '../services/firestoreService.js';
-import db from '../services/firebaseAdmin.js'; // Required for direct Firestore updates
+import db from '../services/firebaseAdmin.js';
+import { geocodeAddress } from '../services/geocodeAddress.js'; // ✅ Correct backend path
 
 const router = express.Router();
 
-
 // ==================================================================
-// GET /user/:id
-// Retrieve a user document by its unique Firestore document ID
+// GET /user/:id — Retrieve a user by Firestore document ID
 // ==================================================================
 router.get('/:id', async (req, res) => {
   try {
@@ -21,14 +20,24 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-
-// =====================================================
-// POST /user/
-// Save a new user document to Firestore
-// =====================================================
+// ==================================================================
+// POST /user — Save a new user, with geocoding if location is present
+// ==================================================================
 router.post('/', async (req, res) => {
   try {
-    await saveUser(req.body);
+    const user = req.body;
+
+    // ✅ Add coordinates if location is defined
+    if (user.location) {
+      const coords = await geocodeAddress(user.location);
+      if (coords) {
+        user.lat = coords.lat;
+        user.lng = coords.lng;
+      }
+    }
+
+    // Save to Firestore
+    await db.collection("user").doc(user.id).set(user);
     res.status(200).send("User saved ✓");
   } catch (error) {
     console.error(error);
@@ -36,11 +45,9 @@ router.post('/', async (req, res) => {
   }
 });
 
-
-// ===================================================================
-// GET /user/
-// Query users using optional filter parameters (e.g., role, email)
-// ===================================================================
+// ==================================================================
+// GET /user — Query users with optional filters (e.g. userType)
+// ==================================================================
 router.get('/', async (req, res) => {
   try {
     const filters = req.query;
@@ -52,12 +59,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-
-// ===================================================================
-// POST /user/:id/password
-// Update the password field of a related inquiry document
-// ⚠️ Note: This currently updates the "inquiry" collection, not "user"
-// ===================================================================
+// ==================================================================
+// POST /user/:id/password — Update password field on inquiry doc
+// ==================================================================
 router.post('/:id/password', async (req, res) => {
   try {
     const { id } = req.params;
@@ -68,7 +72,6 @@ router.post('/:id/password', async (req, res) => {
     }
 
     await db.collection("inquiry").doc(id).update({ password });
-
     res.status(200).send("Password saved");
   } catch (error) {
     console.error("Error saving password:", error);
@@ -76,16 +79,23 @@ router.post('/:id/password', async (req, res) => {
   }
 });
 
-
 // ========================================================================
 // POST /user/:id/update
-// Update specific fields of a user document (e.g., name, email, location)
-// Only fields provided in the request body are updated
+// Update user fields; re-geocode if location is updated
 // ========================================================================
 router.post('/:id/update', async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
+
+    // ✅ If location is being updated, geocode it
+    if (updateData.location) {
+      const coords = await geocodeAddress(updateData.location);
+      if (coords) {
+        updateData.lat = coords.lat;
+        updateData.lng = coords.lng;
+      }
+    }
 
     await db.collection("user").doc(id).update(updateData);
 
@@ -95,5 +105,6 @@ router.post('/:id/update', async (req, res) => {
     res.status(500).send("Error updating user");
   }
 });
+
 
 export default router;

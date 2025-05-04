@@ -30,8 +30,8 @@ function AdminPanel() {
     phone: '',
     location: '',
     userType: '',
-    password: '',
-    qulification: '',
+    //password: '',
+    //qulification: '',
   });
 
   const [inquiryForm, setInquiryForm] = useState({
@@ -66,7 +66,7 @@ function AdminPanel() {
   const fileInputRef = useRef(null); // Reference to the hidden file input element
 
   // ====== Config: API Endpoint ======
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const API_URL = 'http://localhost:3001';
 
   /**
    * Load field names when a collection is selected

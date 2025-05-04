@@ -3,13 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
- "scripts": {
-  "start": "concurrently \"cd backend && node server.js\" \"npm run dev\"",
-  "dev": "vite --host",
-  "build": "vite build",
-  "lint": "eslint .",
-  "preview": "vite preview"
-},
+  "scripts": {
+    "start": "concurrently \"cd backend && node server.js\" \"npm run dev\"",
+    "dev": "vite --host",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
   "dependencies": {
     "axios": "^1.8.4",
     "cloudinary": "^2.6.0",
@@ -18,10 +18,12 @@
     "express": "^5.1.0",
     "express-form-data": "^2.0.23",
     "firebase-admin": "^13.2.0",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.487.0",
     "multer": "^1.4.5-lts.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-leaflet": "^4.2.1",
     "react-router-dom": "^7.4.1"
   },
   "devDependencies": {
