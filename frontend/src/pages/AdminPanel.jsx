@@ -30,6 +30,8 @@ function AdminPanel() {
     phone: '',
     location: '',
     userType: '',
+    lat: '',
+    lng: '',
     //password: '',
     //qulification: '',
   });
@@ -40,6 +42,7 @@ function AdminPanel() {
     height: '',
     status: '',
     photo: '',
+    location: '',
   });
 
   const [linkForm, setLinkForm] = useState({
@@ -397,6 +400,24 @@ function AdminPanel() {
                       name="status"
                       placeholder="Status"
                       value={inquiryForm.status}
+                      onChange={handleChange(setInquiryForm)}
+                      className="mt-1 w-full border-gray-300 rounded-md shadow-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div>
+                    <Label htmlFor="inquiry-location" className="block text-sm font-medium text-gray-700">
+                      Location:
+                    </Label>
+                  </div>
+                  <div>
+                    <Input
+                      id="inquiry-location"
+                      name="location"
+                      placeholder="location"
+                      value={inquiryForm.location}
                       onChange={handleChange(setInquiryForm)}
                       className="mt-1 w-full border-gray-300 rounded-md shadow-sm"
                     />

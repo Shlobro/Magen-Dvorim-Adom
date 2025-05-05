@@ -11,9 +11,9 @@ function App() {
     <Router>
       <div className="p-4">
         <Routes>
-          {/* <Route path="/" element={<VolunteerMap />} /> */}
+          <Route path="/" element={<VolunteerMap />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<AdminPanel />} />
+          <Route path="/admin" element={<AdminPanel />} />
         </Routes>
       </div>
     </Router>

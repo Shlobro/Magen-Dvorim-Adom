@@ -5,6 +5,7 @@ import upload from '../middlewares/multerUpload.js';
 import { saveInquiry } from '../services/firestoreService.js';
 import { uploadPhotoAndSave } from '../controllers/inquiryController.js';
 import db from '../services/firebaseAdmin.js'; // Firestore admin SDK
+import { geocodeAddress } from '../services/geocodeAddress.js'; // ✅ Correct backend path
 
 const router = express.Router();
 
@@ -15,6 +16,14 @@ const router = express.Router();
 // ========================================
 router.post('/', async (req, res) => {
   try {
+    const query = req.body;
+    if (query.location) {
+      const coords = await geocodeAddress(query.location);
+      if (coords) {
+        query.lat = coords.lat;
+        query.lng = coords.lng;
+      }
+    }
     await saveInquiry(req.body);
     res.status(200).send("Inquiry saved ✓");
   } catch (error) {

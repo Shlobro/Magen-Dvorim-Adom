@@ -12,7 +12,7 @@ const router = express.Router();
 // ==========================================================
 const COLLECTION_MAP = {
   user: 'user',
-  inquiry: 'inqgiuiry', // Note: Typo? Should it be "inquiry"
+  inquiry: 'inquiry', // Note: Typo? Should it be "inquiry"
   link: 'userToInquiry',
 };
 
