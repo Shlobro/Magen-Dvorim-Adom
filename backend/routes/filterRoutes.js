@@ -1,18 +1,30 @@
+// backend/routes/filterRoutes.js
+
 import express from 'express';
 import { getAvailableFields, getFilterOptions } from '../services/firestoreService.js';
 
 const router = express.Router();
 
-// Maps logical route names to actual Firestore collection names
+// ==========================================================
+// Collection alias mapping
+// Maps URL route identifiers to Firestore collection names
+// Example: "link" → "userToInquiry"
+// ==========================================================
 const COLLECTION_MAP = {
   user: 'user',
-  inquiry: 'inquiry',
-  link: 'userToInquiry', // ✅ maps "link" → Firestore collection
+  inquiry: 'inqgiuiry', // Note: Typo? Should it be "inquiry"
+  link: 'userToInquiry',
 };
 
-// GET /api/filters/:collection/fields
+
+// ======================================================================
+// GET /filters/:collection/fields
+// Retrieve the list of available field names from a specified collection
+// ======================================================================
 router.get('/:collection/fields', async (req, res) => {
+  // Resolve actual collection name using map or fallback
   const collectionName = COLLECTION_MAP[req.params.collection] || req.params.collection;
+
   try {
     const fields = await getAvailableFields(collectionName);
     res.status(200).json({ fields });
@@ -22,9 +34,16 @@ router.get('/:collection/fields', async (req, res) => {
   }
 });
 
-// GET /api/filters/:collection/filters/:field
+
+// ============================================================================
+// GET /filters/:collection/filters/:field
+// Retrieve all unique values for a specific field in a given collection
+// Useful for dynamic filter dropdowns (e.g., status, city, role)
+// ============================================================================
 router.get('/:collection/filters/:field', async (req, res) => {
+  // Resolve actual collection name using map or fallback
   const collectionName = COLLECTION_MAP[req.params.collection] || req.params.collection;
+
   try {
     const values = await getFilterOptions(collectionName, req.params.field);
     res.status(200).json({ values });
