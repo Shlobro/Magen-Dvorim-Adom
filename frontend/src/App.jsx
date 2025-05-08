@@ -5,6 +5,7 @@ import './styles/App.css';
 import HomeScreen from './pages/HomeScreen';
 import ReportPage from './pages/ReportPage'; // נוספה שורת ייבוא לעמוד הדיווח
 import Header from './components/Header';
+import VolunteerMap from './pages/VolunteerMap';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomeScreen />} />
             <Route path="/report" element={<ReportPage />} /> {/* נוספה שורת הנתיב */}
+            <Route path="/map" element={<VolunteerMap />} /> {/* נוספה שורת הנתיב */}
           </Routes>
         </div>
       </div>
