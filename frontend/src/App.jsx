@@ -3,7 +3,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './styles/App.css';
 import HomeScreen from './pages/HomeScreen';
-import Header from './components/Header'; // חשוב! תוודא שהנתיב נכון
+import ReportPage from './pages/ReportPage'; // נוספה שורת ייבוא לעמוד הדיווח
+import Header from './components/Header';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <div style={{ flex: 1 }}>
           <Routes>
             <Route path="/" element={<HomeScreen />} />
+            <Route path="/report" element={<ReportPage />} /> {/* נוספה שורת הנתיב */}
           </Routes>
         </div>
       </div>

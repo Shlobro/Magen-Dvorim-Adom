@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FaBars, FaTimes, FaHome, FaBell, FaUsers, FaSignOutAlt } from 'react-icons/fa';
 import mdaLogo from '../assets/mda_logo.png';
@@ -6,7 +6,14 @@ import '../styles/Header.css';
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const isMobile = window.innerWidth < 768;
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // עדכון isMobile כאשר משנים גודל מסך
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const navItems = [
     { label: 'דף הבית', icon: <FaHome />, to: '/' },
@@ -24,10 +31,10 @@ export default function Header() {
           <span className="title">מגן דבורים אדום</span>
         </div>
 
-        {/* צד שמאל - ניווט */}
+        {/* צד שמאל - תפריט או לינקים */}
         {isMobile ? (
           <button className="menu-button" onClick={() => setMenuOpen(true)}>
-            <FaBars size={24} />
+            <FaBars size={28} />
           </button>
         ) : (
           <div className="nav-links">

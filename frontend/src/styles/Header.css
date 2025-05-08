@@ -1,111 +1,120 @@
 .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #ffffff;
-    padding: 12px 24px;
-    border-bottom: 1px solid #eee;
-    position: sticky;
-    top: 0;
-    z-index: 999;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  padding: 12px 24px;
+  border-bottom: 1px solid #eee;
+  position: sticky;
+  top: 0;
+  z-index: 999;
+}
+
+.logo-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #facc15;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #78350f;
+}
+
+/* ניווט בשולחן עבודה */
+.nav-links {
+  display: flex;
+  gap: 24px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #111;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.nav-link:hover {
+  color: #ca8a04;
+}
+
+/* כפתור תפריט מובייל */
+.menu-button {
+  background: none;
+  border: none;
+  color: #111;
+  cursor: pointer;
+}
+
+/* תפריט צד במובייל */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 998;
+}
+
+.side-menu {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 240px;
+  height: 100%;
+  background: white;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.2);
+  z-index: 999;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
   }
-  
-  .logo-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  to {
+    transform: translateX(0);
   }
-  
-  .logo {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 2px solid #facc15;
-  }
-  
-  .title {
-    font-size: 20px;
-    font-weight: bold;
-    color: #78350f;
-  }
-  
-  /* ניווט בשולחן עבודה */
-  .nav-links {
-    display: flex;
-    gap: 24px;
-  }
-  
-  .nav-link {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: #111;
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 14px;
-  }
-  
-  .nav-link:hover {
-    color: #ca8a04;
-  }
-  
-  /* כפתור תפריט מובייל */
+}
+
+.close-button {
+  align-self: flex-end;
+  background: none;
+  border: none;
+  color: #111;
+  cursor: pointer;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: #111;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.menu-item:hover {
+  color: #ca8a04;
+}
+
+/* רספונסיביות */
+@media (min-width: 768px) {
   .menu-button {
-    background: none;
-    border: none;
-    color: #111;
-    cursor: pointer;
+    display: none;
   }
-  
-  /* תפריט צד במובייל */
-  .overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 998;
-  }
-  
-  .side-menu {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 240px;
-    height: 100%;
-    background: white;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.2);
-    z-index: 999;
-  }
-  
-  .close-button {
-    align-self: flex-end;
-    background: none;
-    border: none;
-    color: #111;
-    cursor: pointer;
-  }
-  
-  .menu-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    text-decoration: none;
-    color: #111;
-    font-size: 16px;
-    font-weight: 500;
-  }
-  
-  .menu-item:hover {
-    color: #ca8a04;
-  }
-  
-  /* רספונסיביות */
-  @media (min-width: 768px) {
-    .menu-button {
-      display: none;
-    }
-  }
-  
+}
