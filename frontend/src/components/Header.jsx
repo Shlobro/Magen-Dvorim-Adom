@@ -8,7 +8,6 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  // עדכון isMobile כאשר משנים גודל מסך
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
@@ -25,13 +24,13 @@ export default function Header() {
   return (
     <>
       <div className="header">
-        {/* צד ימין - לוגו וטקסט */}
-        <div className="logo-title">
+        {/* לוגו שהוא קישור לדף הבית */}
+        <Link to="/" className="logo-title">
           <img src={mdaLogo} alt="Logo" className="logo" />
           <span className="title">מגן דבורים אדום</span>
-        </div>
+        </Link>
 
-        {/* צד שמאל - תפריט או לינקים */}
+        {/* תפריט ניווט */}
         {isMobile ? (
           <button className="menu-button" onClick={() => setMenuOpen(true)}>
             <FaBars size={28} />
