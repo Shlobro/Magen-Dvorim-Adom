@@ -1,13 +1,18 @@
 // backend/routes/inquiryRoutes.js
+
 import express from 'express';
 import upload from '../middlewares/multerUpload.js';
 import { saveInquiry } from '../services/firestoreService.js';
 import { uploadPhotoAndSave } from '../controllers/inquiryController.js';
-import db from '../services/firebaseAdmin.js'; // Import db for GET route
+import db from '../services/firebaseAdmin.js'; // Firestore admin SDK
 
 const router = express.Router();
 
-// Create or update an inquiry
+
+// ========================================
+// POST /inquiry/
+// Create or update an inquiry document
+// ========================================
 router.post('/', async (req, res) => {
   try {
     await saveInquiry(req.body);
@@ -18,7 +23,11 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Upload photo and update inquiry document
+
+// =======================================================
+// POST /inquiry/upload-photo
+// Upload a photo and update the inquiry with its URL
+// =======================================================
 router.post('/upload-photo', upload.single('photo'), async (req, res) => {
   const inquiryId = req.body.inquiryId;
   const file = req.file;
@@ -36,7 +45,11 @@ router.post('/upload-photo', upload.single('photo'), async (req, res) => {
   }
 });
 
-// Retrieve photo URL for a specific inquiry
+
+// ====================================================
+// GET /inquiry/:id/photo
+// Retrieve the photo URL of an inquiry by its ID
+// ====================================================
 router.get('/:id/photo', async (req, res) => {
   const inquiryId = req.params.id;
   try {
@@ -51,13 +64,17 @@ router.get('/:id/photo', async (req, res) => {
   }
 });
 
-// GET /inquiry with optional filters (e.g., ?status=pending)
+
+// ===========================================================
+// GET /inquiry/
+// Retrieve all inquiries with optional filter parameters
+// ===========================================================
 router.get('/', async (req, res) => {
   try {
     const filters = req.query;
     let queryRef = db.collection('inquiry');
 
-    // Apply filters (same logic used in user query)
+    // Apply Firestore filters dynamically
     Object.keys(filters).forEach(key => {
       if (filters[key] !== "") {
         queryRef = queryRef.where(key, '==', filters[key]);
@@ -72,6 +89,143 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error("Error querying inquiries:", error);
     res.status(500).send("Error retrieving inquiries");
+  }
+});
+
+
+// =======================================================
+// POST /inquiry/:id/assign-volunteer
+// Assign a volunteer to a specific inquiry
+// =======================================================
+router.post('/:id/assign-volunteer', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { volunteerId } = req.body;
+    await db.collection("inquiry").doc(id).update({ assignedVolunteer: volunteerId });
+    res.status(200).send("Volunteer assigned ✓");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Error assigning volunteer");
+  }
+});
+
+
+// ================================================================
+// POST /inquiry/:id/update-status
+// Update inquiry status, volunteer comments, feedback, or height
+// ================================================================
+router.post('/:id/update-status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, volunteerComment, feedback, height } = req.body;
+    const updates = {
+      ...(status && { status }),
+      ...(volunteerComment && { volunteerComment }),
+      ...(feedback && { feedback }),
+      ...(height && { height }),
+      lastStatusChange: new Date().toISOString()
+    };
+    await db.collection("inquiry").doc(id).update(updates);
+    res.status(200).send("Inquiry status updated ✓");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Error updating inquiry");
+  }
+});
+
+
+// ===================================================
+// POST /inquiry/:id/submit-feedback
+// Submit feedback and optional rating for an inquiry
+// ===================================================
+router.post('/:id/submit-feedback', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { feedback, rating } = req.body;
+
+    if (!feedback && rating === undefined) {
+      return res.status(400).send("Feedback or rating is required");
+    }
+
+    const updates = {
+      ...(feedback && { feedback }),
+      ...(rating !== undefined && { rating }),
+      feedbackSubmittedAt: new Date().toISOString(),
+    };
+
+    await db.collection("inquiry").doc(id).update(updates);
+    res.status(200).send("Feedback submitted ✓");
+  } catch (error) {
+    console.error("Error submitting feedback:", error);
+    res.status(500).send("Failed to submit feedback");
+  }
+});
+
+
+// ======================================================
+// POST /inquiry/:id/unassign-volunteer
+// Remove volunteer assignment from an inquiry
+// ======================================================
+router.post('/:id/unassign-volunteer', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await db.collection("inquiry").doc(id).update({
+      assignedVolunteer: null,
+      unassignedAt: new Date().toISOString()
+    });
+
+    res.status(200).send("Volunteer unassigned ✓");
+  } catch (error) {
+    console.error("Error unassigning volunteer:", error);
+    res.status(500).send("Failed to unassign volunteer");
+  }
+});
+
+
+// ===================================================
+// POST /inquiry/:id/delete
+// Soft-delete an inquiry (mark as deleted)
+// ===================================================
+router.post('/:id/delete', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await db.collection("inquiry").doc(id).update({
+      deleted: true,
+      deletedAt: new Date().toISOString()
+    });
+
+    res.status(200).send("Inquiry soft-deleted ✓");
+  } catch (error) {
+    console.error("Error deleting inquiry:", error);
+    res.status(500).send("Failed to delete inquiry");
+  }
+});
+
+
+// =======================================================
+// POST /inquiry/:id/visibility
+// Toggle or set inquiry visibility for frontend display
+// =======================================================
+router.post('/:id/visibility', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { visible } = req.body;
+
+    if (typeof visible !== "boolean") {
+      return res.status(400).send("`visible` must be true or false");
+    }
+
+    await db.collection("inquiry").doc(id).update({
+      visible,
+      visibilityChangedAt: new Date().toISOString()
+    });
+
+    res.status(200).send(`Visibility updated to ${visible} ✓`);
+  } catch (error) {
+    console.error("Error updating visibility:", error);
+    res.status(500).send("Failed to update visibility");
   }
 });
 
