@@ -19,7 +19,7 @@ export default function ReportPage() {
 
         <form className="report-form">
           <input type="text" placeholder="שם מלא *" required />
-          <input type="tel" placeholder="מספר טלפון" />
+          <input type="tel" placeholder="מספר טלפון *" required />
           <input type="text" placeholder="כתובת מדויקת *" required />
           <input type="text" placeholder="גובה/קומה" />
           <textarea placeholder="פרטים נוספים שיעזרו למתנדב למצוא את הנחיל" rows={4}></textarea>
