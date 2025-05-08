@@ -1,0 +1,162 @@
+.home-page {
+  padding: 2rem;
+  background-color: #f9fafb;
+  text-align: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* לוגו */
+.logo-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.main-logo {
+  width: 8rem;
+  height: 8rem;
+  border-radius: 50%;
+  border: 4px solid #facc15;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+/* כותרות וטקסט */
+.main-title {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #78350f;
+  margin-bottom: 1rem;
+}
+
+.main-paragraph {
+  font-size: 1.25rem;
+  color: #374151;
+  max-width: 600px;
+  margin: 0 auto 3rem auto;
+  line-height: 1.6;
+}
+
+/* כרטיסיות */
+.cards-container {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: 1fr;
+  margin-bottom: 3rem;
+}
+
+@media (min-width: 768px) {
+  .cards-container {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.card {
+  background: linear-gradient(to bottom right, #fef9c3, #fff7ed);
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.card-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.bell {
+  color: #ca8a04;
+}
+
+.users {
+  color: #ea580c;
+}
+
+.card-title {
+  font-size: 1.75rem;
+  font-weight: bold;
+  color: #78350f;
+  margin-bottom: 1rem;
+}
+
+.card-text {
+  font-size: 1rem;
+  color: #4b5563;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+/* כפתורים */
+.filled-button,
+.outlined-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 8px;
+  padding: 12px 20px;
+  cursor: pointer;
+  text-decoration: none;
+  justify-content: center;
+}
+
+.filled-button {
+  background-color: #ca8a04;
+  color: white;
+  border: none;
+}
+
+.filled-button:hover {
+  background-color: #a16207;
+}
+
+.outlined-button {
+  background-color: transparent;
+  color: #ca8a04;
+  border: 2px solid #ca8a04;
+}
+
+.outlined-button:hover {
+  background-color: #fef9c3;
+}
+
+.button-icon,
+.arrow-icon {
+  font-size: 1rem;
+}
+
+/* סטטיסטיקות */
+.stats-section {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-top: 3rem;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .stats-section {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.stat h3 {
+  font-size: 2rem;
+  color: #78350f;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.stat p {
+  font-size: 1rem;
+  color: #6b7280;
+}
+
+/* פוטר */
+.footer {
+  margin-top: 2rem;
+  font-size: 14px;
+  color: #9ca3af;
+}
+
