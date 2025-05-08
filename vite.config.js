@@ -15,6 +15,6 @@ export default defineConfig({
     },
   },
   server: {
-    host: true, // מאפשר גישה מבחוץ (למשל מהטלפון)
+    host: true,
   },
 });
