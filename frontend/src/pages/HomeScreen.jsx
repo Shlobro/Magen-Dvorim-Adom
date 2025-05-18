@@ -37,11 +37,12 @@ export default function HomeScreen() {
           <p className="card-text">
             הצטרפו לרשת המתנדבים שלנו ועזרו לנו להציל נחילי דבורים. אנחנו מספקים הדרכה וציוד.
           </p>
-          <button className="outlined-button">
-            <FaUsers className="button-icon" />
-            למידע נוסף על התנדבות
-            <FaArrowLeft className="arrow-icon" />
-          </button>
+          <Link to="/signup" className="outlined-button">
+  <FaUsers className="button-icon" />
+  למידע נוסף על התנדבות
+  <FaArrowLeft className="arrow-icon" />
+</Link>
+
         </div>
       </div>
 
