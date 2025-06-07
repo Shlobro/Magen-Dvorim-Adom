@@ -1,50 +1,81 @@
 // frontend/src/pages/Dashboard.jsx
-import React, { useState, useEffect } from "react";
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
-import { db } from "../firebaseConfig";
-import { useNavigate } from "react-router-dom"; // ייבוא useNavigate
-import "../styles/HomeScreen.css"; // נראה שזה סגנונות כלליים, אולי כדאי לשקול לשנות את שם הקובץ ל-Dashboard.css בעתיד.
+import React, { useState, useEffect } from 'react';
+import {
+  collection,
+  getDocs,
+  getDoc,
+  doc,
+  updateDoc,
+} from 'firebase/firestore';
+import { db } from '../firebaseConfig';
+import { useNavigate } from 'react-router-dom';
+import '../styles/HomeScreen.css';
 
-/**
- * דשבורד קריאות – עיצוב זהה לעמוד ניהול מתנדבים
- */
 export default function Dashboard() {
   const [calls, setCalls] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const navigate = useNavigate(); // אתחול useNavigate
+  const [error,   setError]   = useState(null);
+  const navigate  = useNavigate();
 
   const statusOptions = [
-    "נשלח קישור אך לא מולא טופס",
-    "נפתחה פנייה (טופס מולא)",
-    "לפנייה שובץ מתנדב",
-    "המתנדב בדרך",
-    "הטיפול בנחיל הסתיים",
-    "הפנייה נסגרה",
+    'נשלח קישור אך לא מולא טופס',
+    'נפתחה פנייה (טופס מולא)',
+    'לפנייה שובץ מתנדב',
+    'המתנדב בדרך',
+    'הטיפול בנחיל הסתיים',
+    'הפנייה נסגרה',
   ];
 
   const closureOptions = [
-    "נפתר עצמאית",
-    "לא ניתן לטפל",
-    "מיקום לא נגיש",
-    "מתנדב לא הגיע",
-    "אחר",
+    'נפתר עצמאית',
+    'לא ניתן לטפל',
+    'מיקום לא נגיש',
+    'מתנדב לא הגיע',
+    'אחר',
   ];
 
+  // ───────────────────────────────── fetch once
   useEffect(() => {
     const fetchCalls = async () => {
       try {
-        const inquiryCollectionRef = collection(db, "inquiry");
-        const querySnapshot = await getDocs(inquiryCollectionRef);
-        const fetchedCalls = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
+        // 1. get all inquiries
+        const inquirySnap = await getDocs(collection(db, 'inquiry'));
+        const fetched = inquirySnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        // 2. collect volunteer UIDs we need to resolve to names
+        const uids = Array.from(
+          new Set(
+            fetched
+              .map((c) => c.assignedVolunteers)
+              .filter((v) => typeof v === 'string' && v.trim() !== '')
+          )
+        );
+
+        // 3. fetch volunteers in parallel (one-by-one; good enough for small sets)
+        const uidToName = {};
+        await Promise.all(
+          uids.map(async (uid) => {
+            try {
+              const snap = await getDoc(doc(db, 'user', uid));
+              if (snap.exists()) {
+                const d = snap.data();
+                uidToName[uid] = d.name || `${d.firstName ?? ''} ${d.lastName ?? ''}`.trim();
+              }
+            } catch { /* ignore */ }
+          })
+        );
+
+        // 4. merge names into calls
+        const withNames = fetched.map((c) => ({
+          ...c,
+          assignedVolunteerName: uidToName[c.assignedVolunteers] ?? '-',
         }));
-        setCalls(fetchedCalls);
+
+        setCalls(withNames);
         setLoading(false);
       } catch (err) {
-        console.error("Error fetching calls:", err);
-        setError("Failed to fetch calls.");
+        console.error('Error fetching calls:', err);
+        setError('Failed to fetch calls.');
         setLoading(false);
       }
     };
@@ -52,219 +83,157 @@ export default function Dashboard() {
     fetchCalls();
   }, []);
 
+  // ───────────────────────────── status / closure handlers
   const handleStatusChange = async (callId, newStatus) => {
     try {
-      const callRef = doc(db, "inquiry", callId);
-      await updateDoc(callRef, { status: newStatus });
-      setCalls((prevCalls) =>
-        prevCalls.map((call) =>
-          call.id === callId ? { ...call, status: newStatus } : call
-        )
+      await updateDoc(doc(db, 'inquiry', callId), { status: newStatus });
+      setCalls((prev) =>
+        prev.map((c) => (c.id === callId ? { ...c, status: newStatus } : c))
       );
-      alert("סטטוס עודכן בהצלחה!");
+      alert('סטטוס עודכן בהצלחה!');
     } catch (err) {
-      console.error("Error updating status:", err);
-      alert("נכשל בעדכון סטטוס.");
+      console.error(err);
+      alert('נכשל בעדכון סטטוס.');
     }
   };
 
   const handleClosureChange = async (callId, newClosureReason) => {
     try {
-      const callRef = doc(db, "inquiry", callId);
-      await updateDoc(callRef, { closureReason: newClosureReason });
-      setCalls((prevCalls) =>
-        prevCalls.map((call) =>
-          call.id === callId ? { ...call, closureReason: newClosureReason } : call
-        )
+      await updateDoc(doc(db, 'inquiry', callId), { closureReason: newClosureReason });
+      setCalls((prev) =>
+        prev.map((c) => (c.id === callId ? { ...c, closureReason: newClosureReason } : c))
       );
-      alert("סיבת סגירה עודכנה בהצלחה!");
+      alert('סיבת סגירה עודכנה בהצלחה!');
     } catch (err) {
-      console.error("Error updating closure reason:", err);
-      alert("נכשל בעדכון סיבת סגירה.");
+      console.error(err);
+      alert('נכשל בעדכון סיבת סגירה.');
     }
   };
 
-  // פונקציה לטיפול בלחיצה על כפתור "שבץ מתנדב"
   const handleAssignVolunteerClick = (inquiryId) => {
-    // נווט לדף המפה והעבר את ה-inquiryId כפרמטר ב-URL
     navigate(`/volunteer-map?inquiryId=${inquiryId}`);
   };
 
-  if (loading) {
-    return <div className="loading">טוען קריאות...</div>;
-  }
-
-  if (error) {
-    return <div className="error">שגיאה: {error}</div>;
-  }
+  // ───────────────────────────── ui
+  if (loading) return <div className="loading">טוען קריאות...</div>;
+  if (error)   return <div className="error">שגיאה: {error}</div>;
 
   return (
-    <div className="dashboard-container" style={{ padding: "20px" }}>
-      <div className="dashboard-card" style={{ maxWidth: "1200px", margin: "auto" }}>
-        <h1 style={{ textAlign: "center", marginBottom: "30px", color: "#333" }}>
+    <div className="dashboard-container" style={{ padding: 20 }}>
+      <div className="dashboard-card" style={{ maxWidth: 1200, margin: 'auto' }}>
+        <h1 style={{ textAlign: 'center', marginBottom: 30, color: '#333' }}>
           ניהול קריאות נחילים
         </h1>
 
-        <div className="table-responsive" style={{ overflowX: "auto" }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              marginTop: "20px",
-            }}
-          >
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ backgroundColor: "#f2f2f2" }}>
-                <th
-                  style={{ padding: "10px 20px", textAlign: "right", borderBottom: "1px solid #ddd" }}
-                >
-                  UID
-                </th>
-                <th
-                  style={{ padding: "10px 20px", textAlign: "right", borderBottom: "1px solid #ddd" }}
-                >
-                  שם מלא
-                </th>
-                <th
-                  style={{ padding: "10px 20px", textAlign: "right", borderBottom: "1px solid #ddd" }}
-                >
-                  טלפון
-                </th>
-                <th
-                  style={{ padding: "10px 20px", textAlign: "right", borderBottom: "1px solid #ddd" }}
-                >
-                  כתובת
-                </th>
-                <th
-                  style={{ padding: "10px 20px", textAlign: "right", borderBottom: "1px solid #ddd" }}
-                >
-                  הערות
-                </th>
-                <th
-                  style={{ padding: "10px 20px", textAlign: "right", borderBottom: "1px solid #ddd" }}
-                >
-                  תאריך דיווח
-                </th>
-                <th
-                  style={{ padding: "10px 20px", textAlign: "right", borderBottom: "1px solid #ddd" }}
-                >
-                  סטטוס
-                </th>
-                <th
-                  style={{ padding: "10px 20px", textAlign: "right", borderBottom: "1px solid #ddd" }}
-                >
-                  סיבת סגירה
-                </th>
-                <th
-                  style={{ padding: "10px 20px", textAlign: "right", borderBottom: "1px solid #ddd" }}
-                >
-                  פעולות
-                </th> {/* הוספנו כותרת לטור הפעולות */}
+              <tr style={{ backgroundColor: '#f2f2f2' }}>
+                {[
+                  'UID',
+                  'שם מלא',
+                  'טלפון',
+                  'כתובת',
+                  'הערות',
+                  'תאריך דיווח',
+                  'סטטוס',
+                  'סיבת סגירה',
+                  'מתנדב משובץ',   // NEW
+                  'פעולות',
+                ].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      padding: '10px 20px',
+                      textAlign: 'right',
+                      borderBottom: '1px solid #ddd',
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
+
             <tbody>
               {calls.map((call) => (
-                <tr key={call.id} style={{ borderBottom: "1px solid #eee" }}>
-                  <td style={{ padding: "10px 20px", fontSize: "12px", color: "#666" }}>
-                    {call.id}
-                  </td>
-                  <td style={{ padding: "10px 20px", fontSize: "14px", color: "#333" }}>
-                    {call.fullName}
-                  </td>
-                  <td style={{ padding: "10px 20px", fontSize: "14px", color: "#333" }}>
-                    {call.phoneNumber}
-                  </td>
-                  <td style={{ padding: "10px 20px", fontSize: "14px", color: "#333" }}>
-                    {call.address}
-                  </td>
-                  <td style={{ padding: "10px 20px", fontSize: "14px", color: "#333" }}>
-                    {call.notes}
-                  </td>
-                  <td style={{ padding: "10px 20px", fontSize: "14px", color: "#333" }}>
+                <tr key={call.id} style={{ borderBottom: '1px solid #eee' }}>
+                  {/* basic fields */}
+                  <td style={{ padding: '10px 20px', fontSize: 12, color: '#666' }}>{call.id}</td>
+                  <td style={{ padding: '10px 20px' }}>{call.fullName}</td>
+                  <td style={{ padding: '10px 20px' }}>{call.phoneNumber}</td>
+                  <td style={{ padding: '10px 20px' }}>{call.address}</td>
+                  <td style={{ padding: '10px 20px' }}>{call.notes}</td>
+                  <td style={{ padding: '10px 20px' }}>
                     {call.timestamp?.toDate().toLocaleString()}
                   </td>
-                  <td style={{ padding: "10px 20px", fontSize: "13px", color: "#333" }}>
+
+                  {/* status select */}
+                  <td style={{ padding: '10px 20px' }}>
                     <select
-                      value={call.status || ""}
+                      value={call.status || ''}
                       onChange={(e) => handleStatusChange(call.id, e.target.value)}
-                      style={{
-                        padding: "8px",
-                        borderRadius: "5px",
-                        border: "1px solid #ccc",
-                        minWidth: "180px",
-                      }}
+                      style={{ padding: 8, borderRadius: 5, minWidth: 180 }}
                     >
-                      {statusOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
+                      {statusOptions.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
                         </option>
                       ))}
                     </select>
                   </td>
-                  <td style={{ padding: "10px 20px", fontSize: "13px", color: "#333" }}>
-                    {/* הצג תיבת בחירה לסיבת סגירה רק אם הסטטוס הוא "הפנייה נסגרה" */}
-                    {call.status === "הפנייה נסגרה" && (
+
+                  {/* closure select (only when closed) */}
+                  <td style={{ padding: '10px 20px' }}>
+                    {call.status === 'הפנייה נסגרה' && (
                       <select
-                        value={call.closureReason || ""}
-                        onChange={(e) => handleClosureChange(call.id, e.target.value)}
-                        style={{
-                          padding: "8px",
-                          borderRadius: "5px",
-                          border: "1px solid #ccc",
-                          minWidth: "180px",
-                        }}
+                        value={call.closureReason || ''}
+                        onChange={(e) =>
+                          handleClosureChange(call.id, e.target.value)
+                        }
+                        style={{ padding: 8, borderRadius: 5, minWidth: 180 }}
                       >
                         <option value="">בחר סיבה</option>
-                        {closureOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
+                        {closureOptions.map((o) => (
+                          <option key={o} value={o}>
+                            {o}
                           </option>
                         ))}
                       </select>
                     )}
                   </td>
-                  <td
-                    style={{
-                      padding: "10px 20px",
-                      fontSize: "13px",
-                      color: "#333",
-                    }}
-                  >
-                    {/* הכפתור החדש */}
-                    {call.status === "נפתחה פנייה (טופס מולא)" && ( // הצג כפתור רק לסטטוס זה
+
+                  {/* NEW — assigned volunteer name */}
+                  <td style={{ padding: '10px 20px', whiteSpace: 'nowrap' }}>
+                    {call.assignedVolunteerName}
+                  </td>
+
+                  {/* actions */}
+                  <td style={{ padding: '10px 20px' }}>
+                    {call.status === 'נפתחה פנייה (טופס מולא)' ? (
                       <button
                         onClick={() => handleAssignVolunteerClick(call.id)}
                         style={{
-                          backgroundColor: '#28a745', // ירוק
-                          color: 'white',
+                          backgroundColor: '#28a745',
+                          color: '#fff',
                           padding: '8px 12px',
                           border: 'none',
-                          borderRadius: '5px',
+                          borderRadius: 5,
                           cursor: 'pointer',
-                          fontSize: '0.9rem',
-                          whiteSpace: 'nowrap', // מונע שבירת שורה בכפתור
                         }}
                       >
                         שבץ מתנדב
                       </button>
-                    )}
-                    {call.status !== "נפתחה פנייה (טופס מולא)" && ( // הוסף טקסט חלופי אם אין כפתור
+                    ) : (
                       <span>אין פעולות זמינות</span>
                     )}
                   </td>
                 </tr>
               ))}
+
               {calls.length === 0 && (
                 <tr>
-                  <td
-                    colSpan="9" // Updated colspan to 9 (was 7 + 2 more for status/closure + actions)
-                    style={{
-                      padding: "40px 20px",
-                      textAlign: "center",
-                      color: "#999",
-                      fontStyle: "italic",
-                    }}
-                  >
+                  <td colSpan={10} style={{ padding: 40, textAlign: 'center', color: '#999' }}>
                     אין נתונים להצגה
                   </td>
                 </tr>
@@ -273,7 +242,7 @@ export default function Dashboard() {
           </table>
         </div>
 
-        <footer className="footer" style={{ marginTop: "40px" }}>
+        <footer className="footer" style={{ marginTop: 40 }}>
           © 2025 מגן דבורים אדום. כל הזכויות שמורות.
         </footer>
       </div>
