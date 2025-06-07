@@ -1,28 +1,37 @@
-import { saveUser, saveInquiry, linkUserToInquiry } from "./services/firestoreService.js";
+// backend/index.js
+import express from 'express';
+import cors from 'cors';
+import { geocodeAddress } from './services/geocodeAddress.js'; // ודא שהנתיב הזה נכון
 
+const app = express();
 
+// Middleware - חובה עבור תקשורת בין frontend ל-backend וניתוח גוף בקשות
+app.use(cors()); // מאפשר בקשות Cross-Origin (למשל מה-frontend ל-backend)
+app.use(express.json()); // מנתח גוף בקשות בפורמט JSON
 
-(async () => {
-  await saveUser({
-    id: "user123",
-    name: "Alice",
-    phone: "0501234567",
-    location: "Jerusalem",
-    userType: 2,
-  });
+// ==================================================================
+// נקודת קצה חדשה עבור Geocoding (לשימוש ישיר מה-frontend SignUp)
+// ==================================================================
+app.post('/geocode', async (req, res) => {
+  try {
+    const { address } = req.body; // הכתובת נשלחת בגוף הבקשה
+    if (!address) {
+      return res.status(400).send('כתובת נדרשת עבור Geocoding.');
+    }
+    const coords = await geocodeAddress(address); // קורא לפונקציית ה-Geocoding
+    if (coords) {
+      res.status(200).json(coords); // מחזיר את הקואורדינטות (lat, lng)
+    } else {
+      res.status(404).send('לא ניתן היה למצוא קואורדינטות לכתובת.');
+    }
+  } catch (error) {
+    console.error('שגיאת Geocoding ב-backend:', error);
+    res.status(500).send('שגיאה בביצוע Geocoding לכתובת.');
+  }
+});
 
-  await saveInquiry({
-    id: "inq456",
-    date: "2025-04-02",
-    height: 165,
-    sex: "F",
-    photo: "https://url-to-photo.jpg",
-  });
-
-  await linkUserToInquiry({
-    userID: "user123",
-    inquiryID: "inq456",
-  });
-
-  console.log("All data written successfully.");
-})();
+// הגדרת השרת להאזנה לפורט
+const PORT = process.env.PORT || 3001; // פורט 3001 הוא הנפוץ ל-backend ביישומי MERN
+app.listen(PORT, () => {
+  console.log(`השרת פועל על פורט ${PORT}`);
+});

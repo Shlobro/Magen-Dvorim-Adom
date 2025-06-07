@@ -13,4 +13,4 @@ export const uploadPhoto = (inquiryId, file) => {
   return axios.post(`${API_BASE}/inquiry/upload-photo`, formData);
 };
 export const linkUserToInquiry = (link) => axios.post(`${API_BASE}/link`, link);
-export const queryUsers = (filters) => axios.get(`${API_BASE}/users`, { params: filters });
+export const queryUsers = (filters) => axios.get(`${API_BASE}/user`, { params: filters });

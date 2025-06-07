@@ -1,28 +1,32 @@
-import fetch from 'node-fetch';
+// backend/services/geocodeAddress.js
+import axios from 'axios';
 
-/**
- * Geocode a textual address into latitude and longitude.
- * @param {string} address - The textual address to geocode.
- * @returns {Promise<{lat: number, lng: number} | null>} Coordinates or null if failed.
- */
+// חשוב: החלף במפתח ה-API שלך מ-Google Maps Geocoding API
+// מומלץ לטעון זאת ממשתני סביבה (לדוגמה, process.env.Maps_API_KEY)
+const Maps_API_KEY = 'YOUR_Maps_API_KEY'; 
+
 export async function geocodeAddress(address) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Magen-Dvorim-Adom/1.0 (admin@example.com)' // Use your project/contact info
+  try {
+    const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+      params: {
+        address: address,
+        key: Maps_API_KEY,
+        region: 'il' // אופציונלי: מכוון את התוצאות לישראל
+      }
+    });
+
+    if (response.data.status === 'OK' && response.data.results.length > 0) {
+      const location = response.data.results[0].geometry.location;
+      return { lat: location.lat, lng: location.lng }; // מחזיר אובייקט עם lat ו-lng
+    } else {
+      console.error(`Geocoding API status: ${response.data.status}, error_message: ${response.data.error_message || 'N/A'}`);
+      return null;
     }
-  });
-
-  const data = await res.json();
-
-  // ✅ Check if valid geocoding result exists
-  if (!Array.isArray(data) || data.length === 0) {
-    console.warn(`Geocoding failed for address: "${address}"`);
+  } catch (error) {
+    console.error("שגיאה בקריאה ל-Google Geocoding API:", error.message);
+    if (error.response) {
+      console.error("נתוני תגובה מ-Google Geocoding API:", error.response.data);
+    }
     return null;
   }
-
-  return {
-    lat: parseFloat(data[0].lat),
-    lng: parseFloat(data[0].lon),
-  };
 }

@@ -6,7 +6,16 @@ export async function saveUser(user) {
 }
 
 export async function saveInquiry(inquiry) {
-  await db.collection('inquiry').doc(inquiry.id).set(inquiry, { merge: true });
+  // אם אין ID לפנייה, צור ID חדש באמצעות Firestore
+  // כך Firestore ייצר ID ייחודי אוטומטית
+  const docRef = inquiry.id ? db.collection('inquiry').doc(inquiry.id) : db.collection('inquiry').doc();
+  
+  // אם נוצר ID חדש, הוסף אותו לאובייקט הפנייה
+  if (!inquiry.id) {
+    inquiry.id = docRef.id;
+  }
+
+  await docRef.set(inquiry, { merge: true });
 }
 
 export async function linkUserToInquiry(link) {
@@ -54,10 +63,9 @@ export async function getFilterOptions(collectionName, fieldName) {
   const values = new Set();
   snapshot.forEach(doc => {
     const data = doc.data();
-    if (fieldName in data && data[fieldName] !== undefined) {
+    if (data[fieldName] !== undefined && data[fieldName] !== null) {
       values.add(data[fieldName]);
     }
   });
   return Array.from(values);
 }
-

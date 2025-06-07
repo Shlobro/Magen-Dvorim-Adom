@@ -1,5 +1,19 @@
 {
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Backend for Magen Dvorim Adom application",
+  "main": "index.js",
+  "type": "module", 
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "node-fetch": "^3.3.2"
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "axios": "^1.7.2",
+    "firebase-admin": "^12.1.0"
   }
 }

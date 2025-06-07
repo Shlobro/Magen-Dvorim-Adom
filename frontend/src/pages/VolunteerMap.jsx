@@ -1,5 +1,5 @@
 // VolunteerMap.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import {
   MapContainer,
@@ -11,10 +11,12 @@ import {
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import beeIconUrl from '../assets/cuteBeeInquiry.png';
+import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
-// ==========================
+// ===========================
 // Modernized Layout Styles
-// ==========================
+// ===========================
 const containerStyle = {
   display: 'flex',
   height: '100vh',
@@ -37,341 +39,331 @@ const mapHeaderStyle = {
   backgroundColor: '#ffffff',
   color: '#1f2937',
   textAlign: 'center',
-  boxShadow: '0 1px 4px rgba(0, 0, 0, 0.03)',
-  zIndex: 1000,
+  boxShadow: '0 1px 4px rgba(0, 0, 0, 0.05)',
 };
-const mapStyle = { flex: 1 };
 const sidebarStyle = {
-  width: '340px',
-  padding: '24px',
-  backgroundColor: '#ffffff',
+  width: '350px',
+  backgroundColor: '#f9fafb',
+  padding: '20px',
+  display: 'flex',
+  flexDirection: 'column',
   boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.05)',
+  overflowY: 'auto',
 };
-const sidebarHeaderStyle = {
-  fontSize: '1.4rem',
+const sectionTitleStyle = {
+  fontSize: '1.2rem',
   fontWeight: '600',
-  marginBottom: '24px',
-  color: '#1f2937',
-};
-const cardStyle = {
-  backgroundColor: '#ffffff',
-  padding: '16px 20px',
-  border: '1px solid #e0e0e0',
-  borderRadius: '8px',
-  marginBottom: '24px',
-  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)',
   color: '#374151',
+  marginBottom: '15px',
+  borderBottom: '1px solid #e5e7eb',
+  paddingBottom: '8px',
 };
-const selectStyle = {
-  width: '100%',
-  padding: '10px 12px',
-  border: '1px solid #cbd5e1',
-  borderRadius: '6px',
-  marginBottom: '20px',
-  fontSize: '1rem',
-  color: '#1f2937',
+const inquiryDetailsStyle = {
   backgroundColor: '#ffffff',
+  padding: '15px',
+  borderRadius: '8px',
+  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+  marginBottom: '20px',
+};
+const detailItemStyle = {
+  marginBottom: '8px',
+  fontSize: '0.95rem',
+  color: '#4b5563',
+  lineHeight: '1.4',
 };
 const listStyle = {
   listStyle: 'none',
-  paddingLeft: '0',
-  maxHeight: '220px',
-  overflowY: 'auto',
-  marginBottom: '24px',
-  color: '#374151',
+  padding: '0',
+  margin: '0',
 };
 const assignButtonStyle = {
-  width: '100%',
-  padding: '12px 0',
-  background: 'linear-gradient(90deg, #4facfe 0%, #00f2fe 100%)',
-  color: '#ffffff',
+  backgroundColor: '#4c5d73',
+  color: 'white',
+  padding: '12px 20px',
   border: 'none',
-  borderRadius: '6px',
+  borderRadius: '8px',
   cursor: 'pointer',
   fontSize: '1rem',
   fontWeight: '600',
-  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+  transition: 'background-color 0.2s ease-in-out',
+  width: '100%',
+  marginTop: '20px',
+};
+const filterContainerStyle = {
+  marginBottom: '20px',
+  padding: '15px',
+  backgroundColor: '#ffffff',
+  borderRadius: '8px',
+  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+};
+const filterLabelStyle = {
+  display: 'block',
+  marginBottom: '8px',
+  fontWeight: 'bold',
+  color: '#374151',
+};
+const filterSelectStyle = {
+  width: '100%',
+  padding: '10px',
+  borderRadius: '5px',
+  border: '1px solid #d1d5db',
+  backgroundColor: '#f9fafb',
+  fontSize: '0.95rem',
 };
 
 // ==========================
-// Icons
+// Custom Bee Icon
 // ==========================
-const volunteerIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/190/190411.png',
+const beeIcon = new L.Icon({
+  iconUrl: beeIconUrl,
   iconSize: [32, 32],
   iconAnchor: [16, 32],
   popupAnchor: [0, -32],
 });
-const inquiryIcon = new L.Icon({
-  iconUrl: beeIconUrl,
-  iconSize: [64, 64],
-  iconAnchor: [32, 64],
-  popupAnchor: [0, -64],
-});
 
 // ==========================
-// Utility: Haversine distance
+// Main Component
 // ==========================
-function calculateDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-// ======================================================
-// Scoring function based on your table (weights sum=100)
-// ======================================================
-function calculateScore(vol) {
-  const {
-    distance,
-    experienceBreeding,
-    experienceEvacuation,
-    trained,
-    heightExperience,
-    previousAcceptance,
-  } = vol;
-
-  // 1) Proximity to site (weight 30)
-  //    ≤15 km →60; 16–25→30; 26–39→10; ≥40→0
-  let subDist = distance <= 15 ? 60 :
-                distance <= 25 ? 30 :
-                distance <= 39 ? 10 : 0;
-  const wDistance = 30 * (subDist / 100);
-
-  // 2) Experience (weight 25)
-  //    Evacuation→60; Breeding→40; none→0
-  let subExp = experienceEvacuation ? 60 :
-               experienceBreeding   ? 40 : 0;
-  const wExperience = 25 * (subExp / 100);
-
-  // 3) Training (weight 15): trained→100; else→0
-  const wTraining = 15 * (trained ? 1 : 0);
-
-  // 4) Height-work (weight 10): yes→100; else→0
-  const wHeight = 10 * (heightExperience ? 1 : 0);
-
-  // 5) Past assignment (weight 20): accepted→80; not→20
-  let subPrev = previousAcceptance ? 80 : 20;
-  const wPrevious = 20 * (subPrev / 100);
-
-  // Total score (max 30+25+15+10+20 =100)
-  return wDistance + wExperience + wTraining + wHeight + wPrevious;
-}
-
-// ==========================
-// MapClick handler (2 km filter)
-// ==========================
-function MapClickHandler({ volunteers, setVolunteers }) {
-  useMapEvents({
-    click(e) {
-      const { lat, lng } = e.latlng;
-      setVolunteers(volunteers.map((v) => {
-        const dist = calculateDistance(lat, lng, v.lat, v.lng);
-        return { ...v, distance: dist, isNearby: dist <= 2 };
-      }));
-    },
-  });
-  return null;
-}
-
-const VolunteerMap = () => {
-  // — Data —
-  const [volunteers, setVolunteers] = useState([]);
-  const [inquiries, setInquiries]   = useState([]);
-
-  // — UI State —
-  const [selectedInquiry, setSelectedInquiry]       = useState(null);
-  const [closestVolunteers, setClosestVolunteers]   = useState([]);
-  const [radius, setRadius]                         = useState(5);
+export default function VolunteerMap() {
+  const [inquiries, setInquiries] = useState([]);
+  const [selectedInquiry, setSelectedInquiry] = useState(null);
+  const [availableVolunteers, setAvailableVolunteers] = useState([]);
+  const [radius, setRadius] = useState(10);
   const [selectedVolunteerIds, setSelectedVolunteerIds] = useState([]);
 
-  // Load volunteers
-  useEffect(() => {
-    axios.get('http://localhost:3001/user')
-      .then((res) => setVolunteers(
-        res.data
-          .filter(u => u.lat && u.lng)
-          .map(u => ({ ...u }))
-      ))
-      .catch(err => console.error(err));
+  // פונקציית שליפת הקריאות
+  const fetchInquiries = useCallback(async () => {
+    try {
+      const q = query(collection(db, "inquiry"), where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב"]));
+      const querySnapshot = await getDocs(q);
+      const fetched = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // *** התיקון: סנן רק קריאות שיש להן lat ו-lng תקניים ***
+      const validInquiries = fetched.filter(inquiry => 
+        inquiry.lat != null && !isNaN(inquiry.lat) && 
+        inquiry.lng != null && !isNaN(inquiry.lng)
+      );
+      
+      console.log("Map fetch - קריאות שנשלפו (כולל סינון):", validInquiries); // LOG
+      setInquiries(validInquiries);
+    } catch (error) {
+      console.error("Error fetching inquiries:", error);
+    }
   }, []);
 
-  // Load inquiries
   useEffect(() => {
-    axios.get('http://localhost:3001/inquiry')
-      .then((res) => setInquiries(
-        res.data.filter(i => i.lat && i.lng && i.status !== 'finished')
-      ))
-      .catch(err => console.error(err));
-  }, []);
+    fetchInquiries();
+  }, [fetchInquiries]);
 
-  // When user clicks a bee marker:
-  function handleInquiryClick(inq) {
-    setSelectedInquiry(inq);
+  // פונקציה לשליפת מתנדבים בקרבת מקום
+  useEffect(() => {
+    const fetchVolunteers = async () => {
+      if (!selectedInquiry) {
+        setAvailableVolunteers([]);
+        return;
+      }
 
-    // Compute distance & score for each volunteer
-    const scored = volunteers
-      .map((v) => {
-        const dist = calculateDistance(inq.lat, inq.lng, v.lat, v.lng);
-        const withDist = { ...v, distance: dist };
-        return { ...withDist, score: calculateScore(withDist) };
-      })
-      .sort((a, b) => b.score - a.score)  // highest score first
-      .slice(0, 5);                       // top 5
+      // *** הוסף בדיקה ל-lat ו-lng גם כאן לפני קריאת ה-API ***
+      if (selectedInquiry.lat == null || isNaN(selectedInquiry.lat) || 
+          selectedInquiry.lng == null || isNaN(selectedInquiry.lng)) {
+        console.warn("Selected inquiry is missing valid lat/lng coordinates:", selectedInquiry);
+        setAvailableVolunteers([]);
+        return;
+      }
 
-    setClosestVolunteers(scored);
-    setSelectedVolunteerIds([]);
-  }
+      try {
+        const response = await axios.post('/api/users/queryNear', {
+          lat: selectedInquiry.lat,
+          lng: selectedInquiry.lng,
+          radius: radius,
+        });
+        setAvailableVolunteers(response.data);
+      } catch (error) {
+        console.error("Error fetching available volunteers:", error);
+        setAvailableVolunteers([]);
+      }
+    };
 
-  // Filter top-5 by radius for highlighting & list
-  const availableVolunteers = closestVolunteers.filter(v => v.distance <= radius);
+    fetchVolunteers();
+  }, [selectedInquiry, radius]);
 
-  // Assign the one radio-selected volunteer
-  function assignToInquiry() {
+  // פונקציה לשיבוץ מתנדב
+  const assignToInquiry = async () => {
     if (!selectedInquiry || selectedVolunteerIds.length === 0) {
-      alert('Please select a volunteer first.');
+      alert("אנא בחר פנייה ומתנדב לשיבוץ.");
       return;
     }
-    axios.post(
-      `http://localhost:3001/inquiry/${selectedInquiry.id}/assign-volunteer`,
-      { volunteerId: selectedVolunteerIds[0] }
-    )
-    .then(() => {
-      alert('Volunteer assigned ✓');
+
+    // בדיקה: האם הקריאה כבר שובצה?
+    if (selectedInquiry.assignedVolunteers && 
+        (Array.isArray(selectedInquiry.assignedVolunteers) && selectedInquiry.assignedVolunteers.length > 0 || 
+         typeof selectedInquiry.assignedVolunteers === 'string' && selectedInquiry.assignedVolunteers !== '')) {
+      alert("קריאה זו כבר שובצה למתנדב.");
+      return;
+    }
+
+    const inquiryId = selectedInquiry.id;
+    const volunteerToAssignId = selectedVolunteerIds[0]; 
+
+    try {
+      const inquiryRef = doc(db, "inquiry", inquiryId);
+      await updateDoc(inquiryRef, {
+        assignedVolunteers: volunteerToAssignId, 
+        status: "לפנייה שובץ מתנדב",
+      });
+      alert(`פנייה ${inquiryId} שובצה בהצלחה למתנדב ${volunteerToAssignId}.`);
+      console.log(`פנייה ${inquiryId} שובצה למתנדב ${volunteerToAssignId}`);
+      
+      fetchInquiries(); 
+
       setSelectedInquiry(null);
-      setClosestVolunteers([]);
-    })
-    .catch(err => console.error(err));
+      setAvailableVolunteers([]);
+      setSelectedVolunteerIds([]);
+    } catch (error) {
+      console.error("שגיאה בשיבוץ מתנדב:", error);
+      alert("נכשל בשיבוץ מתנדב. אנא נסה שוב.");
+    }
+  };
+
+  // מרקר ל-useMapEvents
+  function MapEvents() {
+    useMapEvents({
+      click: () => {
+        setSelectedInquiry(null);
+        setSelectedVolunteerIds([]);
+        setAvailableVolunteers([]);
+      },
+    });
+    return null;
   }
+
+  // בדיקה אם הקריאה שנבחרה כבר שובצה
+  const isSelectedInquiryAssigned = selectedInquiry && 
+    (selectedInquiry.assignedVolunteers && 
+     (Array.isArray(selectedInquiry.assignedVolunteers) && selectedInquiry.assignedVolunteers.length > 0 || 
+      typeof selectedInquiry.assignedVolunteers === 'string' && selectedInquiry.assignedVolunteers !== ''));
 
   return (
     <div style={containerStyle}>
-      {/* — Left Pane: Map — */}
       <div style={mapWrapperStyle}>
-        <div style={mapHeaderStyle}>Reports Map</div>
-        <MapContainer style={mapStyle} center={[32.0853, 34.7818]} zoom={13}>
+        <h1 style={mapHeaderStyle}>מפת נחילי דבורים לשיבוץ מתנדבים</h1>
+        <MapContainer
+          center={[31.0461, 34.8516]}
+          zoom={8}
+          style={{ flex: 1, height: '100%', width: '100%' }}
+        >
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution="&copy; OpenStreetMap contributors"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
-          <MapClickHandler volunteers={volunteers} setVolunteers={setVolunteers} />
+          <MapEvents />
 
-          {volunteers.map((v) => {
-            const highlight = selectedInquiry && availableVolunteers.some(av => av.id === v.id);
-            return (
-              <Marker
-                key={v.id}
-                position={[v.lat, v.lng]}
-                icon={volunteerIcon}
-                opacity={highlight ? 1 : 0.4}
-              >
-                <Popup>
-                  <strong>{v.name}</strong><br />
-                  {v.distance?.toFixed(2)} km<br />
-                  Score: {v.score?.toFixed(1)}
-                </Popup>
-              </Marker>
-            );
-          })}
-
-          {inquiries.map((i) => (
+          {inquiries.map((inquiry) => (
             <Marker
-              key={i.id}
-              position={[i.lat, i.lng]}
-              icon={inquiryIcon}
-              eventHandlers={{ click: () => handleInquiryClick(i) }}
-            />
+              key={inquiry.id}
+              position={[inquiry.lat, inquiry.lng]}
+              icon={beeIcon}
+              eventHandlers={{
+                click: () => {
+                  setSelectedInquiry(inquiry);
+                  setSelectedVolunteerIds([]);
+                  setAvailableVolunteers([]);
+                },
+              }}
+            >
+              <Popup>
+                <strong>{inquiry.address}, {inquiry.city}</strong><br />
+                סטטוס: {inquiry.status}<br />
+                {inquiry.notes && `הערות: ${inquiry.notes}`}<br />
+                {inquiry.assignedVolunteers ? `שובץ: ${inquiry.assignedVolunteers}` : 'טרם שובץ'}
+              </Popup>
+            </Marker>
           ))}
         </MapContainer>
       </div>
 
-      {/* — Right Pane: Assignment Panel — */}
       <div style={sidebarStyle}>
-        <div style={sidebarHeaderStyle}>Assignment Panel</div>
-
-        {/* Selected Report */}
+        <h2 style={sectionTitleStyle}>פרטי פנייה ושיבוץ מתנדב</h2>
         {selectedInquiry ? (
-          <div style={cardStyle}>
-            <strong>Selected Report</strong>
-            <div style={{ marginTop: '8px', color: '#4b5563' }}>
-              {selectedInquiry.location}
+          <>
+            <div style={inquiryDetailsStyle}>
+              <div style={detailItemStyle}><strong>מס' פנייה:</strong> {selectedInquiry.id}</div>
+              <div style={detailItemStyle}><strong>כתובת:</strong> {selectedInquiry.address}, {selectedInquiry.city}</div>
+              <div style={detailItemStyle}><strong>טלפון:</strong> {selectedInquiry.phoneNumber}</div>
+              <div style={detailItemStyle}><strong>תאריך פתיחה:</strong> {selectedInquiry.createdAt ? new Date(selectedInquiry.createdAt).toLocaleString('he-IL') : 'אין מידע'}</div>
+              <div style={detailItemStyle}><strong>סטטוס:</strong> {selectedInquiry.status}</div>
+              <div style={detailItemStyle}><strong>הערות:</strong> {selectedInquiry.notes || 'אין'}</div>
+              <div style={detailItemStyle}>
+                <strong>מתנדב משובץ:</strong>{' '}
+                {isSelectedInquiryAssigned ? selectedInquiry.assignedVolunteers : 'טרם שובץ'}
+              </div>
             </div>
-          </div>
+
+            <div style={filterContainerStyle}>
+              <label htmlFor="radius-select" style={filterLabelStyle}>
+                טווח חיפוש מתנדבים:
+              </label>
+              <select
+                id="radius-select"
+                style={filterSelectStyle}
+                value={radius}
+                onChange={(e) => setRadius(Number(e.target.value))}
+                disabled={isSelectedInquiryAssigned}
+              >
+                {[1, 2, 5, 10, 20].map((r) => (
+                  <option key={r} value={r}>{r} ק"מ</option>
+                ))}
+              </select>
+            </div>
+
+            {availableVolunteers.length > 0 ? (
+              <ul style={listStyle}>
+                {availableVolunteers.map((v) => (
+                  <li key={v.id} style={{ marginBottom: '12px' }}>
+                    <label style={{ cursor: isSelectedInquiryAssigned ? 'not-allowed' : 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="volSelect"
+                        checked={selectedVolunteerIds[0] === v.id}
+                        onChange={() => setSelectedVolunteerIds([v.id])}
+                        style={{ marginRight: '8px' }}
+                        disabled={isSelectedInquiryAssigned}
+                      />
+                      {v.name} — {v.distance?.toFixed(1)} ק"מ — ציון {v.score?.toFixed(1)}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div style={{ color: '#6b7280' }}>
+                אין מתנדבים ברדיוס של {radius} ק"מ.
+              </div>
+            )}
+
+            <button
+              style={assignButtonStyle}
+              disabled={!selectedInquiry || selectedVolunteerIds.length === 0 || isSelectedInquiryAssigned} 
+              onClick={assignToInquiry}
+            >
+              {isSelectedInquiryAssigned ? 'כבר שובץ מתנדב' : 'שבץ מתנדב לקריאה'}
+            </button>
+            <button
+              onClick={() => setSelectedInquiry(null)}
+              style={{
+                ...assignButtonStyle,
+                backgroundColor: '#6c757d',
+                marginTop: '10px',
+              }}
+            >
+              בטל בחירה
+            </button>
+          </>
         ) : (
-          <div style={cardStyle}>
-            <em>Click a bee icon on the map to select a report.</em>
-          </div>
+          <p style={{ color: '#6b7280', textAlign: 'center', marginTop: '20px' }}>
+            לחץ על מרקר של נחיל במפה כדי לראות פרטים ולשבץ מתנדב.
+          </p>
         )}
-
-        {/* Recommended Volunteer */}
-        {selectedInquiry && closestVolunteers.length > 0 && (
-          <div style={cardStyle}>
-            <strong>Recommended:</strong>{' '}
-            {closestVolunteers[0].name}{' '}
-            <span style={{ color: '#10b981' }}>
-              ({closestVolunteers[0].score.toFixed(1)}/100)
-            </span>
-          </div>
-        )}
-
-        {/* Radius Selector */}
-        <label style={{ marginBottom: '6px', color: '#4b5563' }}>
-          <strong>Search Radius</strong>
-        </label>
-        <select
-          style={selectStyle}
-          value={radius}
-          onChange={(e) => setRadius(Number(e.target.value))}
-        >
-          {[1, 2, 5, 10, 20].map((r) => (
-            <option key={r} value={r}>{r} km</option>
-          ))}
-        </select>
-
-        {/* Volunteer List */}
-        {selectedInquiry && (
-          availableVolunteers.length > 0 ? (
-            <ul style={listStyle}>
-              {availableVolunteers.map((v) => (
-                <li key={v.id} style={{ marginBottom: '12px' }}>
-                  <label style={{ cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="volSelect"
-                      checked={selectedVolunteerIds[0] === v.id}
-                      onChange={() => setSelectedVolunteerIds([v.id])}
-                      style={{ marginRight: '8px' }}
-                    />
-                    {v.name} — {v.distance.toFixed(1)} km — score {v.score.toFixed(1)}
-                  </label>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div style={{ color: '#6b7280' }}>
-              No volunteers within {radius} km.
-            </div>
-          )
-        )}
-
-        {/* Assign Button */}
-        <button
-          style={assignButtonStyle}
-          disabled={!selectedInquiry || selectedVolunteerIds.length === 0}
-          onClick={assignToInquiry}
-        >
-          Assign Selected
-        </button>
       </div>
     </div>
   );
-};
-
-export default VolunteerMap;
+}

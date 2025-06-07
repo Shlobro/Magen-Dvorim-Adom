@@ -5,7 +5,8 @@ import upload from '../middlewares/multerUpload.js';
 import { saveInquiry } from '../services/firestoreService.js';
 import { uploadPhotoAndSave } from '../controllers/inquiryController.js';
 import db from '../services/firebaseAdmin.js'; // Firestore admin SDK
-import { geocodeAddress } from '../services/geocodeAddress.js'; // ✅ Correct backend path
+import { FieldValue } from 'firebase-admin/firestore'; // Import FieldValue
+import { geocodeAddress } from '../services/geocodeAddress.js';
 
 const router = express.Router();
 
@@ -16,18 +17,35 @@ const router = express.Router();
 // ========================================
 router.post('/', async (req, res) => {
   try {
-    const query = req.body;
-    if (query.location) {
-      const coords = await geocodeAddress(query.location);
+    const inquiry = req.body;
+    console.log("Inquiry received in inquiryRoutes:", inquiry); // LOG: הצג את גוף הבקשה
+    
+    // בנה כתובת מלאה
+    const fullAddress = `${inquiry.address}, ${inquiry.city}, ישראל`;
+    console.log("Full address for geocoding:", fullAddress); // LOG: הצג את הכתובת שנבנתה
+
+    if (inquiry.city && inquiry.address) { // ודא שקיימים נתוני עיר וכתובת
+      const coords = await geocodeAddress(fullAddress);
+      console.log("Geocoding coordinates received:", coords); // LOG: הצג את התוצאה מהגיאו-קידוד
       if (coords) {
-        query.lat = coords.lat;
-        query.lng = coords.lng;
+        inquiry.lat = coords.lat;
+        inquiry.lng = coords.lng;
+      } else {
+        console.warn(`Could not geocode address: ${fullAddress}. Lat/Lng will be null.`);
+        inquiry.lat = null;
+        inquiry.lng = null;
       }
+    } else {
+        console.warn("Missing city or address in inquiry. Skipping geocoding.");
+        inquiry.lat = null;
+        inquiry.lng = null;
     }
-    await saveInquiry(req.body);
+
+    console.log("Inquiry object before saving to Firestore:", inquiry); // LOG: הצג את האובייקט לפני השמירה
+    await saveInquiry(inquiry);
     res.status(200).send("Inquiry saved ✓");
   } catch (error) {
-    console.error(error);
+    console.error("Error saving inquiry:", error); // LOG: הוספת הודעה מפורטת יותר
     res.status(500).send("Error saving inquiry");
   }
 });
@@ -38,156 +56,101 @@ router.post('/', async (req, res) => {
 // Upload a photo and update the inquiry with its URL
 // =======================================================
 router.post('/upload-photo', upload.single('photo'), async (req, res) => {
-  const inquiryId = req.body.inquiryId;
-  const file = req.file;
-
-  if (!inquiryId || !file) {
-    return res.status(400).send("Missing inquiryId or photo");
-  }
-
   try {
-    const photoUrl = await uploadPhotoAndSave(inquiryId, file.buffer);
+    const { inquiryId } = req.body;
+    const fileBuffer = req.file.buffer;
+    const photoUrl = await uploadPhotoAndSave(inquiryId, fileBuffer);
     res.status(200).json({ photoUrl });
-  } catch (err) {
-    console.error("Upload or Firestore error:", err);
-    res.status(500).send("Internal server error");
-  }
-});
-
-
-// ====================================================
-// GET /inquiry/:id/photo
-// Retrieve the photo URL of an inquiry by its ID
-// ====================================================
-router.get('/:id/photo', async (req, res) => {
-  const inquiryId = req.params.id;
-  try {
-    const doc = await db.collection("inquiry").doc(inquiryId).get();
-    if (!doc.exists || !doc.data().photo) {
-      return res.status(404).send("Photo not found");
-    }
-    res.status(200).json({ photoUrl: doc.data().photo });
   } catch (error) {
-    console.error("Error retrieving photo:", error);
-    res.status(500).send("Failed to retrieve photo");
-  }
-});
-
-
-// ===========================================================
-// GET /inquiry/
-// Retrieve all inquiries with optional filter parameters
-// ===========================================================
-router.get('/', async (req, res) => {
-  try {
-    const filters = req.query;
-    let queryRef = db.collection('inquiry');
-
-    // Apply Firestore filters dynamically
-    Object.keys(filters).forEach(key => {
-      if (filters[key] !== "") {
-        queryRef = queryRef.where(key, '==', filters[key]);
-      }
-    });
-
-    const snapshot = await queryRef.get();
-    const results = [];
-    snapshot.forEach(doc => results.push(doc.data()));
-
-    res.status(200).json(results);
-  } catch (error) {
-    console.error("Error querying inquiries:", error);
-    res.status(500).send("Error retrieving inquiries");
+    console.error('Error uploading photo:', error);
+    res.status(500).send('Failed to upload photo');
   }
 });
 
 
 // =======================================================
-// POST /inquiry/:id/assign-volunteer
-// Assign a volunteer to a specific inquiry
+// POST /inquiry/:id/assign
+// Assign one or more volunteers to an inquiry
 // =======================================================
-router.post('/:id/assign-volunteer', async (req, res) => {
+router.post('/:id/assign', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { volunteerId } = req.body;
-    await db.collection("inquiry").doc(id).update({ assignedVolunteer: volunteerId });
-    res.status(200).send("Volunteer assigned ✓");
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Error assigning volunteer");
-  }
-});
+    const { id } = req.params; // ID של הפנייה
+    const { volunteerIds } = req.body; // מערך של ID מתנדבים
 
+    console.log("Attempting to assign volunteer(s) to inquiry:", id); // LOG
+    console.log("Received volunteerIds:", volunteerIds); // LOG
 
-// ================================================================
-// POST /inquiry/:id/update-status
-// Update inquiry status, volunteer comments, feedback, or height
-// ================================================================
-router.post('/:id/update-status', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, volunteerComment, feedback, height } = req.body;
-    const updates = {
-      ...(status && { status }),
-      ...(volunteerComment && { volunteerComment }),
-      ...(feedback && { feedback }),
-      ...(height && { height }),
-      lastStatusChange: new Date().toISOString()
-    };
-    await db.collection("inquiry").doc(id).update(updates);
-    res.status(200).send("Inquiry status updated ✓");
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Error updating inquiry");
-  }
-});
-
-
-// ===================================================
-// POST /inquiry/:id/submit-feedback
-// Submit feedback and optional rating for an inquiry
-// ===================================================
-router.post('/:id/submit-feedback', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { feedback, rating } = req.body;
-
-    if (!feedback && rating === undefined) {
-      return res.status(400).send("Feedback or rating is required");
+    if (!Array.isArray(volunteerIds) || volunteerIds.length === 0) {
+      console.warn("Validation failed: volunteerIds is not an array or is empty."); // LOG
+      return res.status(400).send("Volunteer IDs array is required");
     }
-
-    const updates = {
-      ...(feedback && { feedback }),
-      ...(rating !== undefined && { rating }),
-      feedbackSubmittedAt: new Date().toISOString(),
-    };
-
-    await db.collection("inquiry").doc(id).update(updates);
-    res.status(200).send("Feedback submitted ✓");
-  } catch (error) {
-    console.error("Error submitting feedback:", error);
-    res.status(500).send("Failed to submit feedback");
-  }
-});
-
-
-// ======================================================
-// POST /inquiry/:id/unassign-volunteer
-// Remove volunteer assignment from an inquiry
-// ======================================================
-router.post('/:id/unassign-volunteer', async (req, res) => {
-  try {
-    const { id } = req.params;
 
     await db.collection("inquiry").doc(id).update({
-      assignedVolunteer: null,
+      assignedVolunteers: FieldValue.arrayUnion(...volunteerIds), // Changed from db.FieldValue
+      status: "לפנייה שובץ מתנדב",
+      assignedAt: new Date().toISOString()
+    });
+
+    console.log(`Volunteer(s) ${volunteerIds} assigned to inquiry ${id} successfully.`); // LOG
+    res.status(200).send("Volunteers assigned ✓");
+  } catch (error) {
+    console.error("Error assigning volunteer:", error); // LOG
+    res.status(500).send("Failed to assign volunteer");
+  }
+});
+
+
+// ===================================================
+// POST /inquiry/:id/unassign
+// Unassign one or more volunteers from an inquiry
+// ===================================================
+router.post('/:id/unassign', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { volunteerIds } = req.body;
+
+    if (!Array.isArray(volunteerIds) || volunteerIds.length === 0) {
+      return res.status(400).send("Volunteer IDs array is required");
+    }
+
+    await db.collection("inquiry").doc(id).update({
+      assignedVolunteers: FieldValue.arrayRemove(...volunteerIds), // Changed from db.FieldValue
       unassignedAt: new Date().toISOString()
     });
 
-    res.status(200).send("Volunteer unassigned ✓");
+    res.status(200).send("Volunteers unassigned ✓");
   } catch (error) {
     console.error("Error unassigning volunteer:", error);
     res.status(500).send("Failed to unassign volunteer");
+  }
+});
+
+
+// ===================================================
+// POST /inquiry/:id/status
+// Update status field on inquiry document
+// ===================================================
+router.post('/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, closureReason } = req.body;
+
+    if (!status) {
+      return res.status(400).send("Status is required");
+    }
+
+    const updateData = { status };
+    if (status === "הפנייה נסגרה" && closureReason) {
+      updateData.closureReason = closureReason;
+    } else if (status !== "הפנייה נסגרה") {
+      updateData.closureReason = null; // Clear closure reason if status is not 'closed'
+    }
+
+    await db.collection("inquiry").doc(id).update(updateData);
+    res.status(200).send("Status updated");
+  } catch (error) {
+    console.error("Error updating status:", error);
+    res.status(500).send("Error updating status");
   }
 });
 
@@ -230,8 +193,7 @@ router.post('/:id/visibility', async (req, res) => {
       visible,
       visibilityChangedAt: new Date().toISOString()
     });
-
-    res.status(200).send(`Visibility updated to ${visible} ✓`);
+    res.status(200).send("Inquiry visibility updated ✓");
   } catch (error) {
     console.error("Error updating visibility:", error);
     res.status(500).send("Failed to update visibility");
