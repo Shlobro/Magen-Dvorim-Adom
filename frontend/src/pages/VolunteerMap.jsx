@@ -225,10 +225,10 @@ export default function VolunteerMap() {
 
       try {
         const response = await axios.post('/api/users/queryNear', {
-          lat: selectedInquiry.lat,
-          lng: selectedInquiry.lng,
-          radius: radius,
-        });
+           lat: selectedInquiry.lat,
+           lng: selectedInquiry.lng,
+           radius,
+         });
         setAvailableVolunteers(response.data);
       } catch (error) {
         console.error("Error fetching available volunteers:", error);

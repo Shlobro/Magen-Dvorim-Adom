@@ -6,8 +6,10 @@ const router = express.Router();
 
 /**
  * POST /api/geocode
- * Body: { "address": "...",  "city": "..." (optional) }
- * Returns: { lat, lng } or 400 / 404
+ * Body: { "address": "...", "city": "..." }
+ * Success: 200 { lat, lng }
+ * Not found: 200 { found:false }
+ * Bad request: 400 { error:"Address required" }
  */
 router.post('/', async (req, res) => {
   const { address = '', city = '' } = req.body;
@@ -19,7 +21,8 @@ router.post('/', async (req, res) => {
   const loc = await geocodeAddress(query);
   if (loc) return res.json(loc);
 
-  return res.status(404).json({ error: 'Could not geocode address' });
+  // not found → let frontend decide
+  return res.json({ found: false });
 });
 
 export default router;

@@ -7,9 +7,8 @@ import userRoutes    from './routes/userRoutes.js';
 import inquiryRoutes from './routes/inquiryRoutes.js';
 import linkRoutes    from './routes/linkRoutes.js';
 import filterRoutes  from './routes/filterRoutes.js';
-import geocodeRoutes from './routes/geocode.js';   // NEW
+import geocodeRoutes from './routes/geocode.js';
 
-// Load .env (optional, but handy for PORT or other future vars)
 dotenv.config();
 
 const app = express();
@@ -19,18 +18,17 @@ app.use(express.json());
 // ─────────────────────────────
 // Health check
 // ─────────────────────────────
-app.get('/ping', (_req, res) => {
-  res.send('Server is running ✓');
-});
+app.get('/ping', (_req, res) => res.send('Server is running ✓'));
 
 // ─────────────────────────────
 // Mount feature routes
 // ─────────────────────────────
-app.use('/user',         userRoutes);
-app.use('/inquiry',      inquiryRoutes);
-app.use('/link',         linkRoutes);
-app.use('/api/filters',  filterRoutes);
-app.use('/api/geocode',  geocodeRoutes);  // NEW – free Nominatim geocoder
+app.use('/user',        userRoutes);      // legacy
+app.use('/api/users',   userRoutes);      // NEW alias → /api/users/queryNear
+app.use('/inquiry',     inquiryRoutes);
+app.use('/link',        linkRoutes);
+app.use('/api/filters', filterRoutes);
+app.use('/api/geocode', geocodeRoutes);
 
 // ─────────────────────────────
 const PORT = process.env.PORT || 3001;
