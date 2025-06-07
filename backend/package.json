@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Backend for Magen Dvorim Adom application",
   "main": "index.js",
-  "type": "module", 
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
@@ -11,9 +11,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.19.2",
-    "cors": "^2.8.5",
     "axios": "^1.7.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.19.2",
     "firebase-admin": "^12.1.0"
   }
 }
