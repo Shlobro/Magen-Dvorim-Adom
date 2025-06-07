@@ -1,21 +1,25 @@
 // backend/services/firestoreService.js
 import db from './firebaseAdmin.js';
+// ודא שאתה מייבא FieldValue מ-firebase-admin/firestore
+import { FieldValue } from 'firebase-admin/firestore'; 
 
 export async function saveUser(user) {
   await db.collection('user').doc(user.id).set(user, { merge: true });
 }
 
 export async function saveInquiry(inquiry) {
-  // אם אין ID לפנייה, צור ID חדש באמצעות Firestore
-  // כך Firestore ייצר ID ייחודי אוטומטית
   const docRef = inquiry.id ? db.collection('inquiry').doc(inquiry.id) : db.collection('inquiry').doc();
   
   // אם נוצר ID חדש, הוסף אותו לאובייקט הפנייה
   if (!inquiry.id) {
-    inquiry.id = docRef.id;
+    inquiry.id = docRef.id; // שמור את ה-ID שנוצר
   }
 
+  // הוסף חותמת זמן של השרת
+  inquiry.timestamp = FieldValue.serverTimestamp(); // שדה זה נקרא על ידי VolunteerMap.jsx
+
   await docRef.set(inquiry, { merge: true });
+  return { id: docRef.id }; // חשוב: החזר את ה-ID של הפנייה שנשמרה
 }
 
 export async function linkUserToInquiry(link) {

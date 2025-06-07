@@ -1,5 +1,3 @@
-// backend/routes/inquiryRoutes.js
-
 import express from 'express';
 import upload from '../middlewares/multerUpload.js';
 import { saveInquiry } from '../services/firestoreService.js';
@@ -10,7 +8,6 @@ import { geocodeAddress } from '../services/geocodeAddress.js';
 
 const router = express.Router();
 
-
 // ========================================
 // POST /inquiry/
 // Create or update an inquiry document
@@ -18,38 +15,52 @@ const router = express.Router();
 router.post('/', async (req, res) => {
   try {
     const inquiry = req.body;
-    console.log("Inquiry received in inquiryRoutes:", inquiry); // LOG: הצג את גוף הבקשה
+    console.log("Inquiry received in inquiryRoutes:", inquiry);
     
-    // בנה כתובת מלאה
+    // בנה כתובת מלאה עבור הגיאו-קידוד
     const fullAddress = `${inquiry.address}, ${inquiry.city}, ישראל`;
-    console.log("Full address for geocoding:", fullAddress); // LOG: הצג את הכתובת שנבנתה
+    console.log("Full address for geocoding:", fullAddress);
 
-    if (inquiry.city && inquiry.address) { // ודא שקיימים נתוני עיר וכתובת
+    let locationData = null; // אתחל את אובייקט המיקום
+
+    // בצע גיאו-קידוד רק אם קיימים נתוני עיר וכתובת
+    if (inquiry.city && inquiry.address) {
       const coords = await geocodeAddress(fullAddress);
-      console.log("Geocoding coordinates received:", coords); // LOG: הצג את התוצאה מהגיאו-קידוד
+      console.log("Geocoding coordinates received:", coords);
       if (coords) {
-        inquiry.lat = coords.lat;
-        inquiry.lng = coords.lng;
+        // שמור את הקואורדינטות כאובייקט location עם latitude ו-longitude
+        locationData = {
+          latitude: coords.lat,
+          longitude: coords.lng
+        };
       } else {
-        console.warn(`Could not geocode address: ${fullAddress}. Lat/Lng will be null.`);
-        inquiry.lat = null;
-        inquiry.lng = null;
+        console.warn(`Could not geocode address: ${fullAddress}. Location will be null.`);
+        // locationData כבר null, אין צורך להגדיר מחדש
       }
     } else {
-        console.warn("Missing city or address in inquiry. Skipping geocoding.");
-        inquiry.lat = null;
-        inquiry.lng = null;
+      console.warn("Missing city or address in inquiry. Skipping geocoding.");
+      // locationData כבר null, אין צורך להגדיר מחדש
     }
 
-    console.log("Inquiry object before saving to Firestore:", inquiry); // LOG: הצג את האובייקט לפני השמירה
-    await saveInquiry(inquiry);
-    res.status(200).send("Inquiry saved ✓");
+    // הוסף את אובייקט ה-location לאובייקט הפנייה לפני השמירה
+    inquiry.location = locationData; 
+    
+    // ודא שאין שדות lat ו-lng ישירים על אובייקט הפנייה כדי למנוע כפילויות
+    delete inquiry.lat;
+    delete inquiry.lng;
+
+    console.log("Inquiry object before saving to Firestore:", inquiry);
+    
+    // קרא לפונקציה saveInquiry וקבל בחזרה את ה-ID של הפנייה שנשמרה/נוצרה
+    const { id: newInquiryId } = await saveInquiry(inquiry); 
+    
+    // שלח תגובה עם ה-ID של הפנייה החדשה/מעודכנת
+    res.status(200).send({ message: "Inquiry saved ✓", inquiryId: newInquiryId }); 
   } catch (error) {
-    console.error("Error saving inquiry:", error); // LOG: הוספת הודעה מפורטת יותר
+    console.error("Error saving inquiry:", error);
     res.status(500).send("Error saving inquiry");
   }
 });
-
 
 // =======================================================
 // POST /inquiry/upload-photo
@@ -86,7 +97,7 @@ router.post('/:id/assign', async (req, res) => {
     }
 
     await db.collection("inquiry").doc(id).update({
-      assignedVolunteers: FieldValue.arrayUnion(...volunteerIds), // Changed from db.FieldValue
+      assignedVolunteers: FieldValue.arrayUnion(...volunteerIds), 
       status: "לפנייה שובץ מתנדב",
       assignedAt: new Date().toISOString()
     });
@@ -114,7 +125,7 @@ router.post('/:id/unassign', async (req, res) => {
     }
 
     await db.collection("inquiry").doc(id).update({
-      assignedVolunteers: FieldValue.arrayRemove(...volunteerIds), // Changed from db.FieldValue
+      assignedVolunteers: FieldValue.arrayRemove(...volunteerIds),
       unassignedAt: new Date().toISOString()
     });
 

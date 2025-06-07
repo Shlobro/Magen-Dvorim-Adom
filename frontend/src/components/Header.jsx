@@ -1,12 +1,20 @@
+// frontend/src/components/Header.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaBars, FaTimes, FaHome, FaBell, FaUsers, FaSignOutAlt } from 'react-icons/fa';
+import { FaBars, FaTimes, FaHome, FaBell, FaUsers, FaSignInAlt, FaSignOutAlt, FaMapMarkedAlt } from 'react-icons/fa'; // הוסף FaMapMarkedAlt
 import mdaLogo from '../assets/mda_logo.png';
 import '../styles/Header.css';
+
+// ייבוא AuthContext ו-Firebase Auth
+import { useAuth } from '../contexts/AuthContext.jsx'; 
+import { auth } from '../firebaseConfig'; 
+import { signOut } from 'firebase/auth';
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  const { currentUser, loading, userRole } = useAuth(); // הוסף userRole כדי לבדוק תפקיד
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -14,40 +22,71 @@ export default function Header() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const navItems = [
-    { label: 'דף הבית', icon: <FaHome />, to: '/' },
-    { label: 'דיווח על נחיל', icon: <FaBell />, to: '/report' },
-    { label: 'מתנדבים', icon: <FaUsers />, to: '/volunteers' },
-    { label: 'התנתק', icon: <FaSignOutAlt />, to: '/logout' },
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      alert("התנתקת בהצלחה!");
+      setMenuOpen(false); 
+    } catch (error) {
+      console.error("שגיאה בהתנתקות:", error);
+      alert("נכשל בהתנתקות. אנא נסה שוב.");
+    }
+  };
+
+  if (loading) {
+    return null;
+  }
+
+  // הגדרת פריטי הניווט בהתאם למצב המשתמש
+  const navItemsLoggedIn = [
+    { label: 'דף הבית', icon: <FaHome />, to: '/', isButton: false },
+    { label: 'מסך הקריאות', icon: <FaBell />, to: '/dashboard', isButton: false },
+    // הוסף את הקישור למפת המתנדבים כאן
+    // נציג אותו רק אם המשתמש הוא רכז (userType === 1)
+    ...(userRole === 1 ? [{ label: 'מפת מתנדבים', icon: <FaMapMarkedAlt />, to: '/volunteer-map', isButton: false }] : []),
+    { label: 'התנתק', icon: <FaSignOutAlt />, onClick: handleLogout, isButton: true },
   ];
+
+  const navItemsLoggedOut = [
+    { label: 'דף הבית', icon: <FaHome />, to: '/', isButton: false },
+    { label: 'דיווח על נחיל', icon: <FaBell />, to: '/report', isButton: false },
+    { label: 'בואו להתנדב!', icon: <FaUsers />, to: '/signup', isButton: false },
+    { label: 'התחבר', icon: <FaSignInAlt />, to: '/login', isButton: false },
+  ];
+
+  const currentNavItems = currentUser ? navItemsLoggedIn : navItemsLoggedOut;
 
   return (
     <>
       <div className="header">
-        {/* לוגו שהוא קישור לדף הבית */}
         <Link to="/" className="logo-title">
           <img src={mdaLogo} alt="Logo" className="logo" />
           <span className="title">מגן דבורים אדום</span>
         </Link>
 
-        {/* תפריט ניווט */}
         {isMobile ? (
           <button className="menu-button" onClick={() => setMenuOpen(true)}>
             <FaBars size={28} />
           </button>
         ) : (
           <div className="nav-links">
-            {navItems.map((item, index) => (
-              <Link key={index} to={item.to} className="nav-link">
-                {item.icon}
-                <span>{item.label}</span>
-              </Link>
+            {currentNavItems.map((item, index) => (
+              item.isButton ? (
+                <button key={index} onClick={item.onClick} className="nav-link">
+                  {item.icon}
+                  <span>{item.label}</span>
+                </button>
+              ) : (
+                <Link key={index} to={item.to} className="nav-link">
+                  {item.icon}
+                  <span>{item.label}</span>
+                </Link>
+              )
             ))}
           </div>
         )}
       </div>
 
-      {/* תפריט צד במובייל */}
       {menuOpen && (
         <>
           <div className="overlay" onClick={() => setMenuOpen(false)}></div>
@@ -55,11 +94,18 @@ export default function Header() {
             <button className="close-button" onClick={() => setMenuOpen(false)}>
               <FaTimes size={24} />
             </button>
-            {navItems.map((item, index) => (
-              <Link key={index} to={item.to} className="menu-item" onClick={() => setMenuOpen(false)}>
-                {item.icon}
-                <span>{item.label}</span>
-              </Link>
+            {currentNavItems.map((item, index) => (
+              item.isButton ? (
+                <button key={index} onClick={item.onClick} className="menu-item">
+                  {item.icon}
+                  <span>{item.label}</span>
+                </button>
+              ) : (
+                <Link key={index} to={item.to} className="menu-item" onClick={() => setMenuOpen(false)}>
+                  {item.icon}
+                  <span>{item.label}</span>
+                </Link>
+              )
             ))}
           </div>
         </>

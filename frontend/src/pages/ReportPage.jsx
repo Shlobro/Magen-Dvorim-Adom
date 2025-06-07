@@ -1,21 +1,20 @@
 // src/pages/ReportPage.jsx
 import React, { useState } from 'react';
-import '../styles/ReportPage.css';
+import '../styles/ReportPage.css'; // Importing the CSS file for styling
 import { FaBell, FaUpload } from 'react-icons/fa';
 import { saveInquiry, uploadPhoto } from '../services/api'; // ייבוא saveInquiry ו-uploadPhoto משירות ה-API שלך
-// import { db } from '../firebaseConfig'; // זה לא נחוץ כאן עבור הצד לקוח שמדבר עם בקאנד
 
 export default function ReportPage() {
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [city, setCity] = useState(''); // מצב חדש לעיר
-  const [address, setAddress] = useState(''); // מצב חדש לכתובת
+  const [city, setCity] = useState(''); // New state for city
+  const [address, setAddress] = useState(''); // New state for address (street and house number)
   const [heightFloor, setHeightFloor] = useState('');
   const [additionalDetails, setAdditionalDetails] = useState('');
-  const [imageFile, setImageFile] = useState(null); // לאחסון הקובץ בפועל
-  const [imageName, setImageName] = useState('');
+  const [imageFile, setImageFile] = useState(null); // To store the actual file
+  const [imageName, setImageName] = useState(''); // To display file name
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(''); // For success/error messages
 
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
@@ -30,9 +29,9 @@ export default function ReportPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setMessage('');
+    setMessage(''); // Clear previous messages
 
-    // אימות בסיסי
+    // Basic validation
     if (!fullName || !phoneNumber || !city || !address) {
       setMessage('אנא מלא את כל שדות החובה: שם מלא, טלפון, עיר וכתובת.');
       setLoading(false);
@@ -43,32 +42,29 @@ export default function ReportPage() {
       const inquiryData = {
         fullName,
         phoneNumber,
-        city,         // שלח עיר
-        address,      // שלח כתובת
+        city, // Send city
+        address, // Send address (street and house number)
         heightFloor,
         additionalDetails,
-        status: "נפתחה פנייה (טופס מולא)", // סטטוס התחלתי
-        date: new Date().toLocaleDateString('he-IL'), // תאריך נוכחי
-        time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), // זמן נוכחי
-        // inquiryRoutes.js ב-backend יטפל בגיאו-קידוד באמצעות 'address' ו-'city'
-        // וישמור lat/lng. אין צורך לשלוח 'location' ישירות מכאן.
+        status: "נפתחה פנייה (טופס מולא)", // Initial status
+        date: new Date().toLocaleDateString('he-IL'), // Current date
+        time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), // Current time
+        // The backend (inquiryRoutes.js) will handle geocoding using 'address' and 'city'
+        // and save lat/lng. No need to send 'location' directly from here.
       };
 
-      // שמור פנייה ל-Firestore וקבל את ה-ID שלה (חשוב להעלאת תמונה)
-      // בהנחה ש-saveInquiry מחזיר את ה-doc ID אם זה מסמך חדש, או משתמש בזה שהועבר.
-      // אם שירות ה-saveInquiry שלך לא מחזיר את ה-ID, ייתכן שתצטרך להתאים אותו
-      // או לחשוב מחדש איך לקבל את ה-ID להעלאת תמונה.
-      // לעת עתה, נניח ש-saveInquiry מקבל ID או מייצר אחד ואנחנו מקבלים אותו בחזרה.
-      // ה-backend אמור לייצר את ה-ID אם זו פנייה חדשה. נוודא שה-backend שלנו שומר אותו עם ID שנוצר אוטומטית.
+      // Save inquiry to Firestore via your backend API
+      // Assume saveInquiry returns the document ID (or inquiryId) which is needed for image upload
       const response = await saveInquiry(inquiryData);
-      const inquiryId = response.data.inquiryId || response.data.id; // התאם לפי מבנה התגובה של ה-backend שלך
+      // Adjust according to your backend's response structure for the inquiry ID
+      const inquiryId = response.data.inquiryId || response.data.id; 
 
       if (imageFile && inquiryId) {
         await uploadPhoto(inquiryId, imageFile);
       }
 
       setMessage('הפנייה נשלחה בהצלחה! תודה רבה על הדיווח.');
-      // נקה טופס
+      // Clear form fields
       setFullName('');
       setPhoneNumber('');
       setCity('');
@@ -107,14 +103,14 @@ export default function ReportPage() {
           />
           <input
             type="text"
-            placeholder="עיר *" // קלט חדש לעיר
+            placeholder="עיר *" // Input for city
             required
             value={city}
             onChange={(e) => setCity(e.target.value)}
           />
           <input
             type="text"
-            placeholder="כתובת מדויקת (רחוב ומספר בית) *"
+            placeholder="כתובת מדויקת (רחוב ומספר בית) *" // Input for address (street + house number)
             required
             value={address}
             onChange={(e) => setAddress(e.target.value)}

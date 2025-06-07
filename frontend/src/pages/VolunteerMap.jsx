@@ -1,21 +1,22 @@
-// VolunteerMap.jsx
-import React, { useEffect, useState, useCallback } from 'react';
+// frontend/src/pages/VolunteerMap.jsx
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import {
   MapContainer,
   TileLayer,
   Marker,
   Popup,
-  useMapEvents
+  useMap, // Use useMap for direct map object access
 } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import beeIconUrl from '../assets/cuteBeeInquiry.png';
-import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, query, where, GeoPoint, Timestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 // ===========================
-// Modernized Layout Styles
+// Modernized Layout Styles (unchanged for consistency)
 // ===========================
 const containerStyle = {
   display: 'flex',
@@ -43,6 +44,7 @@ const mapHeaderStyle = {
 };
 const sidebarStyle = {
   width: '350px',
+  minWidth: '300px',
   backgroundColor: '#f9fafb',
   padding: '20px',
   display: 'flex',
@@ -102,14 +104,18 @@ const filterLabelStyle = {
   fontWeight: 'bold',
   color: '#374151',
 };
-const filterSelectStyle = {
+const filterInputRangeStyle = {
   width: '100%',
-  padding: '10px',
-  borderRadius: '5px',
-  border: '1px solid #d1d5db',
-  backgroundColor: '#f9fafb',
-  fontSize: '0.95rem',
+  marginTop: '5px',
 };
+const filterRangeValueStyle = {
+  fontSize: '0.9rem',
+  color: '#666',
+  marginTop: '5px',
+  display: 'block',
+  textAlign: 'center',
+};
+
 
 // ==========================
 // Custom Bee Icon
@@ -128,23 +134,48 @@ export default function VolunteerMap() {
   const [inquiries, setInquiries] = useState([]);
   const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [availableVolunteers, setAvailableVolunteers] = useState([]);
-  const [radius, setRadius] = useState(10);
+  const [radius, setRadius] = useState(20);
   const [selectedVolunteerIds, setSelectedVolunteerIds] = useState([]);
+  const mapRef = useRef();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  // פונקציית שליפת הקריאות
+  // Helper function to extract coordinates from Firebase data
+  const extractCoordinates = (data) => {
+    let lat = null;
+    let lng = null;
+
+    if (data.location instanceof GeoPoint) {
+      lat = data.location.latitude;
+      lng = data.location.longitude;
+    } else if (data.location && typeof data.location === 'object' && data.location.latitude != null && data.location.longitude != null) {
+      lat = data.location.latitude;
+      lng = data.location.longitude;
+    } else if (data.lat != null && data.lng != null) { // Support for direct lat/lng fields
+      lat = data.lat;
+      lng = data.lng;
+    }
+    return { lat, lng };
+  };
+
+  // Function to fetch inquiries
   const fetchInquiries = useCallback(async () => {
     try {
       const q = query(collection(db, "inquiry"), where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב"]));
       const querySnapshot = await getDocs(q);
-      const fetched = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // *** התיקון: סנן רק קריאות שיש להן lat ו-lng תקניים ***
-      const validInquiries = fetched.filter(inquiry => 
-        inquiry.lat != null && !isNaN(inquiry.lat) && 
+      const fetched = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        const { lat, lng } = extractCoordinates(data); // Use helper function
+        return { id: doc.id, ...data, lat, lng };
+      });
+
+      // Filter only inquiries with valid lat and lng
+      const validInquiries = fetched.filter(inquiry =>
+        inquiry.lat != null && !isNaN(inquiry.lat) &&
         inquiry.lng != null && !isNaN(inquiry.lng)
       );
-      
-      console.log("Map fetch - קריאות שנשלפו (כולל סינון):", validInquiries); // LOG
+
+      console.log("Map fetch - inquiries fetched (including filter):", validInquiries);
       setInquiries(validInquiries);
     } catch (error) {
       console.error("Error fetching inquiries:", error);
@@ -155,7 +186,28 @@ export default function VolunteerMap() {
     fetchInquiries();
   }, [fetchInquiries]);
 
-  // פונקציה לשליפת מתנדבים בקרבת מקום
+  // Handle inquiryId parameter from URL
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const inquiryIdFromUrl = params.get('inquiryId');
+
+    if (inquiryIdFromUrl && inquiries.length > 0) {
+      const inquiryToSelect = inquiries.find(inc => inc.id === inquiryIdFromUrl);
+      if (inquiryToSelect) {
+        setSelectedInquiry(inquiryToSelect);
+        // Center the map on the selected inquiry
+        if (mapRef.current && inquiryToSelect.lat != null && inquiryToSelect.lng != null) {
+          mapRef.current.setView([inquiryToSelect.lat, inquiryToSelect.lng], 13);
+        }
+        // fetchVolunteers will be called by the next useEffect
+      } else {
+        console.warn(`Inquiry with ID ${inquiryIdFromUrl} not found or already processed.`);
+        navigate(location.pathname, { replace: true });
+      }
+    }
+  }, [inquiries, location.search, navigate]);
+
+  // Function to fetch nearby volunteers via Backend API
   useEffect(() => {
     const fetchVolunteers = async () => {
       if (!selectedInquiry) {
@@ -163,10 +215,10 @@ export default function VolunteerMap() {
         return;
       }
 
-      // *** הוסף בדיקה ל-lat ו-lng גם כאן לפני קריאת ה-API ***
-      if (selectedInquiry.lat == null || isNaN(selectedInquiry.lat) || 
+      // Ensure valid coordinates before calling the API
+      if (selectedInquiry.lat == null || isNaN(selectedInquiry.lat) ||
           selectedInquiry.lng == null || isNaN(selectedInquiry.lng)) {
-        console.warn("Selected inquiry is missing valid lat/lng coordinates:", selectedInquiry);
+        console.warn("Selected inquiry is missing valid lat/lng coordinates for fetching volunteers:", selectedInquiry);
         setAvailableVolunteers([]);
         return;
       }
@@ -187,97 +239,122 @@ export default function VolunteerMap() {
     fetchVolunteers();
   }, [selectedInquiry, radius]);
 
-  // פונקציה לשיבוץ מתנדב
+  // Function to assign a volunteer
   const assignToInquiry = async () => {
     if (!selectedInquiry || selectedVolunteerIds.length === 0) {
       alert("אנא בחר פנייה ומתנדב לשיבוץ.");
       return;
     }
 
-    // בדיקה: האם הקריאה כבר שובצה?
-    if (selectedInquiry.assignedVolunteers && 
-        (Array.isArray(selectedInquiry.assignedVolunteers) && selectedInquiry.assignedVolunteers.length > 0 || 
-         typeof selectedInquiry.assignedVolunteers === 'string' && selectedInquiry.assignedVolunteers !== '')) {
-      alert("קריאה זו כבר שובצה למתנדב.");
-      return;
-    }
-
     const inquiryId = selectedInquiry.id;
-    const volunteerToAssignId = selectedVolunteerIds[0]; 
+    const volunteerToAssignId = selectedVolunteerIds[0];
 
     try {
       const inquiryRef = doc(db, "inquiry", inquiryId);
       await updateDoc(inquiryRef, {
-        assignedVolunteers: volunteerToAssignId, 
+        assignedVolunteers: volunteerToAssignId,
         status: "לפנייה שובץ מתנדב",
+        assignedTimestamp: Timestamp.now(), // Store assignment Timestamp
       });
       alert(`פנייה ${inquiryId} שובצה בהצלחה למתנדב ${volunteerToAssignId}.`);
       console.log(`פנייה ${inquiryId} שובצה למתנדב ${volunteerToAssignId}`);
-      
-      fetchInquiries(); 
+
+      fetchInquiries(); // Refresh inquiry list to update status
 
       setSelectedInquiry(null);
       setAvailableVolunteers([]);
       setSelectedVolunteerIds([]);
+      navigate('/dashboard'); // Navigate back to dashboard after assignment
     } catch (error) {
       console.error("שגיאה בשיבוץ מתנדב:", error);
       alert("נכשל בשיבוץ מתנדב. אנא נסה שוב.");
     }
   };
 
-  // מרקר ל-useMapEvents
-  function MapEvents() {
-    useMapEvents({
-      click: () => {
+  // Component for setting map reference and handling map clicks
+  function MapSetter() {
+    const map = useMap();
+    useEffect(() => {
+      mapRef.current = map;
+      // Event handler for clicks on the map itself (not markers)
+      map.on('click', () => {
         setSelectedInquiry(null);
         setSelectedVolunteerIds([]);
         setAvailableVolunteers([]);
-      },
-    });
+        // Optional: clear URL parameter if present
+        if (location.search.includes('inquiryId')) {
+          navigate(location.pathname, { replace: true });
+        }
+      });
+      // Cleanup function for the event listener
+      return () => {
+        map.off('click');
+      };
+    }, [map, navigate, location.pathname, location.search]);
     return null;
   }
 
-  // בדיקה אם הקריאה שנבחרה כבר שובצה
-  const isSelectedInquiryAssigned = selectedInquiry && 
-    (selectedInquiry.assignedVolunteers && 
-     (Array.isArray(selectedInquiry.assignedVolunteers) && selectedInquiry.assignedVolunteers.length > 0 || 
-      typeof selectedInquiry.assignedVolunteers === 'string' && selectedInquiry.assignedVolunteers !== ''));
+  // Check if the selected inquiry is already assigned (improved to handle string assignedVolunteers)
+  const isSelectedInquiryAssigned = selectedInquiry &&
+    selectedInquiry.assignedVolunteers &&
+    (Array.isArray(selectedInquiry.assignedVolunteers) && selectedInquiry.assignedVolunteers.length > 0 ||
+     typeof selectedInquiry.assignedVolunteers === 'string' && selectedInquiry.assignedVolunteers !== '');
+
 
   return (
     <div style={containerStyle}>
       <div style={mapWrapperStyle}>
         <h1 style={mapHeaderStyle}>מפת נחילי דבורים לשיבוץ מתנדבים</h1>
         <MapContainer
-          center={[31.0461, 34.8516]}
+          center={[31.0461, 34.8516]} // Initial map center (Israel)
           zoom={8}
+          scrollWheelZoom={true}
           style={{ flex: 1, height: '100%', width: '100%' }}
         >
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
-          <MapEvents />
+          <MapSetter /> {/* Helper component for mapRef and map click handling */}
 
           {inquiries.map((inquiry) => (
-            <Marker
-              key={inquiry.id}
-              position={[inquiry.lat, inquiry.lng]}
-              icon={beeIcon}
-              eventHandlers={{
-                click: () => {
-                  setSelectedInquiry(inquiry);
-                  setSelectedVolunteerIds([]);
-                  setAvailableVolunteers([]);
-                },
-              }}
-            >
-              <Popup>
-                <strong>{inquiry.address}, {inquiry.city}</strong><br />
-                סטטוס: {inquiry.status}<br />
-                {inquiry.notes && `הערות: ${inquiry.notes}`}<br />
-                {inquiry.assignedVolunteers ? `שובץ: ${inquiry.assignedVolunteers}` : 'טרם שובץ'}
-              </Popup>
-            </Marker>
+            inquiry.lat != null && inquiry.lng != null && !isNaN(inquiry.lat) && !isNaN(inquiry.lng) ? (
+              <Marker
+                key={inquiry.id}
+                position={[inquiry.lat, inquiry.lng]}
+                icon={beeIcon}
+                eventHandlers={{
+                  click: () => {
+                    setSelectedInquiry(inquiry);
+                    setSelectedVolunteerIds([]);
+                    // fetchVolunteers will be called by the useEffect for selectedInquiry/radius
+                  },
+                }}
+              >
+                <Popup>
+                  <strong>{inquiry.address}, {inquiry.city || ''}</strong><br />
+                  סטטוס: {inquiry.status}<br />
+                  {inquiry.notes && `הערות: ${inquiry.notes}`}<br />
+                  {inquiry.assignedVolunteers ? `שובץ: ${inquiry.assignedVolunteers}` : 'טרם שובץ'}
+                </Popup>
+              </Marker>
+            ) : null
+          ))}
+
+          {availableVolunteers.map((volunteer) => (
+            volunteer.lat != null && volunteer.lng != null && !isNaN(volunteer.lat) && !isNaN(volunteer.lng) ? (
+              <Marker
+                key={volunteer.id}
+                position={[volunteer.lat, volunteer.lng]}
+                // You can add a different icon for volunteers if you wish
+              >
+                <Popup>
+                  <strong>מתנדב: {volunteer.name}</strong><br />
+                  מרחק: {volunteer.distance?.toFixed(1)} ק"מ<br />
+                  ציון: {volunteer.score?.toFixed(1)}
+                </Popup>
+              </Marker>
+            ) : null
           ))}
         </MapContainer>
       </div>
@@ -288,9 +365,9 @@ export default function VolunteerMap() {
           <>
             <div style={inquiryDetailsStyle}>
               <div style={detailItemStyle}><strong>מס' פנייה:</strong> {selectedInquiry.id}</div>
-              <div style={detailItemStyle}><strong>כתובת:</strong> {selectedInquiry.address}, {selectedInquiry.city}</div>
+              <div style={detailItemStyle}><strong>כתובת:</strong> {selectedInquiry.address}, {selectedInquiry.city || ''}</div>
               <div style={detailItemStyle}><strong>טלפון:</strong> {selectedInquiry.phoneNumber}</div>
-              <div style={detailItemStyle}><strong>תאריך פתיחה:</strong> {selectedInquiry.createdAt ? new Date(selectedInquiry.createdAt).toLocaleString('he-IL') : 'אין מידע'}</div>
+              <div style={detailItemStyle}><strong>תאריך פתיחה:</strong> {selectedInquiry.timestamp ? new Date(selectedInquiry.timestamp.toDate()).toLocaleString('he-IL') : 'אין מידע'}</div>
               <div style={detailItemStyle}><strong>סטטוס:</strong> {selectedInquiry.status}</div>
               <div style={detailItemStyle}><strong>הערות:</strong> {selectedInquiry.notes || 'אין'}</div>
               <div style={detailItemStyle}>
@@ -300,22 +377,24 @@ export default function VolunteerMap() {
             </div>
 
             <div style={filterContainerStyle}>
-              <label htmlFor="radius-select" style={filterLabelStyle}>
+              <label htmlFor="radius-range" style={filterLabelStyle}>
                 טווח חיפוש מתנדבים:
               </label>
-              <select
-                id="radius-select"
-                style={filterSelectStyle}
+              <input
+                type="range"
+                id="radius-range"
+                min="1"
+                max="100"
+                step="5"
                 value={radius}
                 onChange={(e) => setRadius(Number(e.target.value))}
+                style={filterInputRangeStyle}
                 disabled={isSelectedInquiryAssigned}
-              >
-                {[1, 2, 5, 10, 20].map((r) => (
-                  <option key={r} value={r}>{r} ק"מ</option>
-                ))}
-              </select>
+              />
+              <span style={filterRangeValueStyle}>{radius} ק"מ</span>
             </div>
 
+            <h3 style={sectionTitleStyle}>מתנדבים זמינים ברדיוס:</h3>
             {availableVolunteers.length > 0 ? (
               <ul style={listStyle}>
                 {availableVolunteers.map((v) => (
@@ -335,20 +414,27 @@ export default function VolunteerMap() {
                 ))}
               </ul>
             ) : (
-              <div style={{ color: '#6b7280' }}>
-                אין מתנדבים ברדיוס של {radius} ק"מ.
+              <div style={{ color: '#6b7280', textAlign: 'center' }}>
+                אין מתנדבים זמינים ברדיוס של {radius} ק"מ.
               </div>
             )}
 
             <button
               style={assignButtonStyle}
-              disabled={!selectedInquiry || selectedVolunteerIds.length === 0 || isSelectedInquiryAssigned} 
+              disabled={!selectedInquiry || selectedVolunteerIds.length === 0 || isSelectedInquiryAssigned}
               onClick={assignToInquiry}
             >
               {isSelectedInquiryAssigned ? 'כבר שובץ מתנדב' : 'שבץ מתנדב לקריאה'}
             </button>
             <button
-              onClick={() => setSelectedInquiry(null)}
+              onClick={() => {
+                  setSelectedInquiry(null);
+                  setSelectedVolunteerIds([]);
+                  setAvailableVolunteers([]);
+                  if (location.search.includes('inquiryId')) {
+                    navigate(location.pathname, { replace: true });
+                  }
+              }}
               style={{
                 ...assignButtonStyle,
                 backgroundColor: '#6c757d',
@@ -361,6 +447,11 @@ export default function VolunteerMap() {
         ) : (
           <p style={{ color: '#6b7280', textAlign: 'center', marginTop: '20px' }}>
             לחץ על מרקר של נחיל במפה כדי לראות פרטים ולשבץ מתנדב.
+            {location.search.includes('inquiryId') && (
+                <p style={{ fontSize: '0.85rem', marginTop: '10px' }}>
+                    ייתכן והפנייה הספציפית שחיפשת לא נמצאה, או שאינה זמינה לשיבוץ.
+                </p>
+            )}
           </p>
         )}
       </div>
