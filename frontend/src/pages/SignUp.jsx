@@ -1,6 +1,6 @@
 // frontend/src/pages/SignUp.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // ייבוא Link
 import '../styles/HomeScreen.css';
 import mdaLogo from '../assets/mda_logo.png';
 import { FaBell } from 'react-icons/fa';
@@ -14,18 +14,19 @@ export default function SignUp() {
   const navigate = useNavigate();
 
   // form fields
-  const [firstName, setFirstName]               = useState('');
-  const [lastName, setLastName]                 = useState('');
-  const [phoneNumber, setPhoneNumber]           = useState('');
-  const [email, setEmail]                       = useState('');
-  const [password, setPassword]                 = useState('');
-  const [city, setCity]                         = useState('');
-  const [address, setAddress]                   = useState('');
-  const [idNumber, setIdNumber]                 = useState('');
-  const [beeExperience, setBeeExperience]       = useState('');
+  const [firstName, setFirstName]             = useState('');
+  const [lastName, setLastName]               = useState('');
+  const [phoneNumber, setPhoneNumber]         = useState('');
+  const [email, setEmail]                     = useState('');
+  const [password, setPassword]               = useState('');
+  const [city, setCity]                       = useState('');
+  const [address, setAddress]                 = useState('');
+  const [idNumber, setIdNumber]               = useState('');
+  const [beeExperience, setBeeExperience]     = useState('');
   const [beekeepingExperience, setBeekeepingExperience] = useState('');
-  const [heightPermit, setHeightPermit]         = useState('');
+  const [heightPermit, setHeightPermit]       = useState('');
   const [additionalDetails, setAdditionalDetails] = useState('');
+  const [agreeToEthics, setAgreeToEthics] = useState(false); // מצב עבור ה-checkbox
 
   // ui state
   const [loading, setLoading] = useState(false);
@@ -51,6 +52,13 @@ export default function SignUp() {
       setLoading(false);
       return;
     }
+    // ודא שה-checkbox סומן
+    if (!agreeToEthics) {
+      setError('חובה לאשר את כללי האתיקה כדי להירשם.');
+      setLoading(false);
+      return;
+    }
+    // ----------------------------------------
 
     try {
       // 2. geocode BEFORE creating the user
@@ -84,14 +92,15 @@ export default function SignUp() {
         city,
         address,
         idNumber,
-        beeExperience:        beeExperience        || 'לא צוין',
+        beeExperience:         beeExperience        || 'לא צוין',
         beekeepingExperience: beekeepingExperience || 'לא צוין',
-        heightPermit:         heightPermit         || 'לא צוין',
-        additionalDetails:    additionalDetails    || 'אין פרטים נוספים',
-        userType: 2,
+        heightPermit:          heightPermit         || 'לא צוין',
+        additionalDetails:     additionalDetails    || 'אין פרטים נוספים',
+        userType: 2, // User type 2 for volunteers
         createdAt: new Date().toISOString(),
         lat,
         lng,
+        agreedToEthics: true, // שמור אינדיקציה שהמשתמש אישר את כללי האתיקה
       });
 
       setSuccess('הרשמה בוצעה בהצלחה! תועבר לדף הבית.');
@@ -111,6 +120,20 @@ export default function SignUp() {
     }
   };
   // ───────────────────────────────────────
+
+  const checkboxContainerStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    marginTop: '10px',
+    fontSize: '0.95rem',
+    direction: 'rtl', // For RTL
+    textAlign: 'right', // For RTL
+  };
+
+  const labelStyle = {
+    flexGrow: 1, // Allow label to take available space
+  };
 
   return (
     <div className="home-page">
@@ -140,6 +163,25 @@ export default function SignUp() {
             <input value={beekeepingExperience} onChange={e=>setBeekeepingExperience(e.target.value)} placeholder="ניסיון בגידול דבורים" />
             <input value={heightPermit} onChange={e=>setHeightPermit(e.target.value)} placeholder="היתר עבודה בגובה" />
             <textarea value={additionalDetails} onChange={e=>setAdditionalDetails(e.target.value)} rows={3} placeholder="פרטים נוספים" />
+
+            {/* --- הוספת ה-checkbox החדש עבור מתנדבים --- */}
+            <div style={checkboxContainerStyle}>
+              <input
+                type="checkbox"
+                id="agreeToEthicsVolunteer" // ID ייחודי
+                checked={agreeToEthics}
+                onChange={(e) => setAgreeToEthics(e.target.checked)}
+                required
+              />
+              <label htmlFor="agreeToEthicsVolunteer" style={labelStyle}>
+                אני מאשר/ת שקראתי והבנתי את{' '}
+                <Link to="/ethics/volunteers" target="_blank" rel="noopener noreferrer">
+                  כללי האתיקה
+                </Link>{' '}
+                ומסכים/ה לפעול על פיהם.
+              </label>
+            </div>
+            {/* ----------------------------------------------- */}
 
             {error   && <p className="error-message"   style={{color:'red',textAlign:'center'}}>{error}</p>}
             {success && <p className="success-message" style={{color:'green',textAlign:'center'}}>{success}</p>}

@@ -1,6 +1,6 @@
 // frontend/src/pages/CoordinatorSignup.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // Import Link
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore'; 
 import { auth, db } from '../firebaseConfig'; 
@@ -29,7 +29,7 @@ const formCardStyle = {
 
 const inputGroupStyle = {
   marginBottom: '20px',
-  textAlign: 'left',
+  textAlign: 'left', // Keep text-align left for LTR input labels
 };
 
 const labelStyle = {
@@ -38,6 +38,7 @@ const labelStyle = {
   fontSize: '1rem',
   color: '#333',
   fontWeight: 'bold',
+  textAlign: 'right', // Align labels to the right for RTL
 };
 
 const inputStyle = {
@@ -47,6 +48,8 @@ const inputStyle = {
   borderRadius: '5px',
   fontSize: '1rem',
   boxSizing: 'border-box',
+  direction: 'rtl', // Set input direction to RTL
+  textAlign: 'right', // Align input text to the right
 };
 
 const buttonStyle = {
@@ -71,6 +74,7 @@ const errorStyle = {
   marginTop: '15px',
   marginBottom: '0',
   fontSize: '0.9rem',
+  textAlign: 'center',
 };
 
 const successStyle = {
@@ -78,6 +82,24 @@ const successStyle = {
   marginTop: '15px',
   marginBottom: '0',
   fontSize: '0.9rem',
+  textAlign: 'center',
+};
+
+// New styles for the ethics checkbox container (consistent with SignUp.jsx)
+const checkboxContainerStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '10px',
+  marginTop: '20px', // Added more margin top for separation
+  marginBottom: '20px', // Added margin bottom
+  fontSize: '0.95rem',
+  direction: 'rtl', // For RTL
+  textAlign: 'right', // For RTL
+  // Adjust padding or width if needed to match other form elements
+};
+
+const checkboxLabelStyle = { // Separate style for the checkbox label to allow flexGrow
+  flexGrow: 1, // Allow label to take available space
 };
 // =========================================================
 
@@ -87,6 +109,7 @@ export default function CoordinatorSignup() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [agreeToEthics, setAgreeToEthics] = useState(false); // New state for ethics checkbox
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const navigate = useNavigate();
@@ -96,8 +119,15 @@ export default function CoordinatorSignup() {
     setError(null);
     setSuccess(null);
 
+    // Basic validation
     if (password.length < 6) {
       setError('הסיסמה חייבת להיות באורך 6 תווים לפחות.');
+      return;
+    }
+
+    // Ethics agreement validation
+    if (!agreeToEthics) {
+      setError('חובה לאשר את כללי האתיקה כדי להירשם.');
       return;
     }
 
@@ -108,7 +138,7 @@ export default function CoordinatorSignup() {
       console.log('User created in Firebase Auth:', user.uid);
 
       // 2. שמירת פרטי הרכז בקולקציית 'user'
-      await setDoc(doc(db, 'user', user.uid), { // <--- שינוי כאן: 'user' במקום 'users'
+      await setDoc(doc(db, 'user', user.uid), {
         firstName: firstName,
         lastName: lastName,
         phoneNumber: phoneNumber,
@@ -122,6 +152,7 @@ export default function CoordinatorSignup() {
         location: null, 
         name: `${firstName} ${lastName}`, 
         registrationDate: new Date(), 
+        agreedToEthics: true, // New: Record ethics agreement
       });
       console.log('Coordinator data saved in "user" collection for user:', user.uid);
 
@@ -131,6 +162,7 @@ export default function CoordinatorSignup() {
       setPhoneNumber('');
       setEmail('');
       setPassword(''); 
+      setAgreeToEthics(false); // Reset checkbox state
 
       setTimeout(() => {
         navigate('/login');
@@ -159,7 +191,7 @@ export default function CoordinatorSignup() {
     <div style={containerStyle}>
       <div style={formCardStyle}>
         <h2>הרשמת רכז חדש</h2>
-        <p>טופס זה מיועד לרכזים בלבד.</p>
+        <p>טופס זה מיועד לרכזים בלבד, בעמותת "מגן דבורים אדום".</p> {/* Updated org name */}
         <form onSubmit={handleSubmit}>
           <div style={inputGroupStyle}>
             <label htmlFor="firstName" style={labelStyle}>שם פרטי:</label>
@@ -216,6 +248,26 @@ export default function CoordinatorSignup() {
               style={inputStyle}
             />
           </div>
+
+          {/* --- New: Ethics checkbox for coordinators --- */}
+          <div style={checkboxContainerStyle}>
+            <input
+              type="checkbox"
+              id="agreeToEthicsCoordinator" // Unique ID for this page
+              checked={agreeToEthics}
+              onChange={(e) => setAgreeToEthics(e.target.checked)}
+              required
+            />
+            <label htmlFor="agreeToEthicsCoordinator" style={checkboxLabelStyle}>
+              אני מאשר/ת שקראתי והבנתי את{' '}
+              <Link to="/ethics/coordinators" target="_blank" rel="noopener noreferrer" style={{color: '#28a745', textDecoration: 'underline'}}> {/* Added link styling */}
+                כללי האתיקה
+              </Link>{' '}
+              ומסכים/ה לפעול על פיהם.
+            </label>
+          </div>
+          {/* ------------------------------------------- */}
+
           <button
             type="submit"
             style={buttonStyle}
