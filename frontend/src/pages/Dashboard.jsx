@@ -14,8 +14,8 @@ import '../styles/HomeScreen.css';
 export default function Dashboard() {
   const [calls, setCalls] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
-  const navigate  = useNavigate();
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   const statusOptions = [
     'נשלח קישור אך לא מולא טופס',
@@ -116,7 +116,7 @@ export default function Dashboard() {
 
   // ───────────────────────────── ui
   if (loading) return <div className="loading">טוען קריאות...</div>;
-  if (error)   return <div className="error">שגיאה: {error}</div>;
+  if (error) return <div className="error">שגיאה: {error}</div>;
 
   return (
     <div className="dashboard-container" style={{ padding: 20 }}>
@@ -130,7 +130,7 @@ export default function Dashboard() {
             <thead>
               <tr style={{ backgroundColor: '#f2f2f2' }}>
                 {[
-                  'UID',
+                  // Removed 'UID' from here
                   'שם מלא',
                   'טלפון',
                   'כתובת',
@@ -138,7 +138,7 @@ export default function Dashboard() {
                   'תאריך דיווח',
                   'סטטוס',
                   'סיבת סגירה',
-                  'מתנדב משובץ',   // NEW
+                  'מתנדב משובץ',
                   'פעולות',
                 ].map((h) => (
                   <th
@@ -158,8 +158,7 @@ export default function Dashboard() {
             <tbody>
               {calls.map((call) => (
                 <tr key={call.id} style={{ borderBottom: '1px solid #eee' }}>
-                  {/* basic fields */}
-                  <td style={{ padding: '10px 20px', fontSize: 12, color: '#666' }}>{call.id}</td>
+                  {/* Removed the <td> for call.id (UID) */}
                   <td style={{ padding: '10px 20px' }}>{call.fullName}</td>
                   <td style={{ padding: '10px 20px' }}>{call.phoneNumber}</td>
                   <td style={{ padding: '10px 20px' }}>{call.address}</td>
@@ -203,7 +202,7 @@ export default function Dashboard() {
                     )}
                   </td>
 
-                  {/* NEW — assigned volunteer name */}
+                  {/* assigned volunteer name */}
                   <td style={{ padding: '10px 20px', whiteSpace: 'nowrap' }}>
                     {call.assignedVolunteerName}
                   </td>
@@ -233,7 +232,7 @@ export default function Dashboard() {
 
               {calls.length === 0 && (
                 <tr>
-                  <td colSpan={10} style={{ padding: 40, textAlign: 'center', color: '#999' }}>
+                  <td colSpan={9} style={{ padding: 40, textAlign: 'center', color: '#999' }}> {/* Updated colSpan */}
                     אין נתונים להצגה
                   </td>
                 </tr>
