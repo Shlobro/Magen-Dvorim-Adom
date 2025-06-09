@@ -289,18 +289,34 @@ export default function VolunteerMap() {
   // <<< הוספה: אובייקטי סטייל חדשים לפאנל הדינמי ולכפתור >>>
   // <<< שינוי: מעדכנים את הפאנל להתיישר מתחת לניווט >>>
   // <<< שינוי: הוספת תנאי לרוחב הפאנל במובייל >>>
-  const dynamicSidebarStyle = {
-    ...sidebarStyle,
-    // כאן השינוי המרכזי:
-    width: isMobile ? 'calc(100% - 60px)' : sidebarStyle.width, // במובייל, הרוחב הוא כמעט מלא, משאיר 60px לכפתור
-    transform: isSidebarVisible ? 'translateX(0)' : 'translateX(100%)',
-    transition: 'transform 0.3s ease-in-out, width 0.3s ease-in-out', // הוספת אנימציה גם לרוחב
-    position: 'fixed',
-    right: 0,
-    top: `${NAVBAR_HEIGHT}px`,
-    height: `calc(100% - ${NAVBAR_HEIGHT}px)`,
-    zIndex: 1001,
-  };
+const sidebarContentStyle = {
+  flex: '1 1 auto', // מאפשר לאזור התוכן לגדול ולמלא את המקום
+  overflowY: 'auto', // מוסיף גלילה רק לאזור הזה במידת הצורך
+  padding: '0 20px', // ריפוד פנימי
+};
+
+const sidebarActionsStyle = {
+  flexShrink: 0, // מונע מאזור הכפתורים להתכווץ
+  padding: '15px 20px',
+  borderTop: '1px solid #e5e7eb', // קו הפרדה ויזואלי
+  backgroundColor: '#f9fafb',
+};
+const dynamicSidebarStyle = {
+  // <<< שינוי: הסרנו את ...sidebarStyle כדי לשלוט ב-padding וב-overflow בעצמנו >>>
+  width: isMobile ? 'calc(100% - 60px)' : sidebarStyle.width,
+  minWidth: '300px',
+  backgroundColor: '#f9fafb',
+  display: 'flex', // קריטי לפריסת ה-flex
+  flexDirection: 'column', // קריטי לפריסת ה-flex
+  boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.05)',
+  transform: isSidebarVisible ? 'translateX(0)' : 'translateX(100%)',
+  transition: 'transform 0.3s ease-in-out, width 0.3s ease-in-out',
+  position: 'fixed',
+  right: 0,
+  top: `${NAVBAR_HEIGHT}px`,
+  height: `calc(100% - ${NAVBAR_HEIGHT}px)`,
+  zIndex: 1001,
+};
 
   // <<< שינוי: הוספת לוגיקה שונה למיקום הכפתור במובייל >>>
 const toggleButtonStyle = {
@@ -390,10 +406,12 @@ const toggleButtonStyle = {
 
       {/* <<< שינוי: הפאנל משתמש בסטייל הדינמי החדש >>> */}
       <div style={dynamicSidebarStyle}>
-        <h2 style={sectionTitleStyle}>פרטי פנייה ושיבוץ מתנדב</h2>
-        {selectedInquiry ? (
-          <>
-           <CollapsibleSection title="פרטי פנייה" defaultExpanded={true}>
+      {selectedInquiry ? (
+        <>
+          {/* <<< קופסה 1: אזור התוכן הגולל >>> */}
+          <div style={sidebarContentStyle}>
+      
+            <CollapsibleSection title="פרטי פנייה" defaultExpanded={true}>
               <div style={inquiryDetailsStyle}>
                 <div style={detailItemStyle}><strong>מס' פנייה:</strong> {selectedInquiry.id}</div>
                 <div style={detailItemStyle}><strong>כתובת:</strong> {selectedInquiry.address}, {selectedInquiry.city || ''}</div>
@@ -407,6 +425,7 @@ const toggleButtonStyle = {
                 </div>
               </div>
             </CollapsibleSection>
+      
             <div style={filterContainerStyle}>
               <label htmlFor="radius-range" style={filterLabelStyle}>
                 טווח חיפוש מתנדבים:
@@ -424,6 +443,7 @@ const toggleButtonStyle = {
               />
               <span style={filterRangeValueStyle}>{radius} ק"מ</span>
             </div>
+      
             <h3 style={sectionTitleStyle}>מתנדבים זמינים ברדיוס:</h3>
             {availableVolunteers.length > 0 ? (
               <ul style={listStyle}>
@@ -448,6 +468,10 @@ const toggleButtonStyle = {
                 אין מתנדבים זמינים ברדיוס של {radius} ק"מ.
               </div>
             )}
+          </div> {/* <<< סוף אזור התוכן הגולל >>> */}
+          
+          {/* <<< קופסה 2: אזור הכפתורים הקבוע >>> */}
+          <div style={sidebarActionsStyle}>
             <button
               style={assignButtonStyle}
               disabled={!selectedInquiry || selectedVolunteerIds.length === 0 || isSelectedInquiryAssigned}
@@ -472,18 +496,14 @@ const toggleButtonStyle = {
             >
               בטל בחירה
             </button>
-          </>
-        ) : (
-          <p style={{ color: '#6b7280', textAlign: 'center', marginTop: '20px' }}>
-            לחץ על מרקר של נחיל במפה כדי לראות פרטים ולשבץ מתנדב.
-            {location.search.includes('inquiryId') && (
-              <p style={{ fontSize: '0.85rem', marginTop: '10px' }}>
-                ייתכן והפנייה הספציפית שחיפשת לא נמצאה, או שאינה זמינה לשיבוץ.
-              </p>
-            )}
-          </p>
-        )}
-      </div>
+          </div> {/* <<< סוף אזור הכפתורים >>> */}
+        </>
+      ) : (
+        <p style={{ color: '#6b7280', textAlign: 'center', margin: 'auto' }}>
+          לחץ על מרקר של נחיל במפה כדי לראות פרטים ולשבץ מתנדב.
+        </p>
+      )}
+    </div>
     </div>
   );
 }
