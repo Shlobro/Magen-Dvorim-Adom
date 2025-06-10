@@ -6,15 +6,18 @@ import Dashboard from './pages/Dashboard';
 import VolunteerMap from './pages/VolunteerMap';
 import HomeScreen from './pages/HomeScreen';
 import ReportPage from './pages/ReportPage';
-import SignUp from './pages/SignUp'; // דף הרשמת המתנדבים
+import SignUp from './pages/SignUp';
 import Login from './pages/Login';
-import CoordinatorSignup from './pages/CoordinatorSignup.jsx'; // דף הרשמת הרכזים
+import CoordinatorSignup from './pages/CoordinatorSignup.jsx';
 import Header from './components/Header';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 // ייבוא קומפוננטות כללי האתיקה
 import EthicsCoordinators from './pages/EthicsCoordinators.jsx';
 import EthicsVolunteers from './pages/EthicsVolunteers.jsx';
+
+// ייבוא קומפוננטת טופס המשוב החדשה
+import FeedbackForm from './pages/FeedbackForm.jsx'; // <--- חדש
 
 function App() {
   return (
@@ -32,6 +35,9 @@ function App() {
             {/* נתיבים לדפי כללי האתיקה */}
             <Route path="/ethics/coordinators" element={<EthicsCoordinators />} />
             <Route path="/ethics/volunteers" element={<EthicsVolunteers />} />
+
+            {/* נתיב לטופס המשוב */}
+            <Route path="/feedback" element={<FeedbackForm />} /> {/* <--- חדש */}
 
             {/* נתיבים מוגנים - רק לרכזים (userType: 1) */}
             <Route 

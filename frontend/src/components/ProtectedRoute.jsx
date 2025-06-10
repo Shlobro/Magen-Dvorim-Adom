@@ -1,29 +1,31 @@
 // frontend/src/components/ProtectedRoute.jsx
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext.jsx'; 
+import { useAuth } from '../contexts/AuthContext'; // ודא שאתה מייבא את ה-AuthContext
 
-export default function ProtectedRoute({ children, requiredRole }) {
-  const { currentUser, loading, userRole } = useAuth(); // קבל את userRole (יהיה 1 עבור רכז)
+const ProtectedRoute = ({ children, requiredRole }) => {
+  const { currentUser, userRole, loading } = useAuth();
 
   if (loading) {
-    return null; 
+    // עדיין טוען את מצב ההתחברות, הצג טוען או null
+    return <div>טוען...</div>; // או כל אינדיקטור טעינה אחר
   }
 
-  // 1. אם אין משתמש מחובר, נווט לדף ההתחברות
+  // אם אין משתמש מחובר, הפנה לדף ההתחברות
   if (!currentUser) {
-    console.log("ProtectedRoute: Not logged in, redirecting to /login");
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
   }
 
-  // 2. אם יש משתמש, אבל ה-userRole שלו לא תואם ל-requiredRole
-  // requiredRole יהיה 1 עבור רכזים. userRole יהיה 1, 0, או null
-  if (requiredRole !== undefined && userRole !== requiredRole) { // בדוק ש-requiredRole הוגדר
-    console.log(`ProtectedRoute: User is logged in (${currentUser.uid}), but userType '${userRole}' does not match required type '${requiredRole}'. Redirecting to /`);
-    return <Navigate to="/" />; 
+  // אם יש משתמש אבל התפקיד שלו לא מתאים, הפנה לדף הבית או דף שגיאה
+  // (ניתן גם להפנות לדף ייעודי "אין לך הרשאה")
+  if (requiredRole !== undefined && userRole !== requiredRole) {
+    // כאן היתה הבעיה - סביר להניח שהיה Navigate ל- /report
+    // נשנה את זה ל- /login או ל- / (לדף הבית)
+    return <Navigate to="/" replace />; // או /login אם אתה רוצה שיחזור ללוגין
   }
 
-  // אם כל הבדיקות עברו, הצג את הקומפוננטה המוגנת
-  console.log(`ProtectedRoute: Access granted for user ${currentUser.uid} with userType ${userRole}`);
+  // אם הכל תקין, הצג את הקומפוננטות הילדות
   return children;
-}
+};
+
+export default ProtectedRoute;

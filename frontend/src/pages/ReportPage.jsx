@@ -1,5 +1,6 @@
 // src/pages/ReportPage.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // CHANGED: Added useEffect
+import { useLocation } from 'react-router-dom'; // NEW: Import useLocation hook
 import '../styles/ReportPage.css'; // Importing the CSS file for styling
 import { FaBell, FaUpload } from 'react-icons/fa';
 import { saveInquiry, uploadPhoto } from '../services/api'; // ייבוא saveInquiry ו-uploadPhoto משירות ה-API שלך
@@ -15,6 +16,19 @@ export default function ReportPage() {
   const [imageName, setImageName] = useState(''); // To display file name
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(''); // For success/error messages
+  const [coordinatorId, setCoordinatorId] = useState(''); // NEW: State to store coordinatorId from URL
+
+  const location = useLocation(); // NEW: Initialize useLocation hook
+
+  // NEW: useEffect to read coordinatorId from URL when the component mounts
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const idFromUrl = queryParams.get('coordinatorId');
+    if (idFromUrl) {
+      setCoordinatorId(idFromUrl);
+      console.log('Coordinator ID from URL:', idFromUrl); // For debugging
+    }
+  }, [location.search]); // Depend on location.search so it re-runs if URL query changes
 
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
@@ -49,8 +63,8 @@ export default function ReportPage() {
         status: "נפתחה פנייה (טופס מולא)", // Initial status
         date: new Date().toLocaleDateString('he-IL'), // Current date
         time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), // Current time
-        // The backend (inquiryRoutes.js) will handle geocoding using 'address' and 'city'
-        // and save lat/lng. No need to send 'location' directly from here.
+        coordinatorId: coordinatorId || null, // CHANGED: Add coordinatorId to the inquiry data
+                                             // Use null if coordinatorId is an empty string, or '' if you prefer
       };
 
       // Save inquiry to Firestore via your backend API
@@ -73,6 +87,7 @@ export default function ReportPage() {
       setAdditionalDetails('');
       setImageFile(null);
       setImageName('');
+      setCoordinatorId(''); // NEW: Clear coordinatorId after successful submission
     } catch (error) {
       console.error('שגיאה בשליחת הפנייה:', error);
       setMessage(`שגיאה בשליחת הפנייה: ${error.message || 'נסה שוב מאוחר יותר.'}`);
