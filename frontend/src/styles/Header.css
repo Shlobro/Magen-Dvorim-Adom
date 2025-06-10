@@ -37,6 +37,7 @@
   gap: 24px;
 }
 
+/* סגנונות כלליים עבור לינקים וכפתורים בתפריט הניווט הראשי */
 .nav-link {
   display: flex;
   align-items: center;
@@ -45,22 +46,30 @@
   text-decoration: none;
   font-weight: 500;
   font-size: 14px;
+  font-family: inherit; /* ודא ירושה של פונט הגלובלי */
+
+  /* איפוס סגנונות ברירת מחדל של כפתור */
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: right; /* ודא יישור טקסט לימין */
 }
 
 .nav-link:hover {
   color: #ca8a04;
 }
 
-/* כפתור תפריט מובייל */
+/* כפתור תפריט מובייל (המבורגר) */
 .menu-button {
   background: none;
   border: none;
   color: #111;
   cursor: pointer;
-  display: none;
+  display: none; /* מוסתר בדסקטופ */
 }
 
-/* תפריט צד במובייל */
+/* שכבת כיסוי כהה כשהתפריט פתוח */
 .overlay {
   position: fixed;
   inset: 0;
@@ -68,6 +77,7 @@
   z-index: 998;
 }
 
+/* תפריט צד במובייל */
 .side-menu {
   position: fixed;
   top: 0;
@@ -93,53 +103,49 @@
   }
 }
 
+/* כפתור סגירת תפריט צד */
 .close-button {
-  align-self: flex-end;
   background: none;
   border: none;
   color: #111;
   cursor: pointer;
+  align-self: flex-start; /* מיישר את כפתור ה-X לצד שמאל (או ימין ב-RTL) */
+  margin-bottom: 10px;
 }
 
+/* סגנונות כלליים עבור לינקים וכפתורים בתפריט הצד (מובייל) */
 .menu-item {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 12px 10px;
+  border-radius: 6px;
   text-decoration: none;
   color: #111;
   font-size: 16px;
   font-weight: 500;
+  font-family: inherit; /* ודא ירושה של פונט הגלובלי */
+  transition: background-color 0.2s;
+
+  /* איפוס סגנונות ברירת מחדל של כפתור */
+  border: none;
+  background: none;
+  cursor: pointer;
+  width: 100%; /* ודא שהכפתור תופס את כל הרוחב */
+  text-align: right; /* יישר את הטקסט לימין */
 }
 
 .menu-item:hover {
-  color: #ca8a04;
+  background-color: #f0f0f0;
 }
 
-/* רספונסיביות */
-@media (min-width: 768px) {
-  .menu-button {
-    display: none;
-  }
-
-  .nav-links {
-    display: flex;
-  }
-}
-
+/* מדיה קווריות - התאמה למובייל */
 @media (max-width: 767px) {
-  .menu-button {
-    display: block;
-  }
-
   .nav-links {
-    display: none;
+    display: none; /* הסתר את הניווט הרגיל */
   }
 
-  .nav-link span {
-    font-size: 12px;
-  }
-
-  .title {
-    font-size: 16px;
+  .menu-button {
+    display: block; /* הצג את כפתור ההמבורגר */
   }
 }
