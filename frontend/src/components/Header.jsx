@@ -39,7 +39,6 @@ export default function Header() {
 
   // הגדרת פריטי הניווט בהתאם למצב המשתמש
   const navItemsLoggedIn = [
-    { label: 'דף הבית', icon: <FaHome />, to: '/', isButton: false },
     { label: 'מסך הקריאות', icon: <FaBell />, to: '/dashboard', isButton: false },
     // הוסף את הקישור למפת המתנדבים כאן
     // נציג אותו רק אם המשתמש הוא רכז (userType === 1)
@@ -48,7 +47,6 @@ export default function Header() {
   ];
 
   const navItemsLoggedOut = [
-    { label: 'דף הבית', icon: <FaHome />, to: '/', isButton: false },
     { label: 'דיווח על נחיל', icon: <FaBell />, to: '/report', isButton: false },
     { label: 'בואו להתנדב!', icon: <FaUsers />, to: '/signup', isButton: false },
     { label: 'התחבר', icon: <FaSignInAlt />, to: '/login', isButton: false },
