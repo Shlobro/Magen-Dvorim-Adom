@@ -592,7 +592,7 @@ export default function Dashboard() {
               id="filterStartDate"
               value={filterStartDate}
               onChange={handleStartDateFilterChange}
-              style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ccc' }}
+              style={{ width: '90%', padding: '8px', borderRadius: '5px', border: '1px solid #ccc' }}
             />
           </div>
 
@@ -605,7 +605,7 @@ export default function Dashboard() {
               id="filterEndDate"
               value={filterEndDate}
               onChange={handleEndDateFilterChange}
-              style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ccc' }}
+              style={{ width: '90%', padding: '8px', borderRadius: '5px', border: '1px solid #ccc' }}
             />
           </div>
         </div>
