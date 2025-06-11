@@ -1,12 +1,33 @@
 .home-page {
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
+  position: relative; /* Required for the ::before pseudo-element overlay */
+  z-index: 1;
   padding: 2rem;
-  background-color: #f9fafb;
   text-align: center;
+  margin: 0 auto;
+}
+
+/* This pseudo-element now creates a light, semi-transparent overlay
+   to ensure dark text is readable over the background image. */
+.home-page::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Using a slightly off-white color for a softer feel */
+  background-color: rgba(255, 255, 255, 0.50);
+  z-index: -1;
+}
+
+.content-wrapper {
   max-width: 1200px;
   margin: 0 auto;
 }
 
-/* לוגו */
 .logo-wrapper {
   display: flex;
   justify-content: center;
@@ -21,7 +42,7 @@
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
-/* כותרות וטקסט */
+/* Reverted text colors to be dark for readability on a light background */
 .main-title {
   font-size: 2.5rem;
   font-weight: bold;
@@ -31,13 +52,13 @@
 
 .main-paragraph {
   font-size: 1.25rem;
-  color: #374151;
-  max-width: 600px;
+  font-weight: 600;
+  color: #000000;
+  max-width: 700px;
   margin: 0 auto 3rem auto;
   line-height: 1.6;
 }
 
-/* כרטיסיות */
 .cards-container {
   display: grid;
   gap: 2rem;
@@ -51,8 +72,9 @@
   }
 }
 
+/* Reverted card style to the original light theme */
 .card {
-  background: linear-gradient(to bottom right, #fef9c3, #fff7ed);
+  background: linear-gradient(to bottom right, #fefce8, #fffbeb);
   border: 1px solid #fde68a;
   border-radius: 12px;
   padding: 2rem;
@@ -86,7 +108,6 @@
   line-height: 1.5;
 }
 
-/* כפתורים */
 .filled-button,
 .outlined-button {
   display: inline-flex;
@@ -103,7 +124,7 @@
 
 .filled-button {
   background-color: #ca8a04;
-  color: white;
+  color: white; /* White text on a dark yellow button has good contrast */
   border: none;
 }
 
@@ -126,7 +147,7 @@
   font-size: 1rem;
 }
 
-/* סטטיסטיקות */
+/* Removed the dark background from the stats section */
 .stats-section {
   display: grid;
   grid-template-columns: 1fr;
@@ -149,14 +170,13 @@
 }
 
 .stat p {
-  font-size: 1rem;
-  color: #6b7280;
+  font-size: 1.2rem;
+  font-weight: 400;
+  color: #000000;
 }
 
-/* פוטר */
 .footer {
   margin-top: 2rem;
   font-size: 14px;
-  color: #9ca3af;
+  color: #000000;
 }
-
