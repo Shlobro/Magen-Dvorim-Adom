@@ -19,10 +19,6 @@ import CollapsibleSection from './CollapsibleSection';
 // ===========================
 // Styles (unchanged)
 // ===========================
-
-const NAVBAR_HEIGHT = 65;
-const isMobile = window.innerWidth <= 768;
-
 const containerStyle = {
   display: 'flex',
   height: '100vh',
@@ -142,13 +138,11 @@ export default function VolunteerMap() {
   const [availableVolunteers, setAvailableVolunteers] = useState([]);
   const [radius, setRadius] = useState(20);
   const [selectedVolunteerIds, setSelectedVolunteerIds] = useState([]);
-
-  const [isSidebarVisible, setIsSidebarVisible] = useState(window.innerWidth > 768);
-
   const mapRef = useRef();
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Helper function to extract coordinates from Firebase data
   const extractCoordinates = (data) => {
     let lat = null;
     let lng = null;
@@ -212,7 +206,8 @@ export default function VolunteerMap() {
         return;
       }
       if (selectedInquiry.lat == null || isNaN(selectedInquiry.lat) ||
-        selectedInquiry.lng == null || isNaN(selectedInquiry.lng)) {
+          selectedInquiry.lng == null || isNaN(selectedInquiry.lng)) {
+        console.warn("Selected inquiry is missing valid lat/lng coordinates for fetching volunteers:", selectedInquiry);
         setAvailableVolunteers([]);
         return;
       }
@@ -281,53 +276,7 @@ export default function VolunteerMap() {
     (Array.isArray(selectedInquiry.assignedVolunteers) && selectedInquiry.assignedVolunteers.length > 0 ||
       typeof selectedInquiry.assignedVolunteers === 'string' && selectedInquiry.assignedVolunteers !== '');
 
-  const sidebarContentStyle = {
-    flex: '1 1 auto',
-    overflowY: 'auto',
-    padding: '0 20px',
-  };
 
-  const sidebarActionsStyle = {
-    flexShrink: 0,
-    padding: '15px 20px',
-    borderTop: '1px solid #e5e7eb',
-    backgroundColor: '#f9fafb',
-  };
-  const dynamicSidebarStyle = {
-    width: isMobile ? 'calc(100% - 60px)' : sidebarStyle.width,
-    minWidth: '300px',
-    backgroundColor: '#f9fafb',
-    display: 'flex',
-    flexDirection: 'column',
-    boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.05)',
-    transform: isSidebarVisible ? 'translateX(0)' : 'translateX(100%)',
-    transition: 'transform 0.3s ease-in-out, width 0.3s ease-in-out',
-    position: 'fixed',
-    right: 0,
-    top: `${NAVBAR_HEIGHT}px`,
-    height: `calc(100% - ${NAVBAR_HEIGHT}px)`,
-    zIndex: 1001,
-  };
-
-  const toggleButtonStyle = {
-    position: 'fixed',
-    top: `${NAVBAR_HEIGHT + 15}px`,
-    right: isSidebarVisible && !isMobile ? '365px' : '15px',
-    zIndex: 1002,
-    backgroundColor: '#4c5d73',
-    color: 'white',
-    border: 'none',
-    borderRadius: '50%',
-    width: '40px',
-    height: '40px',
-    fontSize: '1.5rem',
-    cursor: 'pointer',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-    transition: 'right 0.3s ease-in-out, top 0.3s ease-in-out',
-  };
   return (
     <div style={containerStyle}>
       <div style={mapWrapperStyle}>
@@ -361,7 +310,7 @@ export default function VolunteerMap() {
                   click: () => {
                     setSelectedInquiry(inquiry);
                     setSelectedVolunteerIds([]);
-                    if (!isSidebarVisible) setIsSidebarVisible(true);
+                    // fetchVolunteers will be called by the useEffect for selectedInquiry/radius
                   },
                 }}
               >
@@ -391,102 +340,99 @@ export default function VolunteerMap() {
         </MapContainer>
       </div>
 
-      <div style={dynamicSidebarStyle}>
+      <div style={sidebarStyle}>
+        <h2 style={sectionTitleStyle}>פרטי פנייה ושיבוץ מתנדב</h2>
         {selectedInquiry ? (
           <>
-            <div style={sidebarContentStyle}>
-
-              <CollapsibleSection title="פרטי פנייה" defaultExpanded={true}>
-                <div style={inquiryDetailsStyle}>
-                  <div style={detailItemStyle}><strong>מס' פנייה:</strong> {selectedInquiry.id}</div>
-                  <div style={detailItemStyle}><strong>כתובת:</strong> {selectedInquiry.address}, {selectedInquiry.city || ''}</div>
-                  <div style={detailItemStyle}><strong>טלפון:</strong> {selectedInquiry.phoneNumber}</div>
-                  <div style={detailItemStyle}><strong>תאריך פתיחה:</strong> {selectedInquiry.timestamp ? new Date(selectedInquiry.timestamp.toDate()).toLocaleString('he-IL') : 'אין מידע'}</div>
-                  <div style={detailItemStyle}><strong>סטטוס:</strong> {selectedInquiry.status}</div>
-                  <div style={detailItemStyle}><strong>הערות:</strong> {selectedInquiry.notes || 'אין'}</div>
-                  <div style={detailItemStyle}>
-                    <strong>מתנדב משובץ:</strong>{' '}
-                    {isSelectedInquiryAssigned ? selectedInquiry.assignedVolunteers : 'טרם שובץ'}
-                  </div>
-                </div>
-              </CollapsibleSection>
-
-              <div style={filterContainerStyle}>
-                <label htmlFor="radius-range" style={filterLabelStyle}>
-                  טווח חיפוש מתנדבים:
-                </label>
-                <input
-                  type="range"
-                  id="radius-range"
-                  min="0"
-                  max="100"
-                  step="5"
-                  value={radius}
-                  onChange={(e) => setRadius(Number(e.target.value))}
-                  style={filterInputRangeStyle}
-                  disabled={isSelectedInquiryAssigned}
-                />
-                <span style={filterRangeValueStyle}>{radius} ק"מ</span>
+            <div style={inquiryDetailsStyle}>
+              <div style={detailItemStyle}><strong>מס' פנייה:</strong> {selectedInquiry.id}</div>
+              <div style={detailItemStyle}><strong>כתובת:</strong> {selectedInquiry.address}, {selectedInquiry.city || ''}</div>
+              <div style={detailItemStyle}><strong>טלפון:</strong> {selectedInquiry.phoneNumber}</div>
+              <div style={detailItemStyle}><strong>תאריך פתיחה:</strong> {selectedInquiry.timestamp ? new Date(selectedInquiry.timestamp.toDate()).toLocaleString('he-IL') : 'אין מידע'}</div>
+              <div style={detailItemStyle}><strong>סטטוס:</strong> {selectedInquiry.status}</div>
+              <div style={detailItemStyle}><strong>הערות:</strong> {selectedInquiry.notes || 'אין'}</div>
+              <div style={detailItemStyle}>
+                <strong>מתנדב משובץ:</strong>{' '}
+                {isSelectedInquiryAssigned ? selectedInquiry.assignedVolunteers : 'טרם שובץ'}
               </div>
-
-              <h3 style={sectionTitleStyle}>מתנדבים זמינים ברדיוס:</h3>
-              {availableVolunteers.length > 0 ? (
-                <ul style={listStyle}>
-                  {availableVolunteers.map((v) => (
-                    <li key={v.id} style={{ marginBottom: '12px' }}>
-                      <label style={{ cursor: isSelectedInquiryAssigned ? 'not-allowed' : 'pointer' }}>
-                        <input
-                          type="radio"
-                          name="volSelect"
-                          checked={selectedVolunteerIds[0] === v.id}
-                          onChange={() => setSelectedVolunteerIds([v.id])}
-                          style={{ marginRight: '8px' }}
-                          disabled={isSelectedInquiryAssigned}
-                        />
-                        {v.name} — {v.distance?.toFixed(1)} ק"מ — ציון {v.score?.toFixed(1)}
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div style={{ color: '#6b7280', textAlign: 'center' }}>
-                  אין מתנדבים זמינים ברדיוס של {radius} ק"מ.
-                </div>
-              )}
             </div>
-            
-            <div style={sidebarActionsStyle}>
-              {!isSelectedInquiryAssigned && (
-                <button
-                  style={assignButtonStyle}
-                  disabled={!selectedInquiry || selectedVolunteerIds.length === 0}
-                  onClick={assignToInquiry}
-                >
-                  שבץ מתנדב לקריאה
-                </button>
-              )}
-              <button
-                onClick={() => {
+
+            <div style={filterContainerStyle}>
+              <label htmlFor="radius-range" style={filterLabelStyle}>
+                טווח חיפוש מתנדבים:
+              </label>
+              <input
+                type="range"
+                id="radius-range"
+                min="1"
+                max="100"
+                step="5"
+                value={radius}
+                onChange={(e) => setRadius(Number(e.target.value))}
+                style={filterInputRangeStyle}
+                disabled={isSelectedInquiryAssigned}
+              />
+              <span style={filterRangeValueStyle}>{radius} ק"מ</span>
+            </div>
+
+            <h3 style={sectionTitleStyle}>מתנדבים זמינים ברדיוס:</h3>
+            {availableVolunteers.length > 0 ? (
+              <ul style={listStyle}>
+                {availableVolunteers.map((v) => (
+                  <li key={v.id} style={{ marginBottom: '12px' }}>
+                    <label style={{ cursor: isSelectedInquiryAssigned ? 'not-allowed' : 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="volSelect"
+                        checked={selectedVolunteerIds[0] === v.id}
+                        onChange={() => setSelectedVolunteerIds([v.id])}
+                        style={{ marginRight: '8px' }}
+                        disabled={isSelectedInquiryAssigned}
+                      />
+                      {v.name} — {v.distance?.toFixed(1)} ק"מ — ציון {v.score?.toFixed(1)}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div style={{ color: '#6b7280', textAlign: 'center' }}>
+                אין מתנדבים זמינים ברדיוס של {radius} ק"מ.
+              </div>
+            )}
+
+            <button
+              style={assignButtonStyle}
+              disabled={!selectedInquiry || selectedVolunteerIds.length === 0 || isSelectedInquiryAssigned}
+              onClick={assignToInquiry}
+            >
+              {isSelectedInquiryAssigned ? 'כבר שובץ מתנדב' : 'שבץ מתנדב לקריאה'}
+            </button>
+            <button
+              onClick={() => {
                   setSelectedInquiry(null);
                   setSelectedVolunteerIds([]);
                   setAvailableVolunteers([]);
                   if (location.search.includes('inquiryId')) {
                     navigate(location.pathname, { replace: true });
                   }
-                }}
-                style={{
-                  ...assignButtonStyle,
-                  backgroundColor: '#6c757d',
-                  marginTop: isSelectedInquiryAssigned ? '0' : '10px',
-                }}
-              >
-                בטל בחירה
-              </button>
-            </div>
+              }}
+              style={{
+                ...assignButtonStyle,
+                backgroundColor: '#6c757d',
+                marginTop: '10px',
+              }}
+            >
+              בטל בחירה
+            </button>
           </>
         ) : (
-          <p style={{ color: '#6b7280', textAlign: 'center', margin: 'auto' }}>
+          <p style={{ color: '#6b7280', textAlign: 'center', marginTop: '20px' }}>
             לחץ על מרקר של נחיל במפה כדי לראות פרטים ולשבץ מתנדב.
+            {location.search.includes('inquiryId') && (
+                <p style={{ fontSize: '0.85rem', marginTop: '10px' }}>
+                    ייתכן והפנייה הספציפית שחיפשת לא נמצאה, או שאינה זמינה לשיבוץ.
+                </p>
+            )}
           </p>
         )}
       </div>
