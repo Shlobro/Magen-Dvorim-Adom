@@ -17,7 +17,10 @@ import EthicsCoordinators from './pages/EthicsCoordinators.jsx';
 import EthicsVolunteers from './pages/EthicsVolunteers.jsx';
 
 // ייבוא קומפוננטת טופס המשוב החדשה
-import FeedbackForm from './pages/FeedbackForm.jsx'; // <--- חדש
+import FeedbackForm from './pages/FeedbackForm.jsx';
+
+// ייבוא קומפוננטת התובנות החדשה
+import InsightsPage from './pages/InsightsPage.jsx';
 
 function App() {
   return (
@@ -37,24 +40,33 @@ function App() {
             <Route path="/ethics/volunteers" element={<EthicsVolunteers />} />
 
             {/* נתיב לטופס המשוב */}
-            <Route path="/feedback" element={<FeedbackForm />} /> {/* <--- חדש */}
+            <Route path="/feedback" element={<FeedbackForm />} />
 
             {/* נתיבים מוגנים - רק לרכזים (userType: 1) */}
-            <Route 
-              path="/dashboard" 
+            <Route
+              path="/dashboard"
               element={
                 <ProtectedRoute requiredRole={1}>
                   <Dashboard />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/volunteer-map" 
+            <Route
+              path="/volunteer-map"
               element={
                 <ProtectedRoute requiredRole={1}>
                   <VolunteerMap />
                 </ProtectedRoute>
-              } 
+              }
+            />
+            {/* New route for Insights page */}
+            <Route
+              path="/insights"
+              element={
+                <ProtectedRoute requiredRole={1}>
+                  <InsightsPage /> {/* Your new Insights component */}
+                </ProtectedRoute>
+              }
             />
             {/* הוסף כאן נתיבים נוספים שצריכים הגנה לתפקיד "coordinator" */}
           </Routes>

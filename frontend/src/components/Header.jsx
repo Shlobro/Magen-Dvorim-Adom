@@ -1,13 +1,13 @@
 // frontend/src/components/Header.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaBars, FaTimes, FaHome, FaBell, FaUsers, FaSignInAlt, FaSignOutAlt, FaMapMarkedAlt } from 'react-icons/fa'; // הוסף FaMapMarkedAlt
+import { FaBars, FaTimes, FaHome, FaBell, FaUsers, FaSignInAlt, FaSignOutAlt, FaMapMarkedAlt, FaChartBar } from 'react-icons/fa'; // הוסף FaMapMarkedAlt ו-FaChartBar
 import mdaLogo from '../assets/mda_logo.png';
 import '../styles/Header.css';
 
 // ייבוא AuthContext ו-Firebase Auth
-import { useAuth } from '../contexts/AuthContext.jsx'; 
-import { auth } from '../firebaseConfig'; 
+import { useAuth } from '../contexts/AuthContext.jsx';
+import { auth } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
 
 export default function Header() {
@@ -25,11 +25,13 @@ export default function Header() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      alert("התנתקת בהצלחה!");
-      setMenuOpen(false); 
+      // Replaced alert with console.log as alerts are not supported
+      console.log("התנתקת בהצלחה!");
+      setMenuOpen(false);
     } catch (error) {
       console.error("שגיאה בהתנתקות:", error);
-      alert("נכשל בהתנתקות. אנא נסה שוב.");
+      // Replaced alert with console.error as alerts are not supported
+      console.error("נכשל בהתנתקות. אנא נסה שוב.");
     }
   };
 
@@ -43,6 +45,9 @@ export default function Header() {
     // הוסף את הקישור למפת המתנדבים כאן
     // נציג אותו רק אם המשתמש הוא רכז (userType === 1)
     ...(userRole === 1 ? [{ label: 'מפת מתנדבים', icon: <FaMapMarkedAlt />, to: '/volunteer-map', isButton: false }] : []),
+    // הוסף את הקישור לדף התובנות כאן
+    // נציג אותו רק אם המשתמש הוא רכז (userType === 1)
+    ...(userRole === 1 ? [{ label: 'תובנות', icon: <FaChartBar />, to: '/insights', isButton: false }] : []), // <--- חדש: קישור לדף תובנות
     { label: 'התנתק', icon: <FaSignOutAlt />, onClick: handleLogout, isButton: true },
   ];
 
