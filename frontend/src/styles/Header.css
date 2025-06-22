@@ -1,151 +1,202 @@
+/* frontend/src/styles/Header.css */
+
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #ffffff;
-  padding: 12px 24px;
-  border-bottom: 1px solid #eee;
-  position: sticky;
-  top: 0;
-  z-index: 999;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #ffffff;
+    /* --- MODIFIED --- */
+    padding: 18px 30px; /* Increased padding for more vertical space */
+    height: 90px; /* Explicitly set a larger height for the header */
+    min-height: 90px; /* Ensures it maintains this height */
+    /* --- END MODIFIED --- */
+    border-bottom: 1px solid #eee;
+    position: sticky;
+    top: 0;
+    z-index: 999;
 }
 
 /* לינק לוגו */
 .logo-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-decoration: none;
+    display: flex;
+    align-items: center;
+    /* --- MODIFIED --- */
+    gap: 12px; /* Increased gap between logo and title */
+    /* --- END MODIFIED --- */
+    text-decoration: none;
 }
 
 .logo {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 2px solid #facc15;
+    /* --- MODIFIED --- */
+    width: 50px; /* Increased logo width */
+    height: 50px; /* Increased logo height */
+    /* --- END MODIFIED --- */
+    border-radius: 50%;
+    border: 2px solid #facc15;
 }
 
 .title {
-  font-size: 20px;
-  font-weight: bold;
-  color: #78350f;
+    /* --- MODIFIED --- */
+    font-size: 28px; /* Increased font size for the title */
+    /* --- END MODIFIED --- */
+    font-weight: bold;
+    color: #78350f;
 }
 
 /* ניווט בדסקטופ */
 .nav-links {
-  display: flex;
-  gap: 24px;
+    /* --- MODIFIED --- */
+    gap: 30px; /* Increased gap between navigation items */
+    /* --- END MODIFIED --- */
+    display: flex;
 }
 
 /* סגנונות כלליים עבור לינקים וכפתורים בתפריט הניווט הראשי */
 .nav-link {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #111;
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 14px;
-  font-family: inherit; /* ודא ירושה של פונט הגלובלי */
+    display: flex;
+    align-items: center;
+    /* --- MODIFIED --- */
+    gap: 8px; /* Slightly increased gap for icons within nav links */
+    font-size: 16px; /* Increased font size for nav links */
+    /* --- END MODIFIED --- */
+    color: #111;
+    text-decoration: none;
+    font-weight: 500;
+    font-family: inherit; /* ודא ירושה של פונט הגלובלי */
 
-  /* איפוס סגנונות ברירת מחדל של כפתור */
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  text-align: right; /* ודא יישור טקסט לימין */
+    /* איפוס סגנונות ברירת מחדל של כפתור */
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    text-align: right; /* ודא יישור טקסט לימין */
 }
 
 .nav-link:hover {
-  color: #ca8a04;
+    color: #ca8a04;
 }
 
 /* כפתור תפריט מובייל (המבורגר) */
 .menu-button {
-  background: none;
-  border: none;
-  color: #111;
-  cursor: pointer;
-  display: none; /* מוסתר בדסקטופ */
+    background: none;
+    border: none;
+    color: #111;
+    cursor: pointer;
+    /* --- MODIFIED --- */
+    font-size: 32px; /* Increased size of the hamburger icon */
+    /* --- END MODIFIED --- */
+    display: none; /* מוסתר בדסקטופ */
 }
 
 /* שכבת כיסוי כהה כשהתפריט פתוח */
 .overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 998;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 998;
 }
 
 /* תפריט צד במובייל */
 .side-menu {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 240px;
-  height: 100%;
-  background: white;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.2);
-  z-index: 999;
-  animation: slideIn 0.3s ease-out;
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 240px;
+    height: 100%;
+    background: white;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    /* --- MODIFIED --- */
+    gap: 24px; /* Slightly increased gap in side menu */
+    /* --- END MODIFIED --- */
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.2);
+    z-index: 999;
+    animation: slideIn 0.3s ease-out;
 }
 
 @keyframes slideIn {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
+    }
 }
 
 /* כפתור סגירת תפריט צד */
 .close-button {
-  background: none;
-  border: none;
-  color: #111;
-  cursor: pointer;
-  align-self: flex-start; /* מיישר את כפתור ה-X לצד שמאל (או ימין ב-RTL) */
-  margin-bottom: 10px;
+    background: none;
+    border: none;
+    color: #111;
+    cursor: pointer;
+    align-self: flex-start; /* מיישר את כפתור ה-X לצד שמאל (או ימין ב-RTL) */
+    /* --- MODIFIED --- */
+    margin-bottom: 15px; /* Increased margin below close button */
+    font-size: 28px; /* Increased size of the close button icon */
+    /* --- END MODIFIED --- */
 }
 
 /* סגנונות כלליים עבור לינקים וכפתורים בתפריט הצד (מובייל) */
 .menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 10px;
-  border-radius: 6px;
-  text-decoration: none;
-  color: #111;
-  font-size: 16px;
-  font-weight: 500;
-  font-family: inherit; /* ודא ירושה של פונט הגלובלי */
-  transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    /* --- MODIFIED --- */
+    gap: 12px; /* Increased gap between icon and text in side menu items */
+    padding: 14px 12px; /* Increased padding for side menu items */
+    font-size: 18px; /* Increased font size for side menu items */
+    /* --- END MODIFIED --- */
+    border-radius: 6px;
+    text-decoration: none;
+    color: #111;
+    font-weight: 500;
+    font-family: inherit; /* ודא ירושה של פונט הגלובלי */
+    transition: background-color 0.2s;
 
-  /* איפוס סגנונות ברירת מחדל של כפתור */
-  border: none;
-  background: none;
-  cursor: pointer;
-  width: 100%; /* ודא שהכפתור תופס את כל הרוחב */
-  text-align: right; /* יישר את הטקסט לימין */
+    /* איפוס סגנונות ברירת מחדל של כפתור */
+    border: none;
+    background: none;
+    cursor: pointer;
+    width: 100%; /* ודא שהכפתור תופס את כל הרוחב */
+    text-align: right; /* יישר את הטקסט לימין */
 }
 
 .menu-item:hover {
-  background-color: #f0f0f0;
+    background-color: #f0f0f0;
 }
 
 /* מדיה קווריות - התאמה למובייל */
 @media (max-width: 767px) {
-  .nav-links {
-    display: none; /* הסתר את הניווט הרגיל */
-  }
+    .nav-links {
+        display: none; /* הסתר את הניווט הרגיל */
+    }
 
-  .menu-button {
-    display: block; /* הצג את כפתור ההמבורגר */
-  }
+    .menu-button {
+        display: block; /* הצג את כפתור ההמבורגר */
+    }
+
+    /* --- MODIFIED --- */
+    .header {
+        padding: 15px 20px; /* Slightly more padding for mobile header */
+        height: 80px; /* Slightly larger height for mobile header */
+        min-height: 80px;
+    }
+
+    .logo {
+        width: 45px; /* Slightly larger logo on mobile */
+        height: 45px;
+    }
+
+    .title {
+        font-size: 24px; /* Slightly larger title on mobile */
+    }
+
+    .menu-button svg { /* Targeting the actual icon within the button */
+        font-size: 30px; /* Ensuring the FaBars icon itself is bigger */
+    }
+
+    .close-button svg { /* Targeting the actual icon within the button */
+        font-size: 26px; /* Ensuring the FaTimes icon itself is bigger */
+    }
+    /* --- END MODIFIED --- */
 }
