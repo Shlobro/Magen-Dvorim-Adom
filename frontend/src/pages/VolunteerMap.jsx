@@ -1,495 +1,702 @@
-// frontend/src/pages/VolunteerMap.jsx
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import axios from 'axios';
+"use client"
+
+import { useEffect, useState, useCallback, useRef } from "react"
+import axios from "axios"
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
+import L from "leaflet"
+import "leaflet/dist/leaflet.css"
+import beeIconUrl from "../assets/cuteBeeInquiry.png"
+import { collection, getDocs, doc, updateDoc, query, where, GeoPoint, Timestamp } from "firebase/firestore"
+import { db } from "../firebaseConfig"
+import { useLocation, useNavigate } from "react-router-dom"
 import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Popup,
-  useMap,
-} from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import beeIconUrl from '../assets/cuteBeeInquiry.png';
-import { collection, getDocs, doc, updateDoc, query, where, GeoPoint, Timestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { useLocation, useNavigate } from 'react-router-dom';
-import CollapsibleSection from './CollapsibleSection';
+  Card,
+  CardContent,
+  CardHeader,
+  Typography,
+  Button,
+  Chip,
+  Avatar,
+  Alert,
+  Slider,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormControl,
+  Box,
+  IconButton,
+  Fade,
+  Grow,
+  Paper,
+  Collapse,
+} from "@mui/material"
+import {
+  LocationOn,
+  People,
+  Phone,
+  CalendarToday,
+  Message,
+  Close,
+  Menu,
+  GpsFixed,
+  CheckCircle,
+  Schedule,
+  Navigation,
+  ExpandMore,
+} from "@mui/icons-material"
 
-// ===========================
-// Styles (unchanged)
-// ===========================
-
-const NAVBAR_HEIGHT = 65;
-const isMobile = window.innerWidth <= 768;
-
-const containerStyle = {
-  display: 'flex',
-  height: '100vh',
-  width: '100%',
-  backgroundColor: '#f5f7fa',
-  fontFamily: '"Segoe UI", Tahoma, sans-serif',
-};
-const mapWrapperStyle = {
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  backgroundColor: '#ffffff',
-  boxShadow: '2px 0 8px rgba(0, 0, 0, 0.05)',
-  position: 'relative', // Added for positioning the button
-};
-const mapHeaderStyle = {
-  padding: '12px 16px',
-  fontSize: '1.4rem',
-  fontWeight: '600',
-  borderBottom: '1px solid #e0e0e0',
-  backgroundColor: '#ffffff',
-  color: '#1f2937',
-  textAlign: 'center',
-  boxShadow: '0 1px 4px rgba(0, 0, 0, 0.05)',
-  flexShrink: 0, // Prevent header from shrinking
-};
-const sidebarStyle = {
-  width: '350px',
-  minWidth: '300px',
-  backgroundColor: '#f9fafb',
-  padding: '20px',
-  display: 'flex',
-  flexDirection: 'column',
-  boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.05)',
-  overflowY: 'auto',
-};
-const sectionTitleStyle = {
-  fontSize: '1.2rem',
-  fontWeight: '600',
-  color: '#374151',
-  marginBottom: '15px',
-  borderBottom: '1px solid #e5e7eb',
-  paddingBottom: '8px',
-};
-const inquiryDetailsStyle = {
-  backgroundColor: '#ffffff',
-  padding: '15px',
-  borderRadius: '8px',
-  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
-  marginBottom: '20px',
-};
-const detailItemStyle = {
-  marginBottom: '8px',
-  fontSize: '0.95rem',
-  color: '#4b5563',
-  lineHeight: '1.4',
-};
-const listStyle = {
-  listStyle: 'none',
-  padding: '0',
-  margin: '0',
-};
-const assignButtonStyle = {
-  backgroundColor: '#4c5d73',
-  color: 'white',
-  padding: '12px 20px',
-  border: 'none',
-  borderRadius: '8px',
-  cursor: 'pointer',
-  fontSize: '1rem',
-  fontWeight: '600',
-  transition: 'background-color 0.2s ease-in-out',
-  width: '100%',
-  marginTop: '20px',
-};
-const filterContainerStyle = {
-  marginBottom: '20px',
-  padding: '15px',
-  backgroundColor: '#ffffff',
-  borderRadius: '8px',
-  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
-};
-const filterLabelStyle = {
-  display: 'block',
-  marginBottom: '8px',
-  fontWeight: 'bold',
-  color: '#374151',
-};
-const filterInputRangeStyle = {
-  width: '100%',
-  marginTop: '5px',
-};
-const filterRangeValueStyle = {
-  fontSize: '0.9rem',
-  color: '#666',
-  marginTop: '5px',
-  display: 'block',
-  textAlign: 'center',
-};
-
-// ==========================
 // Custom Bee Icon
-// ==========================
 const beeIcon = new L.Icon({
   iconUrl: beeIconUrl,
   iconSize: [32, 32],
   iconAnchor: [16, 32],
   popupAnchor: [0, -32],
-});
+})
 
-// ==========================
-// Main Component
-// ==========================
+const NAVBAR_HEIGHT = 65
+const isMobile = window.innerWidth <= 768
+
 export default function VolunteerMap() {
-  const [inquiries, setInquiries] = useState([]);
-  const [selectedInquiry, setSelectedInquiry] = useState(null);
-  const [availableVolunteers, setAvailableVolunteers] = useState([]);
-  const [radius, setRadius] = useState(20);
-  const [selectedVolunteerIds, setSelectedVolunteerIds] = useState([]);
+  const [inquiries, setInquiries] = useState([])
+  const [selectedInquiry, setSelectedInquiry] = useState(null)
+  const [availableVolunteers, setAvailableVolunteers] = useState([])
+  const [radius, setRadius] = useState(20)
+  const [selectedVolunteerIds, setSelectedVolunteerIds] = useState([])
+  const [isSidebarVisible, setIsSidebarVisible] = useState(window.innerWidth > 768)
+  const [showInquiryDetails, setShowInquiryDetails] = useState(false)
 
-  const [isSidebarVisible, setIsSidebarVisible] = useState(window.innerWidth > 768);
-
-  const mapRef = useRef();
-  const location = useLocation();
-  const navigate = useNavigate();
+  const mapRef = useRef()
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const extractCoordinates = (data) => {
-    let lat = null;
-    let lng = null;
+    let lat = null
+    let lng = null
     if (data.location instanceof GeoPoint) {
-      lat = data.location.latitude;
-      lng = data.location.longitude;
-    } else if (data.location && typeof data.location === 'object' && data.location.latitude != null && data.location.longitude != null) {
-      lat = data.location.latitude;
-      lng = data.location.longitude;
+      lat = data.location.latitude
+      lng = data.location.longitude
+    } else if (
+      data.location &&
+      typeof data.location === "object" &&
+      data.location.latitude != null &&
+      data.location.longitude != null
+    ) {
+      lat = data.location.latitude
+      lng = data.location.longitude
     } else if (data.lat != null && data.lng != null) {
-      lat = data.lat;
-      lng = data.lng;
+      lat = data.lat
+      lng = data.lng
     }
-    return { lat, lng };
-  };
+    return { lat, lng }
+  }
 
   const fetchInquiries = useCallback(async () => {
     try {
-      const q = query(collection(db, "inquiry"), where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב"]));
-      const querySnapshot = await getDocs(q);
-      const fetched = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        const { lat, lng } = extractCoordinates(data);
-        return { id: doc.id, ...data, lat, lng };
-      });
-      const validInquiries = fetched.filter(inquiry =>
-        inquiry.lat != null && !isNaN(inquiry.lat) &&
-        inquiry.lng != null && !isNaN(inquiry.lng)
-      );
-      setInquiries(validInquiries);
+      const q = query(
+        collection(db, "inquiry"),
+        where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב"]),
+      )
+      const querySnapshot = await getDocs(q)
+      const fetched = querySnapshot.docs.map((doc) => {
+        const data = doc.data()
+        const { lat, lng } = extractCoordinates(data)
+        return { id: doc.id, ...data, lat, lng }
+      })
+      const validInquiries = fetched.filter(
+        (inquiry) => inquiry.lat != null && !isNaN(inquiry.lat) && inquiry.lng != null && !isNaN(inquiry.lng),
+      )
+      setInquiries(validInquiries)
     } catch (error) {
-      console.error("Error fetching inquiries:", error);
+      console.error("Error fetching inquiries:", error)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    fetchInquiries();
-  }, [fetchInquiries]);
+    fetchInquiries()
+  }, [fetchInquiries])
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const inquiryIdFromUrl = params.get('inquiryId');
+    const params = new URLSearchParams(location.search)
+    const inquiryIdFromUrl = params.get("inquiryId")
     if (inquiryIdFromUrl && inquiries.length > 0) {
-      const inquiryToSelect = inquiries.find(inc => inc.id === inquiryIdFromUrl);
+      const inquiryToSelect = inquiries.find((inc) => inc.id === inquiryIdFromUrl)
       if (inquiryToSelect) {
-        setSelectedInquiry(inquiryToSelect);
+        setSelectedInquiry(inquiryToSelect)
         if (mapRef.current && inquiryToSelect.lat != null && inquiryToSelect.lng != null) {
-          mapRef.current.setView([inquiryToSelect.lat, inquiryToSelect.lng], 13);
+          mapRef.current.setView([inquiryToSelect.lat, inquiryToSelect.lng], 13)
         }
       } else {
-        console.warn(`Inquiry with ID ${inquiryIdFromUrl} not found or already processed.`);
-        navigate(location.pathname, { replace: true });
+        console.warn(`Inquiry with ID ${inquiryIdFromUrl} not found or already processed.`)
+        navigate(location.pathname, { replace: true })
       }
     }
-  }, [inquiries, location.search, navigate]);
+  }, [inquiries, location.search, navigate])
 
   useEffect(() => {
     const fetchVolunteers = async () => {
       if (!selectedInquiry) {
-        setAvailableVolunteers([]);
-        return;
+        setAvailableVolunteers([])
+        return
       }
-      if (selectedInquiry.lat == null || isNaN(selectedInquiry.lat) ||
-        selectedInquiry.lng == null || isNaN(selectedInquiry.lng)) {
-        setAvailableVolunteers([]);
-        return;
+      if (
+        selectedInquiry.lat == null ||
+        isNaN(selectedInquiry.lat) ||
+        selectedInquiry.lng == null ||
+        isNaN(selectedInquiry.lng)
+      ) {
+        setAvailableVolunteers([])
+        return
       }
       try {
-        const response = await axios.post('/api/users/queryNear', {
+        const response = await axios.post("/api/users/queryNear", {
           lat: selectedInquiry.lat,
           lng: selectedInquiry.lng,
           radius,
-        });
-        setAvailableVolunteers(response.data);
+        })
+        setAvailableVolunteers(response.data)
       } catch (error) {
-        console.error("Error fetching available volunteers:", error);
-        setAvailableVolunteers([]);
+        console.error("Error fetching available volunteers:", error)
+        setAvailableVolunteers([])
       }
-    };
-    fetchVolunteers();
-  }, [selectedInquiry, radius]);
+    }
+    fetchVolunteers()
+  }, [selectedInquiry, radius])
 
   const assignToInquiry = async () => {
     if (!selectedInquiry || selectedVolunteerIds.length === 0) {
-      alert("אנא בחר פנייה ומתנדב לשיבוץ.");
-      return;
+      alert("אנא בחר פנייה ומתנדב לשיבוץ.")
+      return
     }
-    const inquiryId = selectedInquiry.id;
-    const volunteerToAssignId = selectedVolunteerIds[0];
+    const inquiryId = selectedInquiry.id
+    const volunteerToAssignId = selectedVolunteerIds[0]
     try {
-      const inquiryRef = doc(db, "inquiry", inquiryId);
+      const inquiryRef = doc(db, "inquiry", inquiryId)
       await updateDoc(inquiryRef, {
         assignedVolunteers: volunteerToAssignId,
         status: "לפנייה שובץ מתנדב",
         assignedTimestamp: Timestamp.now(),
-      });
-      alert(`פנייה ${inquiryId} שובצה בהצלחה למתנדב ${volunteerToAssignId}.`);
-      fetchInquiries();
-      setSelectedInquiry(null);
-      setAvailableVolunteers([]);
-      setSelectedVolunteerIds([]);
-      navigate('/dashboard');
+      })
+      alert(`פנייה ${inquiryId} שובצה בהצלחה למתנדב ${volunteerToAssignId}.`)
+      fetchInquiries()
+      setSelectedInquiry(null)
+      setAvailableVolunteers([])
+      setSelectedVolunteerIds([])
+      navigate("/dashboard")
     } catch (error) {
-      console.error("שגיאה בשיבוץ מתנדב:", error);
-      alert("נכשל בשיבוץ מתנדב. אנא נסה שוב.");
+      console.error("שגיאה בשיבוץ מתנדב:", error)
+      alert("נכשל בשיבוץ מתנדב. אנא נסה שוב.")
     }
-  };
-
-  function MapSetter() {
-    const map = useMap();
-    useEffect(() => {
-      mapRef.current = map;
-      map.on('click', () => {
-        setSelectedInquiry(null);
-        setSelectedVolunteerIds([]);
-        setAvailableVolunteers([]);
-        if (location.search.includes('inquiryId')) {
-          navigate(location.pathname, { replace: true });
-        }
-      });
-      return () => {
-        map.off('click');
-      };
-    }, [map, navigate, location.pathname, location.search]);
-    return null;
   }
 
-  const isSelectedInquiryAssigned = selectedInquiry &&
+  function MapSetter() {
+    const map = useMap()
+    useEffect(() => {
+      mapRef.current = map
+      map.on("click", () => {
+        setSelectedInquiry(null)
+        setSelectedVolunteerIds([])
+        setAvailableVolunteers([])
+        if (location.search.includes("inquiryId")) {
+          navigate(location.pathname, { replace: true })
+        }
+      })
+      return () => {
+        map.off("click")
+      }
+    }, [map, navigate, location.pathname, location.search])
+    return null
+  }
+
+  const isSelectedInquiryAssigned =
+    selectedInquiry &&
     selectedInquiry.assignedVolunteers &&
-    (Array.isArray(selectedInquiry.assignedVolunteers) && selectedInquiry.assignedVolunteers.length > 0 ||
-      typeof selectedInquiry.assignedVolunteers === 'string' && selectedInquiry.assignedVolunteers !== '');
+    ((Array.isArray(selectedInquiry.assignedVolunteers) && selectedInquiry.assignedVolunteers.length > 0) ||
+      (typeof selectedInquiry.assignedVolunteers === "string" && selectedInquiry.assignedVolunteers !== ""))
 
-  const sidebarContentStyle = {
-    flex: '1 1 auto',
-    overflowY: 'auto',
-    padding: '0 20px',
-  };
+  const getStatusChip = (status) => {
+    if (status === "לפנייה שובץ מתנדב") {
+      return (
+        <Chip
+          icon={<CheckCircle />}
+          label="שובץ מתנדב"
+          color="success"
+          variant="filled"
+          size="small"
+          sx={{ fontWeight: 600 }}
+        />
+      )
+    }
+    return (
+      <Chip
+        icon={<Schedule />}
+        label="ממתין לשיבוץ"
+        color="warning"
+        variant="filled"
+        size="small"
+        sx={{ fontWeight: 600 }}
+      />
+    )
+  }
 
-  const sidebarActionsStyle = {
-    flexShrink: 0,
-    padding: '15px 20px',
-    borderTop: '1px solid #e5e7eb',
-    backgroundColor: '#f9fafb',
-  };
-  const dynamicSidebarStyle = {
-    width: isMobile ? 'calc(100% - 60px)' : sidebarStyle.width,
-    minWidth: '300px',
-    backgroundColor: '#f9fafb',
-    display: 'flex',
-    flexDirection: 'column',
-    boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.05)',
-    transform: isSidebarVisible ? 'translateX(0)' : 'translateX(100%)',
-    transition: 'transform 0.3s ease-in-out, width 0.3s ease-in-out',
-    position: 'fixed',
-    right: 0,
-    top: `${NAVBAR_HEIGHT}px`,
-    height: `calc(100% - ${NAVBAR_HEIGHT}px)`,
-    zIndex: 1001,
-  };
-
-  const toggleButtonStyle = {
-    position: 'fixed',
-    top: `${NAVBAR_HEIGHT + 15}px`,
-    right: isSidebarVisible && !isMobile ? '365px' : '15px',
-    zIndex: 1002,
-    backgroundColor: '#4c5d73',
-    color: 'white',
-    border: 'none',
-    borderRadius: '50%',
-    width: '40px',
-    height: '40px',
-    fontSize: '1.5rem',
-    cursor: 'pointer',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-    transition: 'right 0.3s ease-in-out, top 0.3s ease-in-out',
-  };
   return (
-    <div style={containerStyle}>
-      <div style={mapWrapperStyle}>
-        <h1 style={mapHeaderStyle}>מפת נחילי דבורים לשיבוץ מתנדבים</h1>
+    <Box
+      sx={{
+        display: "flex",
+        height: "100vh",
+        width: "100%",
+        background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+        fontFamily: '"Segoe UI", sans-serif',
+      }}
+    >
+      {/* Map Section */}
+      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", position: "relative" }}>
+        {/* Header */}
+        <Paper
+          elevation={4}
+          sx={{
+            p: 1.5,
+            background: "linear-gradient(135deg, #1976d2 0%, #1565c0 100%)",
+            color: "white",
+            borderRadius: 0,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2 }}>
+            <Avatar sx={{ bgcolor: "rgba(255,255,255,0.2)", width: 40, height: 40 }}>
+              <Navigation sx={{ fontSize: 20 }} />
+            </Avatar>
+            <Box sx={{ textAlign: "center" }}>
+              <Typography variant="h6" fontWeight="bold" gutterBottom>
+                מפת נחילי דבורים לשיבוץ מתנדבים
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                מערכת ניהול וחלוקת משימות
+              </Typography>
+            </Box>
+          </Box>
+        </Paper>
 
-        <button
-          style={toggleButtonStyle}
+        {/* Toggle Button */}
+        <IconButton
           onClick={() => setIsSidebarVisible(!isSidebarVisible)}
+          sx={{
+            position: "fixed",
+            top: NAVBAR_HEIGHT + 20,
+            right: isSidebarVisible && !isMobile ? "365px" : "16px",
+            zIndex: 1002,
+            width: 48,
+            height: 48,
+            bgcolor: "#1976d2",
+            color: "white",
+            boxShadow: 3,
+            transition: "right 0.3s ease-in-out",
+            "&:hover": {
+              bgcolor: "#1565c0",
+            },
+          }}
         >
-          {isSidebarVisible ? '»' : '«'}
-        </button>
+          {isSidebarVisible ? <Close /> : <Menu />}
+        </IconButton>
 
-        <MapContainer
-          center={[31.0461, 34.8516]}
-          zoom={8}
-          scrollWheelZoom={true}
-          style={{ flex: 1, height: 'calc(100% - 65px)', width: '100%' }}
-        >
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          />
-          <MapSetter />
-          {inquiries.map((inquiry) => (
-            inquiry.lat != null && inquiry.lng != null && !isNaN(inquiry.lat) && !isNaN(inquiry.lng) ? (
-              <Marker
-                key={inquiry.id}
-                position={[inquiry.lat, inquiry.lng]}
-                icon={beeIcon}
-                eventHandlers={{
-                  click: () => {
-                    setSelectedInquiry(inquiry);
-                    setSelectedVolunteerIds([]);
-                    if (!isSidebarVisible) setIsSidebarVisible(true);
-                  },
-                }}
-              >
-                <Popup>
-                  <strong>{inquiry.address}, {inquiry.city || ''}</strong><br />
-                  סטטוס: {inquiry.status}<br />
-                  {inquiry.notes && `הערות: ${inquiry.notes}`}<br />
-                  {inquiry.assignedVolunteers ? `שובץ: ${inquiry.assignedVolunteers}` : 'טרם שובץ'}
-                </Popup>
-              </Marker>
-            ) : null
-          ))}
-          {availableVolunteers.map((volunteer) => (
-            volunteer.lat != null && volunteer.lng != null && !isNaN(volunteer.lat) && !isNaN(volunteer.lng) ? (
-              <Marker
-                key={volunteer.id}
-                position={[volunteer.lat, volunteer.lng]}
-              >
-                <Popup>
-                  <strong>מתנדב: {volunteer.name}</strong><br />
-                  מרחק: {volunteer.distance?.toFixed(1)} ק"מ<br />
-                  ציון: {volunteer.score?.toFixed(1)}
-                </Popup>
-              </Marker>
-            ) : null
-          ))}
-        </MapContainer>
-      </div>
+        {/* Map Container */}
+        <Box sx={{ flex: 1 }}>
+          <MapContainer
+            center={[31.0461, 34.8516]}
+            zoom={8}
+            scrollWheelZoom={true}
+            style={{ height: "100%", width: "100%" }}
+          >
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            />
+            <MapSetter />
+            {inquiries.map((inquiry) =>
+              inquiry.lat != null && inquiry.lng != null && !isNaN(inquiry.lat) && !isNaN(inquiry.lng) ? (
+                <Marker
+                  key={inquiry.id}
+                  position={[inquiry.lat, inquiry.lng]}
+                  icon={beeIcon}
+                  eventHandlers={{
+                    click: () => {
+                      setSelectedInquiry(inquiry)
+                      setSelectedVolunteerIds([])
+                      if (!isSidebarVisible) setIsSidebarVisible(true)
+                    },
+                  }}
+                >
+                  <Popup>
+                    <Box sx={{ p: 1 }}>
+                      <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                        {inquiry.address}, {inquiry.city || ""}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        סטטוס: {inquiry.status}
+                      </Typography>
+                      {inquiry.notes && (
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          הערות: {inquiry.notes}
+                        </Typography>
+                      )}
+                      <Typography variant="body2" color="text.secondary">
+                        {inquiry.assignedVolunteers ? `שובץ: ${inquiry.assignedVolunteers}` : "טרם שובץ"}
+                      </Typography>
+                    </Box>
+                  </Popup>
+                </Marker>
+              ) : null,
+            )}
+            {availableVolunteers.map((volunteer) =>
+              volunteer.lat != null && volunteer.lng != null && !isNaN(volunteer.lat) && !isNaN(volunteer.lng) ? (
+                <Marker key={volunteer.id} position={[volunteer.lat, volunteer.lng]}>
+                  <Popup>
+                    <Box sx={{ p: 1 }}>
+                      <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                        מתנדב: {volunteer.name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        מרחק: {volunteer.distance?.toFixed(1)} ק"מ
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        ציון: {volunteer.score?.toFixed(1)}
+                      </Typography>
+                    </Box>
+                  </Popup>
+                </Marker>
+              ) : null,
+            )}
+          </MapContainer>
+        </Box>
+      </Box>
 
-      <div style={dynamicSidebarStyle}>
+      {/* Sidebar */}
+      <Paper
+        elevation={8}
+        sx={{
+          width: isMobile ? "calc(100% - 60px)" : "350px",
+          minWidth: "300px",
+          display: "flex",
+          flexDirection: "column",
+          position: "fixed",
+          right: 0,
+          top: `${NAVBAR_HEIGHT}px`,
+          height: `calc(100% - ${NAVBAR_HEIGHT}px)`,
+          zIndex: 1001,
+          transform: isSidebarVisible ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.3s ease-in-out",
+          bgcolor: "background.paper",
+        }}
+      >
         {selectedInquiry ? (
           <>
-            <div style={sidebarContentStyle}>
+            {/* Sidebar Content */}
+            <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                {/* Status Chip */}
+                <Box sx={{ display: "flex", justifyContent: "center", pt: 1 }}>
+                  {getStatusChip(selectedInquiry.status)}
+                </Box>
 
-              <CollapsibleSection title="פרטי פנייה" defaultExpanded={true}>
-                <div style={inquiryDetailsStyle}>
-                  <div style={detailItemStyle}><strong>מס' פנייה:</strong> {selectedInquiry.id}</div>
-                  <div style={detailItemStyle}><strong>כתובת:</strong> {selectedInquiry.address}, {selectedInquiry.city || ''}</div>
-                  <div style={detailItemStyle}><strong>טלפון:</strong> {selectedInquiry.phoneNumber}</div>
-                  <div style={detailItemStyle}><strong>תאריך פתיחה:</strong> {selectedInquiry.timestamp ? new Date(selectedInquiry.timestamp.toDate()).toLocaleString('he-IL') : 'אין מידע'}</div>
-                  <div style={detailItemStyle}><strong>סטטוס:</strong> {selectedInquiry.status}</div>
-                  <div style={detailItemStyle}><strong>הערות:</strong> {selectedInquiry.notes || 'אין'}</div>
-                  <div style={detailItemStyle}>
-                    <strong>מתנדב משובץ:</strong>{' '}
-                    {isSelectedInquiryAssigned ? selectedInquiry.assignedVolunteers : 'טרם שובץ'}
-                  </div>
-                </div>
-              </CollapsibleSection>
+                {/* Inquiry Details Card - Collapsible */}
+                <Grow in timeout={600}>
+                  <Card elevation={2} sx={{ borderRadius: 3 }}>
+                    <CardHeader
+                      avatar={
+                        <Avatar sx={{ bgcolor: "primary.main", width: 40, height: 40 }}>
+                          <LocationOn sx={{ fontSize: 20 }} />
+                        </Avatar>
+                      }
+                      title={
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            cursor: "pointer",
+                            width: "100%",
+                            mr: 1,
+                          }}
+                          onClick={() => setShowInquiryDetails(!showInquiryDetails)}
+                        >
+                          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+                            <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2 }}>
+                              פרטי הפנייה
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.2 }}>
+                              מס' {selectedInquiry.id.substring(0, 8)}
+                            </Typography>
+                          </Box>
+                          <ExpandMore
+                            sx={{
+                              transform: showInquiryDetails ? "rotate(180deg)" : "rotate(0deg)",
+                              transition: "transform 0.3s ease-in-out",
+                              color: "text.secondary",
+                            }}
+                          />
+                        </Box>
+                      }
+                      sx={{ pb: 1, "& .MuiCardHeader-content": { ml: 2 } }}
+                      onClick={() => setShowInquiryDetails(!showInquiryDetails)}
+                    />
+                    <Collapse in={showInquiryDetails}>
+                      <CardContent sx={{ pt: 0 }}>
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+                            <LocationOn sx={{ color: "text.secondary", mt: 0.5, fontSize: 20 }} />
+                            <Box>
+                              <Typography variant="subtitle2" fontWeight="bold">
+                                כתובת
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {selectedInquiry.address}, {selectedInquiry.city || ""}
+                              </Typography>
+                            </Box>
+                          </Box>
 
-              <div style={filterContainerStyle}>
-                <label htmlFor="radius-range" style={filterLabelStyle}>
-                  טווח חיפוש מתנדבים:
-                </label>
-                <input
-                  type="range"
-                  id="radius-range"
-                  min="0"
-                  max="100"
-                  step="5"
-                  value={radius}
-                  onChange={(e) => setRadius(Number(e.target.value))}
-                  style={filterInputRangeStyle}
-                  disabled={isSelectedInquiryAssigned}
-                />
-                <span style={filterRangeValueStyle}>{radius} ק"מ</span>
-              </div>
+                          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+                            <Phone sx={{ color: "text.secondary", mt: 0.5, fontSize: 20 }} />
+                            <Box>
+                              <Typography variant="subtitle2" fontWeight="bold">
+                                פרטי התקשרות
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "monospace" }}>
+                                {selectedInquiry.phoneNumber}
+                              </Typography>
+                            </Box>
+                          </Box>
 
-              <h3 style={sectionTitleStyle}>מתנדבים זמינים ברדיוס:</h3>
-              {availableVolunteers.length > 0 ? (
-                <ul style={listStyle}>
-                  {availableVolunteers.map((v) => (
-                    <li key={v.id} style={{ marginBottom: '12px' }}>
-                      <label style={{ cursor: isSelectedInquiryAssigned ? 'not-allowed' : 'pointer' }}>
-                        <input
-                          type="radio"
-                          name="volSelect"
-                          checked={selectedVolunteerIds[0] === v.id}
-                          onChange={() => setSelectedVolunteerIds([v.id])}
-                          style={{ marginRight: '8px' }}
-                          disabled={isSelectedInquiryAssigned}
-                        />
-                        {v.name} — {v.distance?.toFixed(1)} ק"מ — ציון {v.score?.toFixed(1)}
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div style={{ color: '#6b7280', textAlign: 'center' }}>
-                  אין מתנדבים זמינים ברדיוס של {radius} ק"מ.
-                </div>
-              )}
-            </div>
-            
-            <div style={sidebarActionsStyle}>
+                          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+                            <CalendarToday sx={{ color: "text.secondary", mt: 0.5, fontSize: 20 }} />
+                            <Box>
+                              <Typography variant="subtitle2" fontWeight="bold">
+                                תאריך פתיחה
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {selectedInquiry.timestamp
+                                  ? new Date(selectedInquiry.timestamp.toDate()).toLocaleString("he-IL")
+                                  : "אין מידע"}
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                          {selectedInquiry.notes && (
+                            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+                              <Message sx={{ color: "text.secondary", mt: 0.5, fontSize: 20 }} />
+                              <Box>
+                                <Typography variant="subtitle2" fontWeight="bold">
+                                  הערות
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {selectedInquiry.notes}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          )}
+
+                          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+                            <People sx={{ color: "text.secondary", mt: 0.5, fontSize: 20 }} />
+                            <Box>
+                              <Typography variant="subtitle2" fontWeight="bold">
+                                מתנדב משובץ
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {isSelectedInquiryAssigned ? selectedInquiry.assignedVolunteers : "טרם שובץ"}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Box>
+                      </CardContent>
+                    </Collapse>
+                  </Card>
+                </Grow>
+
+                {/* Search Radius Card */}
+                <Grow in timeout={800}>
+                  <Card elevation={2} sx={{ borderRadius: 3 }}>
+                    <CardHeader
+                      avatar={
+                        <Avatar sx={{ bgcolor: "warning.main", width: 40, height: 40 }}>
+                          <GpsFixed sx={{ fontSize: 20 }} />
+                        </Avatar>
+                      }
+                      title={
+                        <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2, mr: 1 }}>
+                          טווח חיפוש
+                        </Typography>
+                      }
+                      sx={{ pb: 1, "& .MuiCardHeader-content": { ml: 2 } }}
+                    />
+                    <CardContent sx={{ pt: 0, pb: 2 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                        <Typography variant="body2" fontWeight="medium">
+                          רדיוס חיפוש
+                        </Typography>
+                        <Chip label={`${radius} ק"מ`} variant="outlined" size="small" />
+                      </Box>
+                      <Slider
+                        value={radius}
+                        onChange={(e, value) => setRadius(value)}
+                        min={0}
+                        max={100}
+                        step={5}
+                        disabled={isSelectedInquiryAssigned}
+                        valueLabelDisplay="auto"
+                        valueLabelFormat={(value) => `${value} ק"מ`}
+                        sx={{ mt: 0 }}
+                      />
+                    </CardContent>
+                  </Card>
+                </Grow>
+
+                {/* Available Volunteers Card */}
+                <Grow in timeout={1000}>
+                  <Card elevation={2} sx={{ borderRadius: 3 }}>
+                    <CardHeader
+                      avatar={
+                        <Avatar sx={{ bgcolor: "success.main", width: 40, height: 40 }}>
+                          <People sx={{ fontSize: 20 }} />
+                        </Avatar>
+                      }
+                      title={
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2, mr: 1 }}>
+                            מתנדבים זמינים
+                          </Typography>
+                          <Chip label={availableVolunteers.length} size="small" color="primary" />
+                        </Box>
+                      }
+                      sx={{ pb: 1, "& .MuiCardHeader-content": { ml: 2 } }}
+                    />
+                    <CardContent sx={{ pt: 0 }}>
+                      {availableVolunteers.length > 0 ? (
+                        <FormControl component="fieldset" fullWidth>
+                          <RadioGroup
+                            value={selectedVolunteerIds[0] || ""}
+                            onChange={(e) => setSelectedVolunteerIds([e.target.value])}
+                          >
+                            {availableVolunteers.map((volunteer) => (
+                              <Paper
+                                key={volunteer.id}
+                                elevation={selectedVolunteerIds[0] === volunteer.id ? 3 : 1}
+                                sx={{
+                                  p: 2,
+                                  mb: 1,
+                                  borderRadius: 2,
+                                  bgcolor:
+                                    selectedVolunteerIds[0] === volunteer.id ? "primary.light" : "background.paper",
+                                  opacity: isSelectedInquiryAssigned ? 0.5 : 1,
+                                  transition: "all 0.2s ease-in-out",
+                                  "&:hover": {
+                                    elevation: 2,
+                                    bgcolor: selectedVolunteerIds[0] === volunteer.id ? "primary.light" : "grey.50",
+                                  },
+                                }}
+                              >
+                                <FormControlLabel
+                                  value={volunteer.id}
+                                  control={<Radio disabled={isSelectedInquiryAssigned} />}
+                                  label={
+                                    <Box sx={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                                      <Box>
+                                        <Typography variant="subtitle2" fontWeight="bold">
+                                          {volunteer.name}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                          מרחק: {volunteer.distance?.toFixed(1)} ק"מ
+                                        </Typography>
+                                      </Box>
+                                      <Chip
+                                        label={volunteer.score?.toFixed(1)}
+                                        size="small"
+                                        variant="outlined"
+                                        sx={{ fontFamily: "monospace" }}
+                                      />
+                                    </Box>
+                                  }
+                                  sx={{ width: "100%", m: 0 }}
+                                />
+                              </Paper>
+                            ))}
+                          </RadioGroup>
+                        </FormControl>
+                      ) : (
+                        <Alert severity="info" sx={{ borderRadius: 2 }}>
+                          <Typography variant="body2">אין מתנדבים זמינים ברדיוס של {radius} ק"מ.</Typography>
+                        </Alert>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grow>
+              </Box>
+            </Box>
+
+            {/* Sidebar Actions */}
+            <Box
+              sx={{
+                p: 2,
+                borderTop: "1px solid",
+                borderColor: "divider",
+                bgcolor: "grey.50",
+                display: "flex",
+                flexDirection: "column",
+                gap: 1,
+              }}
+            >
               {!isSelectedInquiryAssigned && (
-                <button
-                  style={assignButtonStyle}
-                  disabled={!selectedInquiry || selectedVolunteerIds.length === 0}
+                <Button
                   onClick={assignToInquiry}
+                  disabled={!selectedInquiry || selectedVolunteerIds.length === 0}
+                  variant="contained"
+                  size="large"
+                  startIcon={<CheckCircle />}
+                  sx={{ fontWeight: 600 }}
                 >
                   שבץ מתנדב לקריאה
-                </button>
+                </Button>
               )}
-              <button
+              <Button
                 onClick={() => {
-                  setSelectedInquiry(null);
-                  setSelectedVolunteerIds([]);
-                  setAvailableVolunteers([]);
-                  if (location.search.includes('inquiryId')) {
-                    navigate(location.pathname, { replace: true });
+                  setSelectedInquiry(null)
+                  setSelectedVolunteerIds([])
+                  setAvailableVolunteers([])
+                  if (location.search.includes("inquiryId")) {
+                    navigate(location.pathname, { replace: true })
                   }
                 }}
-                style={{
-                  ...assignButtonStyle,
-                  backgroundColor: '#6c757d',
-                  marginTop: isSelectedInquiryAssigned ? '0' : '10px',
-                }}
+                variant="outlined"
+                size="large"
+                startIcon={<Close />}
               >
                 בטל בחירה
-              </button>
-            </div>
+              </Button>
+            </Box>
           </>
         ) : (
-          <p style={{ color: '#6b7280', textAlign: 'center', margin: 'auto' }}>
-            לחץ על מרקר של נחיל במפה כדי לראות פרטים ולשבץ מתנדב.
-          </p>
+          <Fade in timeout={600}>
+            <Box
+              sx={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                p: 4,
+                textAlign: "center",
+              }}
+            >
+              <Box>
+                <Avatar sx={{ mx: "auto", mb: 3, width: 64, height: 64, bgcolor: "grey.100" }}>
+                  <LocationOn sx={{ fontSize: 32, color: "grey.400" }} />
+                </Avatar>
+                <Typography variant="h6" fontWeight="bold" gutterBottom>
+                  בחר פנייה במפה
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 250 }}>
+                  לחץ על מרקר של נחיל במפה כדי לראות פרטים ולשבץ מתנדב.
+                </Typography>
+              </Box>
+            </Box>
+          </Fade>
         )}
-      </div>
-    </div>
-  );
+      </Paper>
+    </Box>
+  )
 }
