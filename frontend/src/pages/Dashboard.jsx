@@ -32,6 +32,10 @@ export default function Dashboard() {
   const [filterEndDate, setFilterEndDate] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(7);
+
   // New state for mobile filter visibility
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
@@ -213,9 +217,9 @@ export default function Dashboard() {
     return Array.from(names).sort();
   }, [calls]);
 
-  // ───────────────────────────── Filtered Calls Logic
+  // ───────────────────────────── Filtered Calls Logic with Pagination
   const filteredCalls = useMemo(() => {
-    return calls.filter(call => {
+    const filtered = calls.filter(call => {
       let match = true;
 
       if (filterVolunteer && call.assignedVolunteerName !== filterVolunteer) {
@@ -239,7 +243,6 @@ export default function Dashboard() {
         const effectiveCallDate = callDate || fallbackDate;
         if (!effectiveCallDate) return false;
 
-
         const start = filterStartDate ? new Date(filterStartDate) : null;
         if (start) start.setHours(0, 0, 0, 0);
 
@@ -252,15 +255,31 @@ export default function Dashboard() {
 
       return match;
     });
+
+    return filtered;
   }, [calls, filterVolunteer, filterStartDate, filterEndDate, filterStatus]);
 
+  // Paginated data
+  const paginatedCalls = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredCalls.slice(startIndex, endIndex);
+  }, [filteredCalls, currentPage, itemsPerPage]);
 
-  // ───────────────────────────── Handlers for filters
+  // Total pages calculation
+  const totalPages = Math.ceil(filteredCalls.length / itemsPerPage);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterVolunteer, filterStartDate, filterEndDate, filterStatus]);
+
   const handleVolunteerFilterChange = (e) => {
     setFilterVolunteer(e.target.value);
     setFilterStatus('');
     setFilterStartDate('');
     setFilterEndDate('');
+    setCurrentPage(1);
   };
 
   const handleStatusFilterChange = (e) => {
@@ -268,6 +287,7 @@ export default function Dashboard() {
     setFilterVolunteer('');
     setFilterStartDate('');
     setFilterEndDate('');
+    setCurrentPage(1);
   };
 
   const handleStartDateFilterChange = (e) => {
@@ -278,12 +298,14 @@ export default function Dashboard() {
     }
     setFilterVolunteer('');
     setFilterStatus('');
+    setCurrentPage(1);
   };
 
   const handleEndDateFilterChange = (e) => {
     setFilterEndDate(e.target.value);
     setFilterVolunteer('');
     setFilterStatus('');
+    setCurrentPage(1);
   };
 
   // ───────────────────────────── status / closure handlers
@@ -991,7 +1013,7 @@ export default function Dashboard() {
                 </thead>
 
                 <tbody>
-                  {filteredCalls.map((call, index) => {
+                  {paginatedCalls.map((call, index) => {
                     const isUnassigned = !call.coordinatorId;
                     const rowBg = isUnassigned ? '#fffaf0' : (index % 2 === 0 ? '#ffffff' : '#f9fcfd');
 
@@ -1006,6 +1028,7 @@ export default function Dashboard() {
                         onMouseOver={(e) => e.currentTarget.style.backgroundColor = isUnassigned ? '#ffe0b2' : '#e3f2fd'}
                         onMouseOut={(e) => e.currentTarget.style.backgroundColor = rowBg}
                       >
+                        {/* Keep all existing table cell content exactly the same */}
                         <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>{call.fullName}</td>
                         <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>{call.phoneNumber}</td>
                         <td style={{ padding: '15px 25px' }}>{call.city || '-'}</td>
@@ -1132,7 +1155,7 @@ export default function Dashboard() {
                     );
                   })}
 
-                  {filteredCalls.length === 0 && (
+                  {paginatedCalls.length === 0 && (
                     <tr>
                       <td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#999', fontSize: '1.1em', fontWeight: '500' }}>
                         אין נתונים להצגה (נסה לשנות פילטרים)
@@ -1142,6 +1165,71 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {filteredCalls.length > itemsPerPage && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '15px',
+                marginTop: '30px',
+                padding: '25px',
+                background: '#f8f9fa',
+                borderRadius: '12px',
+                border: '1px solid #e9ecef'
+              }}>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  style={{
+                    background: currentPage === 1 ? '#e9ecef' : 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                    color: currentPage === 1 ? '#6c757d' : 'white',
+                    padding: '12px 20px',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                    fontSize: '1em',
+                    fontWeight: '600',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  הקודם →
+                </button>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  fontSize: '1.1em',
+                  fontWeight: '600',
+                  color: '#495057'
+                }}>
+                  <span>עמוד {currentPage} מתוך {totalPages}</span>
+                  <span style={{ color: '#6c757d', fontSize: '0.9em' }}>
+                    (מציג {paginatedCalls.length} מתוך {filteredCalls.length} רשומות)
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    background: currentPage === totalPages ? '#e9ecef' : 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                    color: currentPage === totalPages ? '#6c757d' : 'white',
+                    padding: '12px 20px',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                    fontSize: '1em',
+                    fontWeight: '600',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  ← הבא
+                </button>
+              </div>
+            )}
 
             {/* Footer Section */}
             <footer style={{
