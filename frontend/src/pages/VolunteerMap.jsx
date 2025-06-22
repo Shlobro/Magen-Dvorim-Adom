@@ -48,7 +48,7 @@ import {
 // Custom Bee Icon
 const beeIcon = new L.Icon({
   iconUrl: beeIconUrl,
-  iconSize: [32, 32],
+  iconSize: [48, 48],
   iconAnchor: [16, 32],
   popupAnchor: [0, -32],
 })
