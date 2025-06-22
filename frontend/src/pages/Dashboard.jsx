@@ -32,6 +32,10 @@ export default function Dashboard() {
   const [filterEndDate, setFilterEndDate] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
+  // New state for mobile filter visibility
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(false);
+
   const statusOptions = [
     'נשלח קישור אך לא מולא טופס',
     'נפתחה פנייה (טופס מולא)',
@@ -48,6 +52,18 @@ export default function Dashboard() {
     'מתנדב לא הגיע',
     'אחר',
   ];
+
+  // Effect to determine if it's a mobile view
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileView(window.innerWidth <= 768); // Adjust breakpoint as needed
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Set initial value
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // ───────────────────────────────── fetch calls once
   useEffect(() => {
@@ -661,143 +677,164 @@ export default function Dashboard() {
                 color: '#495057',
                 fontSize: '1.3em',
                 fontWeight: '600',
-                textAlign: 'right'
+                textAlign: 'right',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
               }}>
                 🔍 סינון נתונים
+                {isMobileView && (
+                  <button
+                    onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '1.5em',
+                      cursor: 'pointer',
+                      color: '#495057',
+                      transition: 'transform 0.3s ease',
+                      transform: isMobileFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)'
+                    }}
+                  >
+                    {isMobileFilterOpen ? '▲' : '▼'}
+                  </button>
+                )}
               </h3>
               
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '20px',
-                direction: 'rtl'
-              }}>
-                <div>
-                  <label style={{
-                    display: 'block',
-                    marginBottom: '8px',
-                    fontWeight: '600',
-                    color: '#495057',
-                    fontSize: '0.95em'
-                  }}>
-                    פילטר מתנדב:
-                  </label>
-                  <select
-                    value={filterVolunteer}
-                    onChange={handleVolunteerFilterChange}
-                    style={{
-                      width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: '8px',
-                      border: '2px solid #e9ecef',
-                      fontSize: '1em',
-                      background: 'white',
-                      transition: 'border-color 0.3s ease',
-                      cursor: 'pointer'
-                    }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
-                    onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
-                  >
-                    <option value="">כל המתנדבים</option>
-                    {uniqueVolunteerNames.map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                </div>
+              {(isMobileFilterOpen || !isMobileView) && ( // Render only if open or not mobile
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '20px',
+                  direction: 'rtl'
+                }}>
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      marginBottom: '8px',
+                      fontWeight: '600',
+                      color: '#495057',
+                      fontSize: '0.95em'
+                    }}>
+                      פילטר מתנדב:
+                    </label>
+                    <select
+                      value={filterVolunteer}
+                      onChange={handleVolunteerFilterChange}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        border: '2px solid #e9ecef',
+                        fontSize: '1em',
+                        background: 'white',
+                        transition: 'border-color 0.3s ease',
+                        cursor: 'pointer'
+                      }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
+                    >
+                      <option value="">כל המתנדבים</option>
+                      {uniqueVolunteerNames.map(name => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div>
-                  <label style={{
-                    display: 'block',
-                    marginBottom: '8px',
-                    fontWeight: '600',
-                    color: '#495057',
-                    fontSize: '0.95em'
-                  }}>
-                    פילטר סטטוס:
-                  </label>
-                  <select
-                    value={filterStatus}
-                    onChange={handleStatusFilterChange}
-                    style={{
-                      width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: '8px',
-                      border: '2px solid #e9ecef',
-                      fontSize: '1em',
-                      background: 'white',
-                      transition: 'border-color 0.3s ease',
-                      cursor: 'pointer'
-                    }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
-                    onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
-                  >
-                    <option value="">כל הסטטוסים</option>
-                    {statusOptions.map(status => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      marginBottom: '8px',
+                      fontWeight: '600',
+                      color: '#495057',
+                      fontSize: '0.95em'
+                    }}>
+                      פילטר סטטוס:
+                    </label>
+                    <select
+                      value={filterStatus}
+                      onChange={handleStatusFilterChange}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        border: '2px solid #e9ecef',
+                        fontSize: '1em',
+                        background: 'white',
+                        transition: 'border-color 0.3s ease',
+                        cursor: 'pointer'
+                      }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
+                    >
+                      <option value="">כל הסטטוסים</option>
+                      {statusOptions.map(status => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div>
-                  <label style={{
-                    display: 'block',
-                    marginBottom: '8px',
-                    fontWeight: '600',
-                    color: '#495057',
-                    fontSize: '0.95em'
-                  }}>
-                    מתאריך:
-                  </label>
-                  <input
-                    type="date"
-                    value={filterStartDate}
-                    onChange={handleStartDateFilterChange}
-                    style={{
-                      width: '85%',
-                      padding: '12px 16px',
-                      borderRadius: '8px',
-                      border: '2px solid #e9ecef',
-                      fontSize: '1em',
-                      background: 'white',
-                      transition: 'border-color 0.3s ease',
-                      cursor: 'pointer'
-                    }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
-                    onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
-                  />
-                </div>
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      marginBottom: '8px',
+                      fontWeight: '600',
+                      color: '#495057',
+                      fontSize: '0.95em'
+                    }}>
+                      מתאריך:
+                    </label>
+                    <input
+                      type="date"
+                      value={filterStartDate}
+                      onChange={handleStartDateFilterChange}
+                      style={{
+                        width: '85%',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        border: '2px solid #e9ecef',
+                        fontSize: '1em',
+                        background: 'white',
+                        transition: 'border-color 0.3s ease',
+                        cursor: 'pointer'
+                      }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
+                    />
+                  </div>
 
-                <div>
-                  <label style={{
-                    display: 'block',
-                    marginBottom: '8px',
-                    fontWeight: '600',
-                    color: '#495057',
-                    fontSize: '0.95em'
-                  }}>
-                    עד תאריך:
-                  </label>
-                  <input
-                    type="date"
-                    value={filterEndDate}
-                    onChange={handleEndDateFilterChange}
-                    style={{
-                      width: '85%',
-                      padding: '12px 16px',
-                      borderRadius: '8px',
-                      border: '2px solid #e9ecef',
-                      fontSize: '1em',
-                      background: 'white',
-                      transition: 'border-color 0.3s ease',
-                      cursor: 'pointer'
-                    }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
-                    onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
-                  />
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      marginBottom: '8px',
+                      fontWeight: '600',
+                      color: '#495057',
+                      fontSize: '0.95em'
+                    }}>
+                      עד תאריך:
+                    </label>
+                    <input
+                      type="date"
+                      value={filterEndDate}
+                      onChange={handleEndDateFilterChange}
+                      style={{
+                        width: '85%',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        border: '2px solid #e9ecef',
+                        fontSize: '1em',
+                        background: 'white',
+                        transition: 'border-color 0.3s ease',
+                        cursor: 'pointer'
+                      }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
+                    />
+                  </div>
                 </div>
-              </div>
+              )} {/* End conditional rendering for filters */}
             </div>
 
             {/* Export Buttons Section */}
@@ -808,14 +845,14 @@ export default function Dashboard() {
               marginBottom: '40px',
               justifyContent: 'center',
               padding: '25px',
-              background: '#e8f5e9', /* Light green for export section */
+              background: '#e8f5e9',
               borderRadius: '12px',
               border: '1px solid #c8e6c9'
             }}>
               <h3 style={{
                 width: '100%',
                 margin: '0 0 20px 0',
-                color: '#2e7d32', /* Darker green */
+                color: '#2e7d32',
                 fontSize: '1.2em',
                 fontWeight: '600',
                 textAlign: 'center'
@@ -941,7 +978,7 @@ export default function Dashboard() {
                           borderBottom: '2px solid #dae1e8',
                           fontWeight: '700',
                           color: '#34495e',
-                          backgroundColor: '#eef4f9', /* Ensure header background for stickiness if table scrolls */
+                          backgroundColor: '#eef4f9',
                           position: 'sticky',
                           top: 0,
                           zIndex: 1
