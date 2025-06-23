@@ -48,6 +48,8 @@ export default function Header() {
     // הוסף את הקישור לדף התובנות כאן
     // נציג אותו רק אם המשתמש הוא רכז (userType === 1)
     ...(userRole === 1 ? [{ label: 'תובנות', icon: <FaChartBar />, to: '/insights', isButton: false }] : []), // <--- חדש: קישור לדף תובנות
+    // קישור חדש: ניהול מתנדבים
+    ...(userRole === 1 ? [{ label: 'ניהול מתנדבים', icon: <FaUsers />, to: '/volunteer-management', isButton: false }] : []),
     { label: 'התנתק', icon: <FaSignOutAlt />, onClick: handleLogout, isButton: true },
   ];
 

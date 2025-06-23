@@ -22,6 +22,9 @@ import FeedbackForm from './pages/FeedbackForm.jsx';
 // ייבוא קומפוננטת התובנות החדשה
 import InsightsPage from './pages/InsightsPage.jsx';
 
+// ייבוא קומפוננטת ניהול המתנדבים החדשה
+import VolunteerManagement from './pages/VolunteerManagement.jsx';
+
 function App() {
   return (
     <AuthProvider>
@@ -65,6 +68,15 @@ function App() {
               element={
                 <ProtectedRoute requiredRole={1}>
                   <InsightsPage /> {/* Your new Insights component */}
+                </ProtectedRoute>
+              }
+            />
+            {/* Volunteer Management page for coordinators */}
+            <Route
+              path="/volunteer-management"
+              element={
+                <ProtectedRoute requiredRole={1}>
+                  <VolunteerManagement />
                 </ProtectedRoute>
               }
             />

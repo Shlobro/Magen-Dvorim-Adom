@@ -127,4 +127,15 @@ router.post('/:id/update', async (req, res) => {
   }
 });
 
+// DELETE /api/users/:id - Remove a volunteer (delete from Firestore)
+router.delete('/:id', async (req, res) => {
+  try {
+    await db.collection('user').doc(req.params.id).delete();
+    res.send('User deleted');
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Error deleting user');
+  }
+});
+
 export default router;
