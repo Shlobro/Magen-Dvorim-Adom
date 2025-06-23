@@ -90,26 +90,44 @@ export default function VolunteerMap() {
     return { lat, lng }
   }
 
-  const fetchInquiries = useCallback(async () => {
-    try {
-      const q = query(
-        collection(db, "inquiry"),
-        where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב"]),
-      )
-      const querySnapshot = await getDocs(q)
-      const fetched = querySnapshot.docs.map((doc) => {
-        const data = doc.data()
-        const { lat, lng } = extractCoordinates(data)
-        return { id: doc.id, ...data, lat, lng }
-      })
-      const validInquiries = fetched.filter(
-        (inquiry) => inquiry.lat != null && !isNaN(inquiry.lat) && inquiry.lng != null && !isNaN(inquiry.lng),
-      )
-      setInquiries(validInquiries)
-    } catch (error) {
-      console.error("Error fetching inquiries:", error)
-    }
-  }, [])
+ const fetchInquiries = useCallback(async () => {
+  try {
+    const q = query(
+      collection(db, "inquiry"),
+      where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב"]),
+    );
+    const querySnapshot = await getDocs(q);
+    const fetched = querySnapshot.docs.map((doc) => {
+      const data = doc.data();
+      const { lat, lng } = extractCoordinates(data);
+      return { id: doc.id, ...data, lat, lng };
+    });
+
+    // 1. Filter out bad coords
+    const validInquiries = fetched.filter(
+      (inquiry) =>
+        inquiry.lat != null &&
+        !isNaN(inquiry.lat) &&
+        inquiry.lng != null &&
+        !isNaN(inquiry.lng),
+    );
+    // 2. Sort by opening timestamp (oldest first)
+    validInquiries.sort((a, b) => {
+      const ta = a.timestamp?.toDate()?.getTime() || 0;
+      const tb = b.timestamp?.toDate()?.getTime() || 0;
+      return ta - tb;
+    });
+    // 3. Assign sequential number
+    const numbered = validInquiries.map((inq, idx) => ({
+      ...inq,
+      seqNum: idx + 1,
+    }));
+
+    setInquiries(numbered);
+  } catch (error) {
+    console.error("Error fetching inquiries:", error);
+  }
+}, []);
 
   useEffect(() => {
     fetchInquiries()
@@ -422,7 +440,7 @@ export default function VolunteerMap() {
                               פרטי הפנייה
                             </Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.2 }}>
-                              מס' {selectedInquiry.id.substring(0, 8)}
+                              מס' {selectedInquiry.seqNum}
                             </Typography>
                           </Box>
                           <ExpandMore
