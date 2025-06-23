@@ -134,14 +134,6 @@ export default function VolunteerManagement() {
                 <Typography variant="h3" fontWeight="bold" gutterBottom>
                   ניהול מתנדבים
                 </Typography>
-                <Chip
-                  label={`${volunteers.length} מתנדבים רשומים`}
-                  sx={{
-                    bgcolor: "rgba(255,255,255,0.2)",
-                    color: "white",
-                    fontWeight: "bold",
-                  }}
-                />
               </Box>
             </Box>
             <Typography variant="h6" sx={{ opacity: 0.9, maxWidth: 600, mx: "auto" }}>
@@ -229,35 +221,40 @@ export default function VolunteerManagement() {
                 </Box>
               </Box>
 
-              <TableContainer>
+              <TableContainer dir="rtl">
                 <Table sx={{ minWidth: 650 }}>
                   <TableHead>
                     <TableRow sx={{ bgcolor: "grey.50" }}>
-                      <TableCell sx={{ fontWeight: "bold", fontSize: "1rem" }}>
+                      <TableCell align="right" sx={{ fontWeight: "bold", fontSize: "1rem", width: "25%" }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <People sx={{ fontSize: 20, color: "text.secondary" }} />
                           שם מלא
                         </Box>
                       </TableCell>
-                      <TableCell sx={{ fontWeight: "bold", fontSize: "1rem" }}>
+                      <TableCell align="right" sx={{ fontWeight: "bold", fontSize: "1rem", width: "25%" }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <Email sx={{ fontSize: 20, color: "text.secondary" }} />
                           אימייל
                         </Box>
                       </TableCell>
-                      <TableCell sx={{ fontWeight: "bold", fontSize: "1rem" }}>
+                      <TableCell align="right" sx={{ fontWeight: "bold", fontSize: "1rem", width: "15%" }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <Phone sx={{ fontSize: 20, color: "text.secondary" }} />
                           טלפון
                         </Box>
                       </TableCell>
-                      <TableCell sx={{ fontWeight: "bold", fontSize: "1rem" }}>
+                      <TableCell align="right" sx={{ fontWeight: "bold", fontSize: "1rem", width: "15%" }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <LocationOn sx={{ fontSize: 20, color: "text.secondary" }} />
                           עיר
                         </Box>
                       </TableCell>
-                      <TableCell sx={{ fontWeight: "bold", fontSize: "1rem", textAlign: "center" }}>פעולות</TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{ fontWeight: "bold", fontSize: "1rem", textAlign: "center", width: "20%" }}
+                      >
+                        פעולות
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -271,7 +268,7 @@ export default function VolunteerManagement() {
                             transition: "background-color 0.2s ease",
                           }}
                         >
-                          <TableCell>
+                          <TableCell align="right" sx={{ width: "25%" }}>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                               <Avatar
                                 sx={{
@@ -284,35 +281,35 @@ export default function VolunteerManagement() {
                               >
                                 {(volunteer.name || volunteer.firstName || "מ").charAt(0)}
                               </Avatar>
-                              <Box>
-                                <Typography variant="subtitle1" fontWeight="bold">
+                              <Box sx={{ minWidth: 0, flex: 1 }}>
+                                <Typography variant="subtitle1" fontWeight="bold" noWrap>
                                   {volunteer.name || `${volunteer.firstName || ""} ${volunteer.lastName || ""}`}
                                 </Typography>
-                                <Typography variant="body2" color="text.secondary">
+                                <Typography variant="body2" color="text.secondary" noWrap>
                                   מתנדב פעיל
                                 </Typography>
                               </Box>
                             </Box>
                           </TableCell>
-                          <TableCell>
-                            <Typography variant="body1" sx={{ fontFamily: "monospace" }}>
+                          <TableCell align="right" sx={{ width: "25%" }}>
+                            <Typography variant="body1" sx={{ fontFamily: "monospace" }} noWrap>
                               {volunteer.email}
                             </Typography>
                           </TableCell>
-                          <TableCell>
-                            <Typography variant="body1" sx={{ fontFamily: "monospace" }}>
+                          <TableCell align="right" sx={{ width: "15%" }}>
+                            <Typography variant="body1" sx={{ fontFamily: "monospace" }} noWrap>
                               {volunteer.phone || "-"}
                             </Typography>
                           </TableCell>
-                          <TableCell>
+                          <TableCell align="right" sx={{ width: "15%" }}>
                             <Chip
                               label={volunteer.city || volunteer.location || "לא צוין"}
                               variant="outlined"
                               size="small"
-                              sx={{ fontWeight: 500 }}
+                              sx={{ fontWeight: 500, maxWidth: "100%" }}
                             />
                           </TableCell>
-                          <TableCell sx={{ textAlign: "center" }}>
+                          <TableCell sx={{ textAlign: "center", width: "20%" }}>
                             <Button
                               variant="outlined"
                               color="error"
@@ -402,13 +399,6 @@ export default function VolunteerManagement() {
             </Button>
           </DialogActions>
         </Dialog>
-
-        {/* Footer */}
-        <Box sx={{ mt: 8, pt: 4, borderTop: "1px solid rgba(0,0,0,0.1)", textAlign: "center" }}>
-          <Typography variant="body1" color="text.secondary" fontWeight="500">
-            © 2025 מגן דבורים אדום. כל הזכויות שמורות.
-          </Typography>
-        </Box>
       </Container>
     </Box>
   )
