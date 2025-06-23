@@ -44,7 +44,7 @@ export default function HomeScreen() {
             </p>
             <Link to="/signup" className="outlined-button">
               <FaUsers className="button-icon" />
-              למידע נוסף על התנדבות
+              להרשמה
               <FaArrowLeft className="arrow-icon" />
             </Link>
           </div>
