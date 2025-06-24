@@ -12,6 +12,7 @@ import { db } from '../firebaseConfig';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/HomeScreen.css';
+import { fetchCoordinatorInquiries, takeOwnership } from '../services/inquiryApi';
 
 export default function Dashboard() {
   const [calls, setCalls] = useState([]);
@@ -79,41 +80,12 @@ export default function Dashboard() {
         setLoading(false);
         return;
       }
-
       try {
         setLoading(true);
-        let inquiriesRef = collection(db, 'inquiry');
         let fetchedInquiries = [];
-
         if (userRole === 1) { // Coordinator role
-          const assignedToCoordinatorQuery = query(
-            inquiriesRef,
-            where('coordinatorId', '==', currentUser.uid)
-          );
-          const unassignedNullQuery = query(
-            inquiriesRef,
-            where('coordinatorId', '==', null)
-          );
-          const unassignedEmptyStringQuery = query(
-            inquiriesRef,
-            where('coordinatorId', '==', '')
-          );
-
-          const [assignedSnap, nullSnap, emptyStringSnap] = await Promise.all([
-            getDocs(assignedToCoordinatorQuery),
-            getDocs(unassignedNullQuery),
-            getDocs(unassignedEmptyStringQuery)
-          ]);
-
-          fetchedInquiries = [
-            ...assignedSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-            ...nullSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-            ...emptyStringSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-          ];
-          const uniqueInquiries = Array.from(new Map(fetchedInquiries.map(item => [item['id'], item])).values());
-          fetchedInquiries = uniqueInquiries;
-
-        } else { // Admin or other roles
+          fetchedInquiries = await fetchCoordinatorInquiries(currentUser.uid);
+        } else {
           const allInquiriesQuery = inquiriesRef;
           const inquirySnap = await getDocs(allInquiriesQuery);
           fetchedInquiries = inquirySnap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -337,6 +309,40 @@ export default function Dashboard() {
 
   const handleAssignVolunteerClick = (inquiryId) => {
     navigate(`/volunteer-map?inquiryId=${inquiryId}`);
+  };
+
+  // Handle taking ownership of an unassigned report
+  const handleTakeOwnership = async (inquiryId) => {
+    if (!currentUser) {
+      alert('שגיאה: משתמש לא מחובר');
+      return;
+    }
+
+    try {
+      await takeOwnership(inquiryId, currentUser.uid);
+      
+      // Update the local state to reflect the ownership change
+      setCalls(prevCalls => 
+        prevCalls.map(call => 
+          call.id === inquiryId 
+            ? { 
+                ...call, 
+                coordinatorId: currentUser.uid,
+                coordinatorName: currentUser.displayName || currentUser.email || 'רכז'
+              }
+            : call
+        )
+      );
+      
+      alert('בעלות נלקחה בהצלחה!');
+    } catch (error) {
+      console.error('Error taking ownership:', error);
+      if (error.response?.status === 409) {
+        alert('הפנייה כבר שויכה לרכז אחר');
+      } else {
+        alert('שגיאה בלקיחת בעלות על הפנייה');
+      }
+    }
   };
 
   // ───────────────────────────── Generate feedback link handler
@@ -1035,7 +1041,11 @@ export default function Dashboard() {
                         <td style={{ padding: '15px 25px' }}>{call.address}</td>
                         <td style={{ padding: '15px 25px', maxWidth: '250px', overflowWrap: 'break-word' }}>{call.additionalDetails || '-'}</td>
                         <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>
-                          {call.timestamp?.toDate().toLocaleString('he-IL') || `${call.date} ${call.time}`}
+                          {typeof call.timestamp?.toDate === 'function'
+                            ? call.timestamp.toDate().toLocaleString('he-IL')
+                            : (call.timestamp
+                                ? new Date(call.timestamp).toLocaleString('he-IL')
+                                : `${call.date} ${call.time}`)}
                         </td>
 
                         <td style={{ padding: '15px 25px' }}>
@@ -1146,6 +1156,30 @@ export default function Dashboard() {
                               צור קישור למשוב
                             </button>
                           )}
+
+                          {call.coordinatorId === null || call.coordinatorId === '' ? (
+                            <button
+                              onClick={() => handleTakeOwnership(call.id)}
+                              style={{
+                                background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+                                color: '#fff',
+                                padding: '10px 18px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontSize: '0.9em',
+                                fontWeight: '600',
+                                boxShadow: '0 2px 8px rgba(255,152,0,0.2)',
+                                transition: 'all 0.2s ease',
+                                width: 'fit-content',
+                                marginBottom: '8px'
+                              }}
+                              onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 3px 10px rgba(255,152,0,0.3)'; }}
+                              onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(255,152,0,0.2)'; }}
+                            >
+                              קח בעלות
+                            </button>
+                          ) : null}
 
                           {call.status !== 'נפתחה פנייה (טופס מולא)' && call.status !== 'הפנייה נסגרה' && (
                               <span style={{ color: '#888', fontStyle: 'italic', fontSize: '0.8em', whiteSpace: 'nowrap' }}>אין פעולות זמינות</span>

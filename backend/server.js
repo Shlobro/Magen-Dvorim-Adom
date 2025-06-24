@@ -26,6 +26,7 @@ app.get('/ping', (_req, res) => res.send('Server is running ✓'));
 app.use('/user',        userRoutes);      // legacy
 app.use('/api/users',   userRoutes);      // NEW alias → /api/users/queryNear
 app.use('/inquiry',     inquiryRoutes);
+app.use('/api/inquiries', inquiryRoutes); // NEW alias for frontend
 app.use('/link',        linkRoutes);
 app.use('/api/filters', filterRoutes);
 app.use('/api/geocode', geocodeRoutes);
