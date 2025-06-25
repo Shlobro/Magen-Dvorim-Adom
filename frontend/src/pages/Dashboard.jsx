@@ -360,14 +360,62 @@ export default function Dashboard() {
     setFilterStartDate("")
     setFilterEndDate("")
     setCurrentPage(1)
-  }
-
-  // ───────────────────────────── status / closure handlers
+  }  // ───────────────────────────── status / closure handlers
   const handleStatusChange = async (callId, newStatus) => {
     try {
-      await updateDoc(doc(db, "inquiry", callId), { status: newStatus })
-      setCalls((prev) => prev.map((c) => (c.id === callId ? { ...c, status: newStatus } : c)))
-      showSuccess("סטטוס עודכן בהצלחה!")
+      // Define statuses that are before volunteer assignment
+      const statusesBeforeVolunteerAssignment = [
+        "נשלח קישור אך לא מולא טופס",
+        "נפתחה פנייה (טופס מולא)"
+      ]
+
+      // Check if the new status is before volunteer assignment
+      const shouldRemoveVolunteer = statusesBeforeVolunteerAssignment.includes(newStatus)
+
+      // Find the current call to check if it has a volunteer assigned
+      const currentCall = calls.find(c => c.id === callId)
+      const hasVolunteerAssigned = currentCall && currentCall.assignedVolunteers && currentCall.assignedVolunteers !== "-" && currentCall.assignedVolunteers !== null
+
+      // If changing to early status and volunteer is assigned, show confirmation
+      if (shouldRemoveVolunteer && hasVolunteerAssigned) {
+        const confirmed = await showConfirmDialog({
+          title: "שינוי סטטוס יסיר מתנדב",
+          message: `שינוי הסטטוס ל"${newStatus}" יסיר את המתנדב המשובץ מהפנייה. האם אתה בטוח שברצונך להמשיך?`,
+          confirmText: "כן, שנה סטטוס",
+          cancelText: "ביטול",
+          severity: "warning",
+        })
+
+        if (!confirmed) return
+      }
+
+      // Prepare the update object
+      const updateData = { status: newStatus }
+      
+      // If status is set back to before volunteer assignment, remove volunteer
+      if (shouldRemoveVolunteer) {
+        updateData.assignedVolunteers = null
+      }
+
+      await updateDoc(doc(db, "inquiry", callId), updateData)
+      
+      setCalls((prev) => prev.map((c) => {
+        if (c.id === callId) {
+          const updatedCall = { ...c, status: newStatus }
+          if (shouldRemoveVolunteer) {
+            updatedCall.assignedVolunteers = null
+            updatedCall.assignedVolunteerName = "-"
+          }
+          return updatedCall
+        }
+        return c
+      }))
+      
+      if (shouldRemoveVolunteer && hasVolunteerAssigned) {
+        showSuccess("סטטוס עודכן בהצלחה! המתנדב הוסר מהפנייה.")
+      } else {
+        showSuccess("סטטוס עודכן בהצלחה!")
+      }
     } catch (err) {
       console.error(err)
       showError("נכשל בעדכון סטטוס.")
