@@ -481,12 +481,12 @@ export default function Dashboard() {
         setLoading(false);
         return;
       }      const headers = [
-        'מספר סידורי', 'מזהה פנייה', 'שם מלא', 'מספר טלפון',
+        'שם מלא', 'מספר טלפון',
         'שם מתנדב', 'דירוג', 'הערות', 'תאריך ושעת משוב'
       ];
 
-      const rows = feedbackData.map((row, index) => [
-        index + 1, row.inquiryId, row.fullName, row.phoneNumber,
+      const rows = feedbackData.map((row) => [
+        row.fullName, row.phoneNumber,
         row.volunteerName, row.rating, row.comments, row.timestamp
       ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','));
 
