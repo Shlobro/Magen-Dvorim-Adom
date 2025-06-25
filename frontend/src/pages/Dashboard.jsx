@@ -26,6 +26,49 @@ export default function Dashboard() {
 
   // Ref to hold a map of coordinatorId to coordinatorName
   const coordinatorNamesRef = useRef({});
+  
+  // Helper function to convert various timestamp formats to JavaScript Date
+  const convertTimestamp = (timestamp) => {
+    if (!timestamp) return null;
+    
+    // Handle Firestore Timestamp object with _seconds property (from backend API)
+    if (timestamp._seconds) {
+      return new Date(timestamp._seconds * 1000);
+    }
+    
+    // Handle Firestore Timestamp object with toDate method (from direct Firestore)
+    if (typeof timestamp.toDate === 'function') {
+      return timestamp.toDate();
+    }
+    
+    // Handle regular Date object or ISO string
+    if (timestamp instanceof Date) {
+      return timestamp;
+    }
+    
+    if (typeof timestamp === 'string') {
+      return new Date(timestamp);
+    }
+    
+    return null;
+  };
+  
+  // Helper function to format date for display
+  const formatDateForDisplay = (timestamp, fallbackDate = null, fallbackTime = null) => {
+    const date = convertTimestamp(timestamp);
+    
+    if (date && !isNaN(date.getTime())) {
+      return date.toLocaleString('he-IL');
+    }
+    
+    // Fallback to date/time strings if timestamp conversion fails
+    if (fallbackDate && fallbackTime) {
+      return `${fallbackDate} ${fallbackTime}`;
+    }
+    
+    return 'תאריך לא זמין';
+  };
+
   // ───────────────────────────── Filter States
   const [filterVolunteer, setFilterVolunteer] = useState('');
   const [filterStartDate, setFilterStartDate] = useState('');
@@ -202,12 +245,11 @@ export default function Dashboard() {
       }
       if (filterStatus && call.status !== filterStatus) {
         match = false;
-      }
-      if ((filterStartDate || filterEndDate) && match) {
-        const callDate = call.timestamp?.toDate();
+      }      if ((filterStartDate || filterEndDate) && match) {
+        const callDate = convertTimestamp(call.timestamp);
         let fallbackDate = null;
         if (!callDate && call.date && call.time) {
-            try {
+          try {
                 const [day, month, year] = call.date.split('.').map(Number);
                 const [hours, minutes] = call.time.split(':').map(Number);
                 fallbackDate = new Date(year, month - 1, day, hours, minutes);
@@ -411,17 +453,8 @@ export default function Dashboard() {
       'מס\' פניה', 'שם מלא פונה', 'טלפון פונה', 'עיר', 'כתובת', 'הערות',
       'תאריך דיווח', 'סטטוס', 'סיבת סגירה', 'שם מתנדב משובץ', 'שם רכז'
     ];const rows = data.map((call, index) => {
-      // Handle timestamp properly - could be Firestore Timestamp, ISO string, or undefined
-      let dateString = `${call.date} ${call.time}`;
-      if (call.timestamp) {
-        if (typeof call.timestamp?.toDate === 'function') {
-          // Firestore Timestamp object
-          dateString = call.timestamp.toDate().toLocaleString();
-        } else if (typeof call.timestamp === 'string' || call.timestamp instanceof Date) {
-          // ISO string or Date object
-          dateString = new Date(call.timestamp).toLocaleString();
-        }
-      }
+      // Use the helper function to handle timestamps consistently
+      const dateString = formatDateForDisplay(call.timestamp, call.date, call.time);
       
       return [
         index + 1, // Sequential number instead of hash ID
@@ -469,7 +502,7 @@ export default function Dashboard() {
           volunteerName: data.volunteerName || '',
           rating: data.rating || 0,
           comments: data.comments || '',
-          timestamp: data.timestamp?.toDate().toLocaleString() || '',
+          timestamp: formatDateForDisplay(data.timestamp),
         };
       });
 
@@ -549,20 +582,9 @@ export default function Dashboard() {
     let actualEndDate = filterEndDate ? new Date(filterEndDate) : defaultEndDate;
 
     actualStartDate.setHours(0, 0, 0, 0);
-    actualEndDate.setHours(23, 59, 59, 999);
-
-    if (filterStartDate || filterEndDate) {      dataToExport = calls.filter(call => {
-        // Handle timestamp properly - could be Firestore Timestamp, ISO string, or undefined
-        let callDate = null;
-        if (call.timestamp) {
-          if (typeof call.timestamp?.toDate === 'function') {
-            // Firestore Timestamp object
-            callDate = call.timestamp.toDate();
-          } else if (typeof call.timestamp === 'string' || call.timestamp instanceof Date) {
-            // ISO string or Date object
-            callDate = new Date(call.timestamp);
-          }
-        }
+    actualEndDate.setHours(23, 59, 59, 999);    if (filterStartDate || filterEndDate) {      dataToExport = calls.filter(call => {
+        // Use the helper function to handle timestamps consistently
+        const callDate = convertTimestamp(call.timestamp);
         
         let fallbackDate = null;
         if (!callDate && call.date && call.time) {
@@ -731,41 +753,42 @@ export default function Dashboard() {
                 background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
                 borderRadius: '12px',
                 border: '1px solid #e1f5fe'
-              }}>
-                <div style={{
+              }}>                <div style={{
                   marginBottom: '20px',
                   fontSize: '1.1em',
                   color: '#1565c0',
                   fontWeight: '600'
                 }}>
-                  קישור לשליחת פנייה עבורך
+                  קישורים לניהול המערכת
                 </div>
-                <button
-                  onClick={copyReportLink}
-                  style={{
-                    background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
-                    color: 'white',
-                    padding: '15px 30px',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '1.1em',
-                    fontWeight: '600',
-                    boxShadow: '0 4px 15px rgba(0,123,255,0.3)',
-                    transition: 'all 0.3s ease',
-                    transform: 'translateY(0)'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,123,255,0.4)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,123,255,0.3)';
-                  }}
-                >
-                  📋 העתק קישור לדיווח
-                </button>
+                <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={copyReportLink}
+                    style={{
+                      background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                      color: 'white',
+                      padding: '15px 30px',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '1.1em',
+                      fontWeight: '600',
+                      boxShadow: '0 4px 15px rgba(0,123,255,0.3)',
+                      transition: 'all 0.3s ease',
+                      transform: 'translateY(0)'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,123,255,0.4)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,123,255,0.3)';
+                    }}
+                  >
+                    📋 העתק קישור לדיווח
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1144,13 +1167,8 @@ export default function Dashboard() {
                         <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>{call.phoneNumber}</td>
                         <td style={{ padding: '15px 25px' }}>{call.city || '-'}</td>
                         <td style={{ padding: '15px 25px' }}>{call.address}</td>
-                        <td style={{ padding: '15px 25px', maxWidth: '250px', overflowWrap: 'break-word' }}>{call.additionalDetails || '-'}</td>
-                        <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>
-                          {typeof call.timestamp?.toDate === 'function'
-                            ? call.timestamp.toDate().toLocaleString('he-IL')
-                            : (call.timestamp
-                                ? new Date(call.timestamp).toLocaleString('he-IL')
-                                : `${call.date} ${call.time}`)}
+                        <td style={{ padding: '15px 25px', maxWidth: '250px', overflowWrap: 'break-word' }}>{call.additionalDetails || '-'}</td>                        <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>
+                          {formatDateForDisplay(call.timestamp, call.date, call.time)}
                         </td>
 
                         <td style={{ padding: '15px 25px' }}>
