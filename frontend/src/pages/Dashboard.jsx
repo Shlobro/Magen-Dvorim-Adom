@@ -6,7 +6,7 @@ import { db } from "../firebaseConfig"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import "../styles/HomeScreen.css"
-import { fetchCoordinatorInquiries, takeOwnership, reassignVolunteer } from "../services/inquiryApi"
+import { fetchCoordinatorInquiries, takeOwnership, releaseOwnership, reassignVolunteer } from "../services/inquiryApi"
 import { useNotification } from "../contexts/NotificationContext"
 
 export default function Dashboard() {
@@ -360,14 +360,75 @@ export default function Dashboard() {
     setFilterStartDate("")
     setFilterEndDate("")
     setCurrentPage(1)
-  }
-
-  // ───────────────────────────── status / closure handlers
+  }  // ───────────────────────────── status / closure handlers
   const handleStatusChange = async (callId, newStatus) => {
     try {
-      await updateDoc(doc(db, "inquiry", callId), { status: newStatus })
-      setCalls((prev) => prev.map((c) => (c.id === callId ? { ...c, status: newStatus } : c)))
-      showSuccess("סטטוס עודכן בהצלחה!")
+      // Define statuses that require a volunteer to be assigned
+      const statusesRequiringVolunteer = [
+        "לפנייה שובץ מתנדב",
+        "המתנדב בדרך",
+        "הטיפול בנחיל הסתיים"
+      ]
+
+      // Define statuses that are before volunteer assignment
+      const statusesBeforeVolunteerAssignment = [
+        "נשלח קישור אך לא מולא טופס",
+        "נפתחה פנייה (טופס מולא)"
+      ]
+
+      // Find the current call to check if it has a volunteer assigned
+      const currentCall = calls.find(c => c.id === callId)
+      const hasVolunteerAssigned = currentCall && currentCall.assignedVolunteers && currentCall.assignedVolunteers !== "-" && currentCall.assignedVolunteers !== null
+
+      // Check if trying to set a status that requires a volunteer when none is assigned
+      if (statusesRequiringVolunteer.includes(newStatus) && !hasVolunteerAssigned) {
+        showError(`לא ניתן לשנות את הסטטוס ל"${newStatus}" ללא שיבוץ מתנדב. יש לשבץ מתנדב תחילה.`)
+        return
+      }
+
+      // Check if the new status is before volunteer assignment
+      const shouldRemoveVolunteer = statusesBeforeVolunteerAssignment.includes(newStatus)
+
+      // If changing to early status and volunteer is assigned, show confirmation
+      if (shouldRemoveVolunteer && hasVolunteerAssigned) {
+        const confirmed = await showConfirmDialog({
+          title: "שינוי סטטוס יסיר מתנדב",
+          message: `שינוי הסטטוס ל"${newStatus}" יסיר את המתנדב המשובץ מהפנייה. האם אתה בטוח שברצונך להמשיך?`,
+          confirmText: "כן, שנה סטטוס",
+          cancelText: "ביטול",
+          severity: "warning",
+        })
+
+        if (!confirmed) return
+      }
+
+      // Prepare the update object
+      const updateData = { status: newStatus }
+      
+      // If status is set back to before volunteer assignment, remove volunteer
+      if (shouldRemoveVolunteer) {
+        updateData.assignedVolunteers = null
+      }
+
+      await updateDoc(doc(db, "inquiry", callId), updateData)
+      
+      setCalls((prev) => prev.map((c) => {
+        if (c.id === callId) {
+          const updatedCall = { ...c, status: newStatus }
+          if (shouldRemoveVolunteer) {
+            updatedCall.assignedVolunteers = null
+            updatedCall.assignedVolunteerName = "-"
+          }
+          return updatedCall
+        }
+        return c
+      }))
+      
+      if (shouldRemoveVolunteer && hasVolunteerAssigned) {
+        showSuccess("סטטוס עודכן בהצלחה! המתנדב הוסר מהפנייה.")
+      } else {
+        showSuccess("סטטוס עודכן בהצלחה!")
+      }
     } catch (err) {
       console.error(err)
       showError("נכשל בעדכון סטטוס.")
@@ -388,7 +449,6 @@ export default function Dashboard() {
   const handleAssignVolunteerClick = (inquiryId) => {
     navigate(`/volunteer-map?inquiryId=${inquiryId}`)
   }
-
   // Handle taking ownership of an unassigned report
   const handleTakeOwnership = async (inquiryId) => {
     if (!currentUser) {
@@ -419,6 +479,52 @@ export default function Dashboard() {
         showWarning("הפנייה כבר שויכה לרכז אחר")
       } else {
         showError("שגיאה בלקיחת בעלות על הפנייה")
+      }
+    }
+  }
+
+  // Handle releasing ownership of an assigned report
+  const handleReleaseOwnership = async (inquiryId) => {
+    if (!currentUser) {
+      showError("שגיאה: משתמש לא מחובר")
+      return
+    }
+
+    const confirmed = await showConfirmDialog({
+      title: "שחרור בעלות על הפנייה",
+      message: "האם אתה בטוח שברצונך לשחרר את הבעלות על הפנייה? הפנייה תחזור למאגר הפניות הזמינות לכל הרכזים.",
+      confirmText: "שחרר בעלות",
+      cancelText: "ביטול",
+      severity: "warning",
+    })
+
+    if (!confirmed) return
+
+    try {
+      await releaseOwnership(inquiryId, currentUser.uid)
+
+      // Update the local state to reflect the ownership release
+      setCalls((prevCalls) =>
+        prevCalls.map((call) =>
+          call.id === inquiryId
+            ? {
+                ...call,
+                coordinatorId: null,
+                coordinatorName: "-",
+              }
+            : call,
+        ),
+      )
+
+      showSuccess("בעלות שוחררה בהצלחה! הפנייה חזרה למאגר הזמין.")
+    } catch (error) {
+      console.error("Error releasing ownership:", error)
+      if (error.response?.status === 403) {
+        showError("ניתן לשחרר רק פניות שבבעלותך")
+      } else if (error.response?.status === 400) {
+        showWarning("הפנייה אינה משויכת לאף רכז")
+      } else {
+        showError("שגיאה בשחרור בעלות על הפנייה")
       }
     }
   }
@@ -1525,9 +1631,7 @@ export default function Dashboard() {
                             >
                               צור קישור למשוב
                             </button>
-                          )}
-
-                          {call.coordinatorId === null || call.coordinatorId === "" ? (
+                          )}                          {call.coordinatorId === null || call.coordinatorId === "" ? (
                             <button
                               onClick={() => handleTakeOwnership(call.id)}
                               style={{
@@ -1554,6 +1658,34 @@ export default function Dashboard() {
                               }}
                             >
                               קח בעלות
+                            </button>
+                          ) : call.coordinatorId === currentUser?.uid ? (
+                            <button
+                              onClick={() => handleReleaseOwnership(call.id)}
+                              style={{
+                                background: "linear-gradient(135deg, #dc3545 0%, #c82333 100%)",
+                                color: "#fff",
+                                padding: "10px 18px",
+                                border: "none",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontSize: "0.9em",
+                                fontWeight: "600",
+                                boxShadow: "0 2px 8px rgba(220,53,69,0.2)",
+                                transition: "all 0.2s ease",
+                                width: "fit-content",
+                                marginBottom: "8px",
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.transform = "translateY(-1px)"
+                                e.currentTarget.style.boxShadow = "0 3px 10px rgba(220,53,69,0.3)"
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.transform = "translateY(0)"
+                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(220,53,69,0.2)"
+                              }}
+                            >
+                              שחרר בעלות
                             </button>
                           ) : null}
 

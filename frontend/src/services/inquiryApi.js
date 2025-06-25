@@ -12,6 +12,10 @@ export async function takeOwnership(inquiryId, coordinatorId) {
   return axios.post(`${API_BASE}/api/inquiries/${inquiryId}/take-ownership`, { coordinatorId });
 }
 
+export async function releaseOwnership(inquiryId, coordinatorId) {
+  return axios.post(`${API_BASE}/api/inquiries/${inquiryId}/release-ownership`, { coordinatorId });
+}
+
 export async function fetchVolunteerInquiries(volunteerId) {
   const res = await axios.get(`${API_BASE}/api/inquiries/volunteer/${volunteerId}`);
   return res.data;
