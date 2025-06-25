@@ -32,6 +32,7 @@ import {
   Legend,
 } from "chart.js"
 import { useAuth } from "../contexts/AuthContext"
+import { useNotification } from "../contexts/NotificationContext"
 import { collection, getDocs } from "firebase/firestore"
 import { db } from "../firebaseConfig"
 
@@ -39,7 +40,6 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTitle, Tooltip, Le
 
 export default function InsightsPage() {
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [stats, setStats] = useState({ total: 0, open: 0, closed: 0 })
   const [rawInquiries, setRawInquiries] = useState([])
   const [rawUsers, setRawUsers] = useState([])
@@ -50,6 +50,7 @@ export default function InsightsPage() {
   const [volunteerChartPeriod, setVolunteerChartPeriod] = useState("month")
 
   const { userRole, loading: authLoading } = useAuth()
+  const { showError } = useNotification()
 
   useEffect(() => {
     if (!authLoading && userRole === 1) {
@@ -71,10 +72,9 @@ export default function InsightsPage() {
           const closed = inquiries.filter((i) => i.status === "הפנייה נסגרה").length
           const open = total - closed
 
-          setStats({ total, open, closed })
-        } catch (e) {
+          setStats({ total, open, closed })        } catch (e) {
           console.error(e)
-          setError("אירעה שגיאה בטעינת הנתונים.")
+          showError("אירעה שגיאה בטעינת הנתונים.")
         } finally {
           setLoading(false)
         }
@@ -445,24 +445,8 @@ export default function InsightsPage() {
             <CircularProgress size={80} thickness={4} />
             <Typography variant="h6" sx={{ mt: 3, color: "text.secondary" }}>
               טוען נתונים...
-            </Typography>
-            <LinearProgress sx={{ mt: 2, maxWidth: 400, mx: "auto", borderRadius: 2 }} />
+            </Typography>            <LinearProgress sx={{ mt: 2, maxWidth: 400, mx: "auto", borderRadius: 2 }} />
           </Box>
-        ) : error ? (
-          <Fade in>
-            <Alert
-              severity="error"
-              sx={{
-                borderRadius: 3,
-                fontSize: "1.1rem",
-                py: 3,
-                maxWidth: 600,
-                mx: "auto",
-              }}
-            >
-              {error}
-            </Alert>
-          </Fade>
         ) : (
           <>
             {/* Statistics Cards */}

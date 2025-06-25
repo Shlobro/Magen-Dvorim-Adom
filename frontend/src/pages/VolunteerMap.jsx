@@ -9,6 +9,7 @@ import beeIconUrl from "../assets/cuteBeeInquiry.png"
 import { collection, getDocs, getDoc, doc, updateDoc, query, where, GeoPoint, Timestamp } from "firebase/firestore"
 import { db } from "../firebaseConfig"
 import { useLocation, useNavigate } from "react-router-dom"
+import { useNotification } from "../contexts/NotificationContext"
 import {
   Card,
   CardContent,
@@ -73,6 +74,7 @@ export default function VolunteerMap() {
   const mapRef = useRef()
   const location = useLocation()
   const navigate = useNavigate()
+  const { showSuccess, showError, showWarning, showConfirmDialog } = useNotification()
 
   const extractCoordinates = (data) => {
     let lat = null
@@ -242,14 +244,23 @@ export default function VolunteerMap() {
     }
     fetchVolunteers()
   }, [selectedInquiry, radius])
-
   const assignToInquiry = async () => {
     if (!selectedInquiry || selectedVolunteerIds.length === 0) {
-      alert("אנא בחר פנייה ומתנדב לשיבוץ.")
+      showWarning("אנא בחר פנייה ומתנדב לשיבוץ.");
       return
     }
+    
     const inquiryId = selectedInquiry.id
     const volunteerToAssignId = selectedVolunteerIds[0]
+    
+    const confirmed = await showConfirmDialog({
+      title: 'אישור שיבוץ מתנדב',
+      message: `האם אתה בטוח שברצונך לשבץ את המתנדב לפנייה זו?`,
+      confirmText: 'שבץ מתנדב',
+      cancelText: 'ביטול',
+      severity: 'info',
+    });
+        if (!confirmed) return;
     try {
       const inquiryRef = doc(db, "inquiry", inquiryId)
       await updateDoc(inquiryRef, {
@@ -257,7 +268,7 @@ export default function VolunteerMap() {
         status: "לפנייה שובץ מתנדב",
         assignedTimestamp: Timestamp.now(),
       })
-      alert(`פנייה ${inquiryId} שובצה בהצלחה למתנדב ${volunteerToAssignId}.`)
+      showSuccess('מתנדב שובץ בהצלחה לפנייה!')
       fetchInquiries()
       setSelectedInquiry(null)
       setAvailableVolunteers([])
@@ -265,7 +276,7 @@ export default function VolunteerMap() {
       navigate("/dashboard")
     } catch (error) {
       console.error("שגיאה בשיבוץ מתנדב:", error)
-      alert("נכשל בשיבוץ מתנדב. אנא נסה שוב.")
+      showError("נכשל בשיבוץ מתנדב. אנא נסה שוב.")
     }
   }
 

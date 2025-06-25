@@ -21,27 +21,23 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Dialog,
-  DialogTitle,
+  Dialog,  DialogTitle,
   DialogContent,
   DialogActions,
   DialogContentText,
 } from "@mui/material"
 import { People, Email, Phone, LocationOn, PersonRemove, Warning } from "@mui/icons-material"
+import { useNotification } from "../contexts/NotificationContext"
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001"
 
-export default function VolunteerManagement() {
-  const [volunteers, setVolunteers] = useState([])
+export default function VolunteerManagement() {  const [volunteers, setVolunteers] = useState([])
+  const { showSuccess, showError, showConfirmDialog } = useNotification()
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [removingId, setRemovingId] = useState(null)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [volunteerToDelete, setVolunteerToDelete] = useState(null)
 
   // Fetch all volunteers
-  useEffect(() => {
-    setLoading(true)
+  useEffect(() => {    setLoading(true)
     axios
       .get(`${API_BASE}/api/users`)
       .then((res) => {
@@ -49,39 +45,33 @@ export default function VolunteerManagement() {
         setLoading(false)
       })
       .catch((err) => {
-        setError("שגיאה בטעינת מתנדבים")
+        showError("שגיאה בטעינת מתנדבים")
         setLoading(false)
       })
   }, [])
-
   // Handle delete confirmation
-  const handleDeleteClick = (volunteer) => {
-    setVolunteerToDelete(volunteer)
-    setDeleteDialogOpen(true)
-  }
-
-  // Remove volunteer
-  const handleConfirmDelete = async () => {
-    if (!volunteerToDelete) return
-
-    setRemovingId(volunteerToDelete.id)
-    setDeleteDialogOpen(false)
-
+  const handleDeleteClick = async (volunteer) => {
+    const confirmed = await showConfirmDialog({
+      title: 'אישור הסרת מתנדב',
+      message: `האם אתה בטוח שברצונך להסיר את המתנדב ${volunteer.name || `${volunteer.firstName || ""} ${volunteer.lastName || ""}`} מהמערכת? פעולה זו אינה ניתנת לביטול.`,
+      confirmText: 'הסר מתנדב',
+      cancelText: 'ביטול',
+      severity: 'error',
+    });
+    
+    if (!confirmed) return;
+    
+    setRemovingId(volunteer.id);
+    
     try {
-      await axios.delete(`${API_BASE}/api/users/${volunteerToDelete.id}`)
-      setVolunteers(volunteers.filter((v) => v.id !== volunteerToDelete.id))
+      await axios.delete(`${API_BASE}/api/users/${volunteer.id}`)
+      setVolunteers(volunteers.filter((v) => v.id !== volunteer.id))
+      showSuccess("המתנדב הוסר בהצלחה מהמערכת")
     } catch (e) {
-      setError("שגיאה בהסרת מתנדב")
+      showError("שגיאה בהסרת מתנדב")
     }
 
-    setRemovingId(null)
-    setVolunteerToDelete(null)
-  }
-
-  const handleCancelDelete = () => {
-    setDeleteDialogOpen(false)
-    setVolunteerToDelete(null)
-  }
+    setRemovingId(null)  }
 
   if (loading) {
     return (
@@ -136,31 +126,10 @@ export default function VolunteerManagement() {
                 </Typography>
               </Box>
             </Box>
-            <Typography variant="h6" sx={{ opacity: 0.9, maxWidth: 600, mx: "auto" }}>
-              ניהול וצפייה ברשימת המתנדבים הרשומים במערכת
+            <Typography variant="h6" sx={{ opacity: 0.9, maxWidth: 600, mx: "auto" }}>              ניהול וצפייה ברשימת המתנדבים הרשומים במערכת
             </Typography>
           </Paper>
         </Fade>
-
-        {/* Error Alert */}
-        {error && (
-          <Fade in>
-            <Alert
-              severity="error"
-              sx={{
-                borderRadius: 3,
-                fontSize: "1.1rem",
-                py: 3,
-                mb: 4,
-                maxWidth: 600,
-                mx: "auto",
-              }}
-              onClose={() => setError(null)}
-            >
-              {error}
-            </Alert>
-          </Fade>
-        )}
 
         {/* Content */}
         {volunteers.length === 0 ? (
@@ -333,71 +302,12 @@ export default function VolunteerManagement() {
                           </TableCell>
                         </TableRow>
                       </Fade>
-                    ))}
-                  </TableBody>
+                    ))}                  </TableBody>
                 </Table>
               </TableContainer>
             </Card>
           </Grow>
         )}
-
-        {/* Delete Confirmation Dialog */}
-        <Dialog
-          open={deleteDialogOpen}
-          onClose={handleCancelDelete}
-          maxWidth="sm"
-          fullWidth
-          PaperProps={{
-            sx: {
-              borderRadius: 3,
-              p: 1,
-            },
-          }}
-        >
-          <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 2, pb: 2 }}>
-            <Avatar sx={{ bgcolor: "error.light" }}>
-              <Warning />
-            </Avatar>
-            <Box>
-              <Typography variant="h6" fontWeight="bold">
-                אישור הסרת מתנדב
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                פעולה זו אינה ניתנת לביטול
-              </Typography>
-            </Box>
-          </DialogTitle>
-          <DialogContent>
-            <DialogContentText sx={{ fontSize: "1rem", color: "text.primary" }}>
-              האם אתה בטוח שברצונך להסיר את המתנדב{" "}
-              <strong>
-                {volunteerToDelete?.name ||
-                  `${volunteerToDelete?.firstName || ""} ${volunteerToDelete?.lastName || ""}`}
-              </strong>{" "}
-              מהמערכת?
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions sx={{ p: 3, gap: 1 }}>
-            <Button
-              onClick={handleCancelDelete}
-              variant="outlined"
-              size="large"
-              sx={{ fontWeight: 600, borderRadius: 2 }}
-            >
-              ביטול
-            </Button>
-            <Button
-              onClick={handleConfirmDelete}
-              variant="contained"
-              color="error"
-              size="large"
-              startIcon={<PersonRemove />}
-              sx={{ fontWeight: 600, borderRadius: 2 }}
-            >
-              הסר מתנדב
-            </Button>
-          </DialogActions>
-        </Dialog>
       </Container>
     </Box>
   )

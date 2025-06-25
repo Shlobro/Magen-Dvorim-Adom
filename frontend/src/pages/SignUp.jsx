@@ -1,6 +1,6 @@
-// frontend/src/pages/SignUp.jsx
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useNotification } from '../contexts/NotificationContext';
 import '../styles/HomeScreen.css';
 import mdaLogo from '../assets/mda_logo.png';
 import { FaBell } from 'react-icons/fa';
@@ -12,6 +12,7 @@ import axios from 'axios';
 
 export default function SignUp() {
   const navigate = useNavigate();
+  const { showSuccess, showError } = useNotification();
   // form fields
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -26,32 +27,25 @@ export default function SignUp() {
   const [heightPermit, setHeightPermit] = useState('');
   const [additionalDetails, setAdditionalDetails] = useState('');
   const [agreeToEthics, setAgreeToEthics] = useState(false);
-
   // ui state
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-
-  // ───────────────────────────────────────
   const handleSignUp = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
     setLoading(true);    // 1. basic validation
     if (!firstName || !lastName || !phoneNumber || !email || !password ||
       !city || !address || !idNumber) {
-      setError('אנא מלא את כל השדות הנדרשים (מסומנים בכוכבית).');
+      showError('אנא מלא את כל השדות הנדרשים (מסומנים בכוכבית).');
       setLoading(false);
       return;
     }
     
     if (password.length < 6) {
-      setError('הסיסמה חייבת להיות באורך 6 תווים לפחות.');
+      showError('הסיסמה חייבת להיות באורך 6 תווים לפחות.');
       setLoading(false);
       return;
     }
     if (!agreeToEthics) {
-      setError('חובה לאשר את כללי האתיקה כדי להירשם.');
+      showError('חובה לאשר את כללי האתיקה כדי להירשם.');
       setLoading(false);
       return;
     }
@@ -62,13 +56,11 @@ export default function SignUp() {
       const geoRes = await axios.post('http://localhost:3001/api/geocode', {
         address,
         city,
-      });
-
-      if (!geoRes.data.lat || !geoRes.data.lng) {
-        setError('לא הצלחנו לאתר את הכתובת במפה. ודא שהכתובת מדויקת ונסה שוב.');
+      });      if (!geoRes.data.lat || !geoRes.data.lng) {
+        showError('לא הצלחנו לאתר את הכתובת במפה. ודא שהכתובת מדויקת ונסה שוב.');
         setLoading(false);
         return;
-      }      const { lat, lng } = geoRes.data;
+      }const { lat, lng } = geoRes.data;
       console.log('Geocode success:', lat, lng);
 
       // 3. Create Firebase Auth user first
@@ -96,10 +88,8 @@ export default function SignUp() {
         lat,
         lng,
         agreedToEthics: true,
-      });
-
-      setSuccess('הרשמה בוצעה בהצלחה! תועבר לדף הבית.');
-      setTimeout(() => navigate('/'), 2000);    } catch (err) {
+      });      showSuccess('הרשמה בוצעה בהצלחה! תועבר לדף הבית.');
+      setTimeout(() => navigate('/'), 2000);} catch (err) {
       console.error('Sign-up error:', err);
       let msg = 'שגיאה בהרשמה. אנא נסה שוב.';
       
@@ -110,14 +100,12 @@ export default function SignUp() {
         msg = 'הסיסמה חלשה מדי. אנא בחר סיסמה חזקה יותר.';
       } else if (err.code === 'auth/invalid-email') {
         msg = 'כתובת אימייל לא תקינה.';
-      }
-      
-      setError(msg);
+      }      
+      showError(msg);
     } finally {
       setLoading(false);
     }
   };
-  // ───────────────────────────────────────
 
   const checkboxContainerStyle = {
     display: 'flex',
@@ -176,12 +164,8 @@ export default function SignUp() {
                   כללי האתיקה
                 </Link>{' '}
                 ומסכים/ה לפעול על פיהם.
-              </label>
-            </div>
+              </label>            </div>
             {/* ----------------------------------------------- */}
-
-            {error && <p className="error-message" style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
-            {success && <p className="success-message" style={{ color: 'green', textAlign: 'center' }}>{success}</p>}
 
             <button type="submit" className="submit-button" disabled={loading}>
               <FaBell className="button-icon" />

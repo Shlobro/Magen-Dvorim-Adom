@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import '../styles/HomeScreen.css';
 import { fetchVolunteerInquiries, updateInquiryStatus } from '../services/inquiryApi';
 
 export default function VolunteerDashboard() {
   const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const { currentUser, userRole, loading: authLoading } = useAuth();
+  const { showSuccess, showError, showWarning } = useNotification();
 
   // Filter states
   const [filterStatus, setFilterStatus] = useState('');
@@ -34,17 +35,16 @@ export default function VolunteerDashboard() {
 
   // Fetch inquiries assigned to this volunteer
   useEffect(() => {
-    const fetchInquiries = async () => {
-      if (authLoading || !currentUser) {
+    const fetchInquiries = async () => {      if (authLoading || !currentUser) {
         if (!authLoading && !currentUser) {
-          setError('יש להתחבר כדי לצפות בלוח המחוונים.');
+          showError('יש להתחבר כדי לצפות בלוח המחוונים.');
         }
         setLoading(false);
         return;
       }
 
       if (userRole !== 2) {
-        setError('גישה מוגבלת למתנדבים בלבד.');
+        showError('גישה מוגבלת למתנדבים בלבד.');
         setLoading(false);
         return;
       }
@@ -53,10 +53,9 @@ export default function VolunteerDashboard() {
         setLoading(true);
         const fetchedInquiries = await fetchVolunteerInquiries(currentUser.uid);
         setInquiries(fetchedInquiries);
-        setLoading(false);
-      } catch (err) {
+        setLoading(false);      } catch (err) {
         console.error('Error fetching volunteer inquiries:', err);
-        setError('שגיאה בטעינת הפניות.');
+        showError('שגיאה בטעינת הפניות.');
         setLoading(false);
       }
     };
@@ -137,12 +136,11 @@ export default function VolunteerDashboard() {
           inquiry.id === inquiryId
             ? { ...inquiry, status: newStatus }
             : inquiry
-        )
-      );
-      alert('סטטוס עודכן בהצלחה!');
+        )      );
+      showSuccess('סטטוס עודכן בהצלחה!');
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('שגיאה בעדכון סטטוס.');
+      showError('שגיאה בעדכון סטטוס.');
     }
   };
 
@@ -155,12 +153,11 @@ export default function VolunteerDashboard() {
           inquiry.id === inquiryId
             ? { ...inquiry, status: 'הפנייה נסגרה', closureReason }
             : inquiry
-        )
-      );
-      alert('סיבת סגירה עודכנה בהצלחה!');
+        )      );
+      showSuccess('סיבת סגירה עודכנה בהצלחה!');
     } catch (error) {
       console.error('Error updating closure reason:', error);
-      alert('שגיאה בעדכון סיבת סגירה.');
+      showError('שגיאה בעדכון סיבת סגירה.');
     }
   };
 
@@ -179,31 +176,8 @@ export default function VolunteerDashboard() {
         textAlign: 'center',
         background: '#f8f9fa',
         borderRadius: '12px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
-      }}>
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'      }}>
         טוען נתונים...
-      </div>
-    </div>
-  );
-
-  // Error state
-  if (error) return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '60vh'
-    }}>
-      <div style={{
-        padding: '40px',
-        textAlign: 'center',
-        background: '#fff5f5',
-        borderRadius: '12px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-        border: '1px solid #fed7d7',
-        color: '#e53e3e'
-      }}>
-        שגיאה: {error}
       </div>
     </div>
   );
