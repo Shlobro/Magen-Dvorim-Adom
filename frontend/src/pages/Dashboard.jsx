@@ -25,14 +25,9 @@ export default function Dashboard() {
   // New state for managing the modal/popup for comments:
   const [selectedComment, setSelectedComment] = useState(null)
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false)
-
   // Add after the existing comment modal states
   const [selectedCallDetails, setSelectedCallDetails] = useState(null)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
-
-  // State for photo modal
-  const [selectedPhoto, setSelectedPhoto] = useState(null)
-  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false)
 
   // Helper function to convert various timestamp formats to JavaScript Date
   const convertTimestamp = (timestamp) => {
@@ -262,16 +257,9 @@ export default function Dashboard() {
     setSelectedCallDetails(null)
     setIsDetailsModalOpen(false)
   }
-
   // Photo modal handlers
   const handleOpenPhoto = (photoUrl) => {
-    setSelectedPhoto(photoUrl)
-    setIsPhotoModalOpen(true)
-  }
-
-  const handleClosePhoto = () => {
-    setSelectedPhoto(null)
-    setIsPhotoModalOpen(false)
+    window.open(photoUrl, '_blank')
   }
 
   // ───────────────────────────── Derived State: Unique Volunteer Names
@@ -1936,15 +1924,14 @@ export default function Dashboard() {
                             cursor: "pointer",
                             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
                             transition: "transform 0.2s ease",
-                          }}
-                          onClick={() => handleOpenPhoto(selectedCallDetails.photo)}
+                          }}                          onClick={() => handleOpenPhoto(selectedCallDetails.photo)}
                           onMouseOver={(e) => {
                             e.currentTarget.style.transform = "scale(1.05)"
                           }}
                           onMouseOut={(e) => {
                             e.currentTarget.style.transform = "scale(1)"
                           }}
-                          title="לחץ להגדלת התמונה"
+                          title="לחץ לפתיחת התמונה בטאב חדש"
                         />
                       </div>
                     </div>
@@ -1967,94 +1954,6 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>            </div>
-          )}
-
-          {/* Photo Modal */}
-          {isPhotoModalOpen && selectedPhoto && (
-            <div
-              style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.8)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                zIndex: 1001,
-                padding: "20px",
-              }}
-              onClick={handleClosePhoto}
-            >
-              <div
-                style={{
-                  position: "relative",
-                  maxWidth: "90vw",
-                  maxHeight: "90vh",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  onClick={handleClosePhoto}
-                  style={{
-                    position: "absolute",
-                    top: "-10px",
-                    right: "-10px",
-                    background: "white",
-                    border: "none",
-                    borderRadius: "50%",
-                    width: "40px",
-                    height: "40px",
-                    fontSize: "1.5em",
-                    cursor: "pointer",
-                    color: "#666",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
-                    zIndex: 1002,
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.backgroundColor = "#f0f0f0"
-                    e.currentTarget.style.color = "#333"
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.backgroundColor = "white"
-                    e.currentTarget.style.color = "#666"
-                  }}
-                  title="סגור תמונה"
-                >
-                  ✕
-                </button>
-                <img
-                  src={selectedPhoto}
-                  alt="תמונת הדיווח - מוגדלת"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "100%",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-                    objectFit: "contain",
-                  }}
-                />
-                <div
-                  style={{
-                    marginTop: "10px",
-                    color: "white",
-                    fontSize: "0.9em",
-                    textAlign: "center",
-                    textShadow: "0 1px 3px rgba(0,0,0,0.5)",
-                  }}
-                >
-                  לחץ על התמונה או על X לסגירה
-                </div>
-              </div>
-            </div>
           )}
         </div>{" "}
         {/* End dashboard card inner */}
