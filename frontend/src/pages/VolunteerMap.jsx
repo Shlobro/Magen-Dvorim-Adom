@@ -6,7 +6,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import beeIconUrl from "../assets/cuteBeeInquiry.png"
-import { collection, getDocs, doc, updateDoc, query, where, GeoPoint, Timestamp } from "firebase/firestore"
+import { collection, getDocs, getDoc, doc, updateDoc, query, where, GeoPoint, Timestamp } from "firebase/firestore"
 import { db } from "../firebaseConfig"
 import { useLocation, useNavigate } from "react-router-dom"
 import {
@@ -89,7 +89,6 @@ export default function VolunteerMap() {
     }
     return { lat, lng }
   }
-
  const fetchInquiries = useCallback(async () => {
   try {
     const q = query(
@@ -111,16 +110,43 @@ export default function VolunteerMap() {
         inquiry.lng != null &&
         !isNaN(inquiry.lng),
     );
-    // 2. Sort by opening timestamp (oldest first)
+
+    // 2. Collect all unique volunteer UIDs
+    const volunteerUids = new Set();
+    validInquiries.forEach(call => {
+      if (call.assignedVolunteers && typeof call.assignedVolunteers === 'string' && call.assignedVolunteers.trim() !== '') {
+        volunteerUids.add(call.assignedVolunteers);
+      }
+    });
+
+    // 3. Fetch volunteer names
+    const uidToVolunteerName = {};
+    await Promise.all(
+      Array.from(volunteerUids).map(async (uid) => {
+        try {
+          const snap = await getDoc(doc(db, 'user', uid));
+          if (snap.exists()) {
+            const d = snap.data();
+            uidToVolunteerName[uid] = d.name || `${d.firstName ?? ''} ${d.lastName ?? ''}`.trim();
+          }
+        } catch (e) { 
+          console.error("Error fetching volunteer name:", uid, e); 
+        }
+      })
+    );
+
+    // 4. Sort by opening timestamp (oldest first)
     validInquiries.sort((a, b) => {
       const ta = a.timestamp?.toDate()?.getTime() || 0;
       const tb = b.timestamp?.toDate()?.getTime() || 0;
       return ta - tb;
     });
-    // 3. Assign sequential number
+
+    // 5. Assign sequential number and add volunteer names
     const numbered = validInquiries.map((inq, idx) => ({
       ...inq,
       seqNum: idx + 1,
+      assignedVolunteerName: uidToVolunteerName[inq.assignedVolunteers] ?? '-',
     }));
 
     setInquiries(numbered);
@@ -354,9 +380,8 @@ export default function VolunteerMap() {
                         <Typography variant="body2" color="text.secondary" gutterBottom>
                           הערות: {inquiry.notes}
                         </Typography>
-                      )}
-                      <Typography variant="body2" color="text.secondary">
-                        {inquiry.assignedVolunteers ? `שובץ: ${inquiry.assignedVolunteers}` : "טרם שובץ"}
+                      )}                      <Typography variant="body2" color="text.secondary">
+                        {inquiry.assignedVolunteerName && inquiry.assignedVolunteerName !== '-' ? `שובץ: ${inquiry.assignedVolunteerName}` : "טרם שובץ"}
                       </Typography>
                     </Box>
                   </Popup>
@@ -515,9 +540,8 @@ export default function VolunteerMap() {
                             <Box>
                               <Typography variant="subtitle2" fontWeight="bold">
                                 מתנדב משובץ
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {isSelectedInquiryAssigned ? selectedInquiry.assignedVolunteers : "טרם שובץ"}
+                              </Typography>                              <Typography variant="body2" color="text.secondary">
+                                {isSelectedInquiryAssigned ? selectedInquiry.assignedVolunteerName : "טרם שובץ"}
                               </Typography>
                             </Box>
                           </Box>
