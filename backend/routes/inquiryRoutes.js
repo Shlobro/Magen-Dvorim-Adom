@@ -211,4 +211,56 @@ router.post('/:id/visibility', async (req, res) => {
   }
 });
 
+// GET /api/inquiries?coordinatorId=COORDINATOR_ID
+// Returns inquiries for a coordinator: assigned to them or unassigned, including missing coordinatorId
+router.get('/', async (req, res) => {
+  const { coordinatorId } = req.query;
+  try {
+    let snap;
+    if (coordinatorId) {
+      // Get all inquiries and filter in code to include missing coordinatorId
+      snap = await db.collection('inquiry').get();
+      const filtered = snap.docs
+        .filter(d => {
+          const cId = d.get('coordinatorId');
+          return (
+            cId === undefined ||
+            cId === null ||
+            cId === '' ||
+            cId === coordinatorId
+          );
+        })
+        .map(d => ({ id: d.id, ...d.data() }));
+      res.json(filtered);
+    } else {
+      snap = await db.collection('inquiry').get();
+      res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Error querying inquiries');
+  }
+});
+
+// POST /api/inquiries/:id/take-ownership
+// Assigns the inquiry to the coordinator
+router.post('/:id/take-ownership', async (req, res) => {
+  const { coordinatorId } = req.body;
+  if (!coordinatorId) return res.status(400).send('coordinatorId required');
+  try {
+    const docRef = db.collection('inquiry').doc(req.params.id);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).send('Inquiry not found');
+    const data = doc.data();
+    if (data.coordinatorId && data.coordinatorId !== coordinatorId) {
+      return res.status(409).send('Inquiry already assigned');
+    }
+    await docRef.update({ coordinatorId });
+    res.send('Ownership taken');
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Error taking ownership');
+  }
+});
+
 export default router;
