@@ -202,7 +202,7 @@ export default function CoordinatorApproval() {
               fontWeight: '700',
               textShadow: '0 2px 4px rgba(0,0,0,0.2)'
             }}>
-              אישור רכزים חדשים
+              אישור רכזים חדשים
             </h1>
             <div style={{
               fontSize: '1.1em',

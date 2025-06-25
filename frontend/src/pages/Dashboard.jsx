@@ -766,41 +766,6 @@ export default function Dashboard() {
                   >
                     📋 העתק קישור לדיווח
                   </button>
-                  <button
-                    onClick={() => {
-                      const coordinatorSignupLink = `${window.location.origin}/coordinator-register`;
-                      const tempInput = document.createElement('input');
-                      tempInput.value = coordinatorSignupLink;
-                      document.body.appendChild(tempInput);
-                      tempInput.select();
-                      document.execCommand('copy');
-                      document.body.removeChild(tempInput);
-                      alert('קישור הרשמת רכזים הועתק בהצלחה!');
-                    }}
-                    style={{
-                      background: 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
-                      color: 'white',
-                      padding: '15px 30px',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '1.1em',
-                      fontWeight: '600',
-                      boxShadow: '0 4px 15px rgba(40,167,69,0.3)',
-                      transition: 'all 0.3s ease',
-                      transform: 'translateY(0)'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(40,167,69,0.4)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(40,167,69,0.3)';
-                    }}
-                  >
-                    👥 העתק קישור רכזים חדשים
-                  </button>
                 </div>
               </div>
             )}
