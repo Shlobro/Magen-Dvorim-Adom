@@ -1,9 +1,10 @@
 // frontend/src/pages/CoordinatorSignup.jsx
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom'; // Import Link
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore'; 
-import { auth, db } from '../firebaseConfig'; 
+import { useNavigate, Link } from 'react-router-dom';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
+console.log('CoordinatorSignup - API_BASE:', API_BASE);
+console.log('CoordinatorSignup - VITE_API_BASE:', import.meta.env.VITE_API_BASE);
 
 // =========================================================
 // סגנונות - נשארים זמנית עד שתספק את ה-CSS של SignUp.jsx
@@ -108,90 +109,106 @@ export default function CoordinatorSignup() {
   const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [agreeToEthics, setAgreeToEthics] = useState(false); // New state for ethics checkbox
+  const [city, setCity] = useState('');
+  const [password, setPassword] = useState(''); // Add password field
+  const [confirmPassword, setConfirmPassword] = useState(''); // Add confirm password field
+  const [agreeToEthics, setAgreeToEthics] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const navigate = useNavigate();
-
-  const handleSubmit = async (e) => {
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();  const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+    setLoading(true);
 
     // Basic validation
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phoneNumber.trim() || !city.trim() || !password.trim()) {
+      setError('יש למלא את כל השדות הנדרשים.');
+      setLoading(false);
+      return;
+    }
+
+    // Password validation
     if (password.length < 6) {
-      setError('הסיסמה חייבת להיות באורך 6 תווים לפחות.');
+      setError('הסיסמה חייבת להכיל לפחות 6 תווים.');
+      setLoading(false);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('הסיסמאות אינן תואמות.');
+      setLoading(false);
       return;
     }
 
     // Ethics agreement validation
     if (!agreeToEthics) {
       setError('חובה לאשר את כללי האתיקה כדי להירשם.');
+      setLoading(false);
       return;
-    }
-
-    try {
-      // 1. יצירת משתמש ב-Firebase Authentication
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      console.log('User created in Firebase Auth:', user.uid);
-
-      // 2. שמירת פרטי הרכז בקולקציית 'user'
-      await setDoc(doc(db, 'user', user.uid), {
-        firstName: firstName,
-        lastName: lastName,
-        phoneNumber: phoneNumber,
-        email: user.email, 
-        userType: 1, // קבוע עבור רכזים
-        beeFarmingExperience: null,
-        beeRemovalExperience: null,
-        city: null,
-        heightWorkPermit: null,
-        idNumber: null,
-        location: null, 
-        name: `${firstName} ${lastName}`, 
-        registrationDate: new Date(), 
-        agreedToEthics: true, // New: Record ethics agreement
+    }    try {
+      // Submit coordinator signup request via backend API
+      const apiUrl = `${API_BASE}/api/coordinators/signup`;
+      console.log('Submitting to:', apiUrl);
+      console.log('API_BASE:', API_BASE);
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          phoneNumber: phoneNumber.trim(),
+          email: email.trim().toLowerCase(),
+          city: city.trim(),
+          password: password.trim()
+        }),
       });
-      console.log('Coordinator data saved in "user" collection for user:', user.uid);
 
-      setSuccess('הרשמה בוצעה בהצלחה! כעת ניתן להתחבר.');
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit signup request');
+      }
+
+      const result = await response.json();
+      console.log('Success result:', result);
+      setSuccess('בקשת הרשמה נשלחה בהצלחה! הבקשה שלך תיבדק על ידי רכז קיים ותקבל עדכון בהקדם.');
+      
+      // Reset form
       setFirstName('');
       setLastName('');
       setPhoneNumber('');
       setEmail('');
-      setPassword(''); 
-      setAgreeToEthics(false); // Reset checkbox state
+      setCity('');
+      setPassword('');
+      setConfirmPassword('');
+      setAgreeToEthics(false);
 
       setTimeout(() => {
-        navigate('/login');
-      }, 2000); 
+        navigate('/');
+      }, 4000); 
 
     } catch (err) {
-      console.error('שגיאה בהרשמת רכז:', err.code, err.message);
-      switch (err.code) {
-        case 'auth/email-already-in-use':
-          setError('האימייל כבר בשימוש. אנא נסה אימייל אחר או התחבר.');
-          break;
-        case 'auth/weak-password':
-          setError('הסיסמה חלשה מדי. אנא הזן סיסמה בעלת 6 תווים לפחות.');
-          break;
-        case 'auth/invalid-email':
-          setError('פורמט אימייל לא תקין.');
-          break;
-        default:
-          setError('שגיאה בהרשמה. אנא נסה שוב.');
-          break;
-      }
+      console.error('שגיאה בשליחת בקשת הרשמה:', err);
+      setError(err.message || 'שגיאה בשליחת בקשת הרשמה. אנא נסה שוב.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div style={containerStyle}>
-      <div style={formCardStyle}>
-        <h2>הרשמת רכז חדש</h2>
-        <p>טופס זה מיועד לרכזים בלבד, בעמותת "מגן דבורים אדום".</p> {/* Updated org name */}
+    <div style={containerStyle}>      <div style={formCardStyle}>
+        <h2>בקשת הרשמה לרכז חדש</h2>
+        <p>טופס זה מיועד לרכזים בלבד, בעמותת "מגן דבורים אדום".</p>
+        <p style={{color: '#666', fontSize: '0.9em', marginBottom: '20px'}}>
+          הבקשה תיבדק על ידי רכז קיים במערכת ותקבל עדכון על האישור.
+        </p>
         <form onSubmit={handleSubmit}>
           <div style={inputGroupStyle}>
             <label htmlFor="firstName" style={labelStyle}>שם פרטי:</label>
@@ -236,16 +253,42 @@ export default function CoordinatorSignup() {
               required
               style={inputStyle}
             />
+          </div>          <div style={inputGroupStyle}>
+            <label htmlFor="city" style={labelStyle}>עיר מגורים:</label>
+            <input
+              type="text"
+              id="city"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              required
+              style={inputStyle}
+            />
           </div>
+          
           <div style={inputGroupStyle}>
-            <label htmlFor="password" style={labelStyle}>סיסמה (לפחות 6 תווים):</label>
+            <label htmlFor="password" style={labelStyle}>סיסמה:</label>
             <input
               type="password"
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              minLength="6"
               style={inputStyle}
+              placeholder="לפחות 6 תווים"
+            />
+          </div>
+          
+          <div style={inputGroupStyle}>
+            <label htmlFor="confirmPassword" style={labelStyle}>אישור סיסמה:</label>
+            <input
+              type="password"
+              id="confirmPassword"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              style={inputStyle}
+              placeholder="הכנס שוב את הסיסמה"
             />
           </div>
 
@@ -266,15 +309,26 @@ export default function CoordinatorSignup() {
               ומסכים/ה לפעול על פיהם.
             </label>
           </div>
-          {/* ------------------------------------------- */}
-
-          <button
+          {/* ------------------------------------------- */}          <button
             type="submit"
-            style={buttonStyle}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = buttonHoverStyle.backgroundColor}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = buttonStyle.backgroundColor}
+            disabled={loading}
+            style={{
+              ...buttonStyle,
+              backgroundColor: loading ? '#ccc' : buttonStyle.backgroundColor,
+              cursor: loading ? 'not-allowed' : 'pointer'
+            }}
+            onMouseOver={(e) => {
+              if (!loading) {
+                e.currentTarget.style.backgroundColor = buttonHoverStyle.backgroundColor;
+              }
+            }}
+            onMouseOut={(e) => {
+              if (!loading) {
+                e.currentTarget.style.backgroundColor = buttonStyle.backgroundColor;
+              }
+            }}
           >
-            הירשם כרכז
+            {loading ? 'שולח בקשה...' : 'שלח בקשת הרשמה'}
           </button>
           {error && <p style={errorStyle}>{error}</p>}
           {success && <p style={successStyle}>{success}</p>}

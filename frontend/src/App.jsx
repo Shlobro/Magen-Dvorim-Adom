@@ -28,6 +28,9 @@ import VolunteerManagement from './pages/VolunteerManagement.jsx';
 // ייבוא לוח מחוונים למתנדבים
 import VolunteerDashboard from './pages/VolunteerDashboard.jsx';
 
+// ייבוא דף אישור רכזים
+import CoordinatorApproval from './pages/CoordinatorApproval.jsx';
+
 function App() {
   return (
     <AuthProvider>
@@ -73,13 +76,22 @@ function App() {
                   <InsightsPage /> {/* Your new Insights component */}
                 </ProtectedRoute>
               }
-            />
-            {/* Volunteer Management page for coordinators */}
+            />            {/* Volunteer Management page for coordinators */}
             <Route
               path="/volunteer-management"
               element={
                 <ProtectedRoute requiredRole={1}>
                   <VolunteerManagement />
+                </ProtectedRoute>
+              }
+            />
+            
+            {/* Coordinator Approval page for coordinators */}
+            <Route
+              path="/coordinator-approval"
+              element={
+                <ProtectedRoute requiredRole={1}>
+                  <CoordinatorApproval />
                 </ProtectedRoute>
               }
             />

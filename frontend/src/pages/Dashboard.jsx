@@ -731,41 +731,77 @@ export default function Dashboard() {
                 background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
                 borderRadius: '12px',
                 border: '1px solid #e1f5fe'
-              }}>
-                <div style={{
+              }}>                <div style={{
                   marginBottom: '20px',
                   fontSize: '1.1em',
                   color: '#1565c0',
                   fontWeight: '600'
                 }}>
-                  קישור לשליחת פנייה עבורך
+                  קישורים לניהול המערכת
                 </div>
-                <button
-                  onClick={copyReportLink}
-                  style={{
-                    background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
-                    color: 'white',
-                    padding: '15px 30px',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '1.1em',
-                    fontWeight: '600',
-                    boxShadow: '0 4px 15px rgba(0,123,255,0.3)',
-                    transition: 'all 0.3s ease',
-                    transform: 'translateY(0)'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,123,255,0.4)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,123,255,0.3)';
-                  }}
-                >
-                  📋 העתק קישור לדיווח
-                </button>
+                <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={copyReportLink}
+                    style={{
+                      background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                      color: 'white',
+                      padding: '15px 30px',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '1.1em',
+                      fontWeight: '600',
+                      boxShadow: '0 4px 15px rgba(0,123,255,0.3)',
+                      transition: 'all 0.3s ease',
+                      transform: 'translateY(0)'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,123,255,0.4)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,123,255,0.3)';
+                    }}
+                  >
+                    📋 העתק קישור לדיווח
+                  </button>
+                  <button
+                    onClick={() => {
+                      const coordinatorSignupLink = `${window.location.origin}/coordinator-register`;
+                      const tempInput = document.createElement('input');
+                      tempInput.value = coordinatorSignupLink;
+                      document.body.appendChild(tempInput);
+                      tempInput.select();
+                      document.execCommand('copy');
+                      document.body.removeChild(tempInput);
+                      alert('קישור הרשמת רכזים הועתק בהצלחה!');
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
+                      color: 'white',
+                      padding: '15px 30px',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '1.1em',
+                      fontWeight: '600',
+                      boxShadow: '0 4px 15px rgba(40,167,69,0.3)',
+                      transition: 'all 0.3s ease',
+                      transform: 'translateY(0)'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(40,167,69,0.4)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(40,167,69,0.3)';
+                    }}
+                  >
+                    👥 העתק קישור רכזים חדשים
+                  </button>
+                </div>
               </div>
             )}
 

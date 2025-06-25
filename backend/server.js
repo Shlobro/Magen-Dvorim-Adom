@@ -8,6 +8,7 @@ import inquiryRoutes from './routes/inquiryRoutes.js';
 import linkRoutes    from './routes/linkRoutes.js';
 import filterRoutes  from './routes/filterRoutes.js';
 import geocodeRoutes from './routes/geocode.js';
+import coordinatorRoutes from './routes/coordinatorRoutes.js';
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ app.use('/api/inquiries', inquiryRoutes); // NEW alias for frontend
 app.use('/link',        linkRoutes);
 app.use('/api/filters', filterRoutes);
 app.use('/api/geocode', geocodeRoutes);
+app.use('/api/coordinators', coordinatorRoutes); // NEW coordinator approval routes
 
 // ─────────────────────────────
 const PORT = process.env.PORT || 3001;

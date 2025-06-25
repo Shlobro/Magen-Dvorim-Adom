@@ -1,7 +1,7 @@
 // frontend/src/components/Header.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaBars, FaTimes, FaHome, FaBell, FaUsers, FaSignInAlt, FaSignOutAlt, FaMapMarkedAlt, FaChartBar } from 'react-icons/fa'; // הוסף FaMapMarkedAlt ו-FaChartBar
+import { FaBars, FaTimes, FaHome, FaBell, FaUsers, FaSignInAlt, FaSignOutAlt, FaMapMarkedAlt, FaChartBar, FaUserCheck } from 'react-icons/fa'; // הוסף FaMapMarkedAlt, FaChartBar ו-FaUserCheck
 import mdaLogo from '../assets/mda_logo.png';
 import '../styles/Header.css';
 
@@ -34,10 +34,10 @@ export default function Header() {
       console.error("נכשל בהתנתקות. אנא נסה שוב.");
     }
   };
-
   if (loading) {
     return null;
   }
+  
   // הגדרת פריטי הניווט בהתאם למצב המשתמש
   const navItemsLoggedIn = [
     // רכזים (userType === 1) יראו את מסך הקריאות הרגיל
@@ -54,6 +54,8 @@ export default function Header() {
     ...(userRole === 1 ? [{ label: 'תובנות', icon: <FaChartBar />, to: '/insights', isButton: false }] : []), // <--- חדש: קישור לדף תובנות
     // קישור חדש: ניהול מתנדבים
     ...(userRole === 1 ? [{ label: 'ניהול מתנדבים', icon: <FaUsers />, to: '/volunteer-management', isButton: false }] : []),
+    // קישור חדש: אישור רכזים
+    ...(userRole === 1 ? [{ label: 'אישור רכזים', icon: <FaUserCheck />, to: '/coordinator-approval', isButton: false }] : []),
     { label: 'התנתק', icon: <FaSignOutAlt />, onClick: handleLogout, isButton: true },
   ];
 
