@@ -35,6 +35,10 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
   const { showSuccess, showError, showConfirmDialog } = useNotification()
   const [loading, setLoading] = useState(true)
   const [removingId, setRemovingId] = useState(null)
+  
+  // Add state for volunteer details modal
+  const [selectedVolunteerDetails, setSelectedVolunteerDetails] = useState(null)
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
 
   // Fetch all volunteers
   useEffect(() => {    setLoading(true)
@@ -72,6 +76,18 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
     }
 
     setRemovingId(null)  }
+
+  // Handle opening volunteer details modal
+  const handleOpenVolunteerDetails = (volunteer) => {
+    setSelectedVolunteerDetails(volunteer)
+    setIsDetailsModalOpen(true)
+  }
+
+  // Handle closing volunteer details modal
+  const handleCloseVolunteerDetails = () => {
+    setSelectedVolunteerDetails(null)
+    setIsDetailsModalOpen(false)
+  }
 
   if (loading) {
     return (
@@ -193,14 +209,13 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
               <TableContainer dir="rtl">
                 <Table sx={{ minWidth: 650 }}>
                   <TableHead>
-                    <TableRow sx={{ bgcolor: "grey.50" }}>
-                      <TableCell align="right" sx={{ fontWeight: "bold", fontSize: "1rem", width: "25%" }}>
+                    <TableRow sx={{ bgcolor: "grey.50" }}>                      <TableCell align="right" sx={{ fontWeight: "bold", fontSize: "1rem", width: "20%" }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <People sx={{ fontSize: 20, color: "text.secondary" }} />
                           שם מלא
                         </Box>
                       </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: "bold", fontSize: "1rem", width: "25%" }}>
+                      <TableCell align="right" sx={{ fontWeight: "bold", fontSize: "1rem", width: "20%" }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <Email sx={{ fontSize: 20, color: "text.secondary" }} />
                           אימייל
@@ -217,10 +232,15 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
                           <LocationOn sx={{ fontSize: 20, color: "text.secondary" }} />
                           עיר
                         </Box>
+                      </TableCell><TableCell
+                        align="center"
+                        sx={{ fontWeight: "bold", fontSize: "1rem", textAlign: "center", width: "15%" }}
+                      >
+                        פרטים מלאים
                       </TableCell>
                       <TableCell
                         align="center"
-                        sx={{ fontWeight: "bold", fontSize: "1rem", textAlign: "center", width: "20%" }}
+                        sx={{ fontWeight: "bold", fontSize: "1rem", textAlign: "center", width: "15%" }}
                       >
                         פעולות
                       </TableCell>
@@ -236,8 +256,7 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
                             },
                             transition: "background-color 0.2s ease",
                           }}
-                        >
-                          <TableCell align="right" sx={{ width: "25%" }}>
+                        >                          <TableCell align="right" sx={{ width: "20%" }}>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                               <Avatar
                                 sx={{
@@ -260,7 +279,7 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
                               </Box>
                             </Box>
                           </TableCell>
-                          <TableCell align="right" sx={{ width: "25%" }}>
+                          <TableCell align="right" sx={{ width: "20%" }}>
                             <Typography variant="body1" sx={{ fontFamily: "monospace" }} noWrap>
                               {volunteer.email}
                             </Typography>
@@ -277,7 +296,26 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
                               sx={{ fontWeight: 500, maxWidth: "100%" }}
                             />
                           </TableCell>
-                          <TableCell sx={{ textAlign: "center", width: "20%" }}>
+                          <TableCell sx={{ textAlign: "center", width: "15%" }}>
+                            <Button
+                              variant="outlined"
+                              color="primary"
+                              size="small"
+                              onClick={() => handleOpenVolunteerDetails(volunteer)}
+                              sx={{
+                                fontWeight: 600,
+                                borderRadius: 2,
+                                px: 2,
+                                "&:hover": {
+                                  bgcolor: "primary.light",
+                                  color: "white",
+                                },
+                              }}
+                            >
+                              פרטים מלאים
+                            </Button>
+                          </TableCell>
+                          <TableCell sx={{ textAlign: "center", width: "15%" }}>
                             <Button
                               variant="outlined"
                               color="error"
@@ -309,6 +347,203 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
           </Grow>
         )}
       </Container>
+      
+      {/* Volunteer Details Modal */}
+      {isDetailsModalOpen && selectedVolunteerDetails && (
+        <Dialog
+          open={isDetailsModalOpen}
+          onClose={handleCloseVolunteerDetails}
+          maxWidth="md"
+          fullWidth
+          dir="rtl"
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              maxHeight: "80vh",
+            }
+          }}
+        >
+          <DialogTitle
+            sx={{
+              borderBottom: "2px solid #f0f0f0",
+              pb: 2,
+              mb: 3,
+              fontSize: "1.4em",
+              fontWeight: 600,
+              textAlign: "center",
+            }}
+          >
+            פרטי המתנדב המלאים
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: "grid", gap: 3 }}>
+              {/* Personal Information */}
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
+                <Paper sx={{ p: 2, background: "#f8f9fa", borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#495057", mb: 1 }}>
+                    שם פרטי:
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
+                    {selectedVolunteerDetails.firstName || "לא צוין"}
+                  </Typography>
+                </Paper>
+
+                <Paper sx={{ p: 2, background: "#f8f9fa", borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#495057", mb: 1 }}>
+                    שם משפחה:
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
+                    {selectedVolunteerDetails.lastName || "לא צוין"}
+                  </Typography>
+                </Paper>
+              </Box>
+
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
+                <Paper sx={{ p: 2, background: "#f8f9fa", borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#495057", mb: 1 }}>
+                    מספר טלפון:
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
+                    {selectedVolunteerDetails.phoneNumber || "לא צוין"}
+                  </Typography>
+                </Paper>
+
+                <Paper sx={{ p: 2, background: "#f8f9fa", borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#495057", mb: 1 }}>
+                    אימייל:
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
+                    {selectedVolunteerDetails.email || "לא צוין"}
+                  </Typography>
+                </Paper>
+              </Box>
+
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
+                <Paper sx={{ p: 2, background: "#f8f9fa", borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#495057", mb: 1 }}>
+                    עיר:
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
+                    {selectedVolunteerDetails.city || "לא צוין"}
+                  </Typography>
+                </Paper>
+
+                <Paper sx={{ p: 2, background: "#f8f9fa", borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#495057", mb: 1 }}>
+                    כתובת:
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
+                    {selectedVolunteerDetails.address || "לא צוין"}
+                  </Typography>
+                </Paper>
+              </Box>
+
+              <Paper sx={{ p: 2, background: "#f8f9fa", borderRadius: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#495057", mb: 1 }}>
+                  מספר זהות:
+                </Typography>
+                <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
+                  {selectedVolunteerDetails.idNumber || "לא צוין"}
+                </Typography>
+              </Paper>
+
+              {/* Experience Information */}
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
+                <Paper sx={{ p: 2, background: "#e8f5e9", borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#2e7d32", mb: 1 }}>
+                    ניסיון עם דבורים:
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
+                    {selectedVolunteerDetails.beeExperience || "לא צוין"}
+                  </Typography>
+                </Paper>
+
+                <Paper sx={{ p: 2, background: "#e8f5e9", borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#2e7d32", mb: 1 }}>
+                    ניסיון בדבוראות:
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
+                    {selectedVolunteerDetails.beekeepingExperience || "לא צוין"}
+                  </Typography>
+                </Paper>
+              </Box>
+
+              <Paper sx={{ p: 2, background: "#e3f2fd", borderRadius: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#1565c0", mb: 1 }}>
+                  רישיון עבודה בגובה:
+                </Typography>
+                <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
+                  {selectedVolunteerDetails.heightPermit || "לא צוין"}
+                </Typography>
+              </Paper>
+
+              <Paper sx={{ p: 2, background: "#f8f9fa", borderRadius: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#495057", mb: 1 }}>
+                  פרטים נוספים:
+                </Typography>
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    fontSize: "1.1em", 
+                    color: "#333",
+                    lineHeight: 1.6,
+                    whiteSpace: "pre-wrap",
+                    wordWrap: "break-word",
+                    minHeight: "60px",
+                    maxHeight: "200px",
+                    overflow: "auto",
+                    p: 2,
+                    background: "white",
+                    borderRadius: 1,
+                    border: "1px solid #e9ecef",
+                  }}
+                >
+                  {selectedVolunteerDetails.additionalDetails || "אין פרטים נוספים"}
+                </Typography>
+              </Paper>
+
+              {/* Registration Information */}
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
+                <Paper sx={{ p: 2, background: "#fff3e0", borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#f57c00", mb: 1 }}>
+                    תאריך הרשמה:
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
+                    {selectedVolunteerDetails.createdAt 
+                      ? new Date(selectedVolunteerDetails.createdAt).toLocaleDateString("he-IL")
+                      : "לא זמין"}
+                  </Typography>
+                </Paper>
+
+                <Paper sx={{ p: 2, background: "#fff3e0", borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#f57c00", mb: 1 }}>
+                    סטטוס:
+                  </Typography>
+                  <Chip 
+                    label="מתנדב פעיל" 
+                    color="success" 
+                    sx={{ fontWeight: 500 }}
+                  />
+                </Paper>
+              </Box>
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 3, pt: 2, justifyContent: "center" }}>
+            <Button
+              onClick={handleCloseVolunteerDetails}
+              variant="contained"
+              size="large"
+              sx={{
+                minWidth: 120,
+                borderRadius: 2,
+                fontWeight: 600,
+              }}
+            >
+              סגור
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
     </Box>
   )
 }
