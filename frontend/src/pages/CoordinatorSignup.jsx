@@ -112,7 +112,8 @@ export default function CoordinatorSignup() {
   const [email, setEmail] = useState('');
   const [city, setCity] = useState('');
   const [password, setPassword] = useState(''); // Add password field
-  const [confirmPassword, setConfirmPassword] = useState(''); // Add confirm password field  const [agreeToEthics, setAgreeToEthics] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState(''); // Add confirm password field
+  const [agreeToEthics, setAgreeToEthics] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();  const handleSubmit = async (e) => {
