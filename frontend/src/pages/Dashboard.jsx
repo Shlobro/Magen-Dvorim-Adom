@@ -26,12 +26,11 @@ export default function Dashboard() {
 
   // Ref to hold a map of coordinatorId to coordinatorName
   const coordinatorNamesRef = useRef({});
-
   // ───────────────────────────── Filter States
   const [filterVolunteer, setFilterVolunteer] = useState('');
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  const [filterStatus, setFilterStatus] = useState('נפתחה פנייה (טופס מולא)');
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -249,10 +248,9 @@ export default function Dashboard() {
   useEffect(() => {
     setCurrentPage(1);
   }, [filterVolunteer, filterStartDate, filterEndDate, filterStatus]);
-
   const handleVolunteerFilterChange = (e) => {
     setFilterVolunteer(e.target.value);
-    setFilterStatus('');
+    setFilterStatus('נפתחה פנייה (טופס מולא)');
     setFilterStartDate('');
     setFilterEndDate('');
     setCurrentPage(1);
@@ -273,14 +271,14 @@ export default function Dashboard() {
       setFilterEndDate('');
     }
     setFilterVolunteer('');
-    setFilterStatus('');
+    setFilterStatus('נפתחה פנייה (טופס מולא)');
     setCurrentPage(1);
   };
 
   const handleEndDateFilterChange = (e) => {
     setFilterEndDate(e.target.value);
     setFilterVolunteer('');
-    setFilterStatus('');
+    setFilterStatus('נפתחה פנייה (טופס מולא)');
     setCurrentPage(1);
   };
 
