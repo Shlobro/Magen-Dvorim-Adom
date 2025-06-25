@@ -8,7 +8,7 @@ import { FaBell } from 'react-icons/fa';
 import { db, auth } from '../firebaseConfig'; // הוסף auth בחזרה
 import { collection, doc, setDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth'; // הוסף יצירת משתמש
-import axios from 'axios';
+import { validateAddressGeocoding } from '../services/geocoding';
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -28,10 +28,11 @@ export default function SignUp() {
   const [additionalDetails, setAdditionalDetails] = useState('');
   const [agreeToEthics, setAgreeToEthics] = useState(false);
   // ui state
-  const [loading, setLoading] = useState(false);
-  const handleSignUp = async (e) => {
+  const [loading, setLoading] = useState(false);  const handleSignUp = async (e) => {
     e.preventDefault();
-    setLoading(true);    // 1. basic validation
+    setLoading(true);
+    
+    // 1. basic validation
     if (!firstName || !lastName || !phoneNumber || !email || !password ||
       !city || !address || !idNumber) {
       showError('אנא מלא את כל השדות הנדרשים (מסומנים בכוכבית).');
@@ -44,23 +45,24 @@ export default function SignUp() {
       setLoading(false);
       return;
     }
+    
     if (!agreeToEthics) {
       showError('חובה לאשר את כללי האתיקה כדי להירשם.');
       setLoading(false);
-      return;
-    }
+      return;    }
     // ----------------------------------------
 
     try {
-      // 2. geocode BEFORE saving the user data
-      const geoRes = await axios.post('http://localhost:3001/api/geocode', {
-        address,
-        city,
-      });      if (!geoRes.data.lat || !geoRes.data.lng) {
-        showError('לא הצלחנו לאתר את הכתובת במפה. ודא שהכתובת מדויקת ונסה שוב.');
+      // 2. Validate address geocoding BEFORE creating user
+      const geocodingResult = await validateAddressGeocoding(address, city);
+      
+      if (!geocodingResult.isValid) {
+        showError(geocodingResult.error);
         setLoading(false);
         return;
-      }const { lat, lng } = geoRes.data;
+      }
+
+      const { lat, lng } = geocodingResult.coordinates;
       console.log('Geocode success:', lat, lng);
 
       // 3. Create Firebase Auth user first
@@ -88,19 +90,22 @@ export default function SignUp() {
         lat,
         lng,
         agreedToEthics: true,
-      });      showSuccess('הרשמה בוצעה בהצלחה! תועבר לדף הבית.');
-      setTimeout(() => navigate('/'), 2000);} catch (err) {
+      });
+
+      showSuccess('הרשמה בוצעה בהצלחה! תועבר לדף הבית.');
+      setTimeout(() => navigate('/'), 2000);
+    } catch (err) {
       console.error('Sign-up error:', err);
       let msg = 'שגיאה בהרשמה. אנא נסה שוב.';
       
       // Handle specific Firebase Auth errors
       if (err.code === 'auth/email-already-in-use') {
-        msg = 'כתובת אימייל זו כבר רשומה במערכת.';
-      } else if (err.code === 'auth/weak-password') {
+        msg = 'כתובת אימייל זו כבר רשומה במערכת.';      } else if (err.code === 'auth/weak-password') {
         msg = 'הסיסמה חלשה מדי. אנא בחר סיסמה חזקה יותר.';
       } else if (err.code === 'auth/invalid-email') {
         msg = 'כתובת אימייל לא תקינה.';
-      }      
+      }
+      
       showError(msg);
     } finally {
       setLoading(false);

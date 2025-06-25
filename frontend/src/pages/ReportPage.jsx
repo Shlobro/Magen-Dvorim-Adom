@@ -1,10 +1,12 @@
 // src/pages/ReportPage.jsx
 import React, { useState, useEffect } from 'react'; // CHANGED: Added useEffect
 import { useLocation } from 'react-router-dom'; // NEW: Import useLocation hook
+import axios from 'axios';
 import '../styles/ReportPage.css'; // Importing the CSS file for styling
 import { FaBell, FaUpload } from 'react-icons/fa';
 import { saveInquiry, uploadPhoto } from '../services/api'; // ייבוא saveInquiry ו-uploadPhoto משירות ה-API שלך
 import { useNotification } from '../contexts/NotificationContext';
+import { validateAddressGeocoding } from '../services/geocoding';
 
 export default function ReportPage() {
   const [fullName, setFullName] = useState('');
@@ -12,7 +14,8 @@ export default function ReportPage() {
   const [city, setCity] = useState(''); // New state for city
   const [address, setAddress] = useState(''); // New state for address (street and house number)
   const [heightFloor, setHeightFloor] = useState('');
-  const [additionalDetails, setAdditionalDetails] = useState('');  const [imageFile, setImageFile] = useState(null); // To store the actual file
+  const [additionalDetails, setAdditionalDetails] = useState('');
+  const [imageFile, setImageFile] = useState(null); // To store the actual file
   const [imageName, setImageName] = useState(''); // To display file name
   const [loading, setLoading] = useState(false);
   const [coordinatorId, setCoordinatorId] = useState(''); // NEW: State to store coordinatorId from URL
@@ -40,25 +43,33 @@ export default function ReportPage() {
       setImageFile(null);
       setImageName('');
     }
-  };
-
-  const handleSubmit = async (e) => {
+  };  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setMessage(''); // Clear previous messages    // Basic validation
+
+    // Basic validation
     if (!fullName || !phoneNumber || !city || !address) {
-      setMessage('אנא מלא את כל שדות החובה: שם מלא, טלפון, עיר וכתובת.');
+      showError('אנא מלא את כל שדות החובה: שם מלא, טלפון, עיר וכתובת.');
       setLoading(false);
       return;
     }
-
+    
     if (!agreeToTerms) {
-      setMessage('חובה לאשר את תנאי השירות כדי לשלוח דיווח.');
+      showError('חובה לאשר את תנאי השירות כדי לשלוח דיווח.');
       setLoading(false);
       return;
     }
 
     try {
+      // Validate address geocoding before submitting
+      const geocodingResult = await validateAddressGeocoding(address, city);
+      
+      if (!geocodingResult.isValid) {
+        showError(geocodingResult.error);
+        setLoading(false);
+        return;
+      }
+
       const inquiryData = {
         fullName,
         phoneNumber,
@@ -83,20 +94,20 @@ export default function ReportPage() {
         await uploadPhoto(inquiryId, imageFile);
       }
 
-      setMessage('הפנייה נשלחה בהצלחה! תודה רבה על הדיווח.');
+      showSuccess('הפנייה נשלחה בהצלחה! תודה רבה על הדיווח.');
       // Clear form fields
       setFullName('');
       setPhoneNumber('');
       setCity('');
       setAddress('');
-      setHeightFloor('');
-      setAdditionalDetails('');      setImageFile(null);
+      setHeightFloor('');      setAdditionalDetails('');
+      setImageFile(null);
       setImageName('');
       setCoordinatorId(''); // NEW: Clear coordinatorId after successful submission
       setAgreeToTerms(false); // Clear terms agreement
     } catch (error) {
       console.error('שגיאה בשליחת הפנייה:', error);
-      setMessage(`שגיאה בשליחת הפנייה: ${error.message || 'נסה שוב מאוחר יותר.'}`);
+      showError(`שגיאה בשליחת הפנייה: ${error.message || 'נסה שוב מאוחר יותר.'}`);
     } finally {
       setLoading(false);
     }
