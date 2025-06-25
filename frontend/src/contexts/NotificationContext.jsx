@@ -232,8 +232,7 @@ export function NotificationProvider({ children }) {
             minWidth: '300px',
           }
         }}
-      >
-        <Alert
+      >        <Alert
           onClose={closeSnackbar}
           severity={snackbar.severity}
           variant="filled"
@@ -242,6 +241,11 @@ export function NotificationProvider({ children }) {
             fontSize: '1rem',
             '& .MuiAlert-message': {
               fontWeight: 500,
+              paddingRight: 2, // Add space between text and close button
+            },
+            '& .MuiAlert-action': {
+              paddingLeft: 2, // Add space on the left side of close button
+              marginRight: 0,
             },
             boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
           }}
