@@ -84,13 +84,35 @@ export default function InsightsPage() {
     }
   }, [authLoading, userRole])
 
+  // Helper function to parse different timestamp formats
+  const parseTimestamp = (timestamp) => {
+    if (!timestamp) return null
+
+    // If it's a Firestore Timestamp object
+    if (timestamp && typeof timestamp.toDate === "function") {
+      return timestamp.toDate()
+    }
+
+    // If it's an ISO string
+    if (typeof timestamp === "string") {
+      return new Date(timestamp)
+    }
+
+    // If it's already a Date object
+    if (timestamp instanceof Date) {
+      return timestamp
+    }
+
+    return null
+  }
+
   // Helper function to filter data by time period
   const filterByTimePeriod = (inquiries, period) => {
     const now = new Date()
     const filtered = inquiries.filter((inquiry) => {
-      if (!inquiry.timestamp?.toDate) return false
+      const inquiryDate = parseTimestamp(inquiry.timestamp)
 
-      const inquiryDate = inquiry.timestamp.toDate()
+      if (!inquiryDate) return false
 
       switch (period) {
         case "week":
@@ -120,7 +142,8 @@ export default function InsightsPage() {
       const dayNames = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"]
 
       filteredInquiries.forEach((inquiry) => {
-        const date = inquiry.timestamp.toDate()
+        const date = parseTimestamp(inquiry.timestamp);
+        if (!date) return;
         const dayName = dayNames[date.getDay()]
         const dateStr = `${dayName} ${date.getDate()}/${date.getMonth() + 1}`
         dayCount[dateStr] = (dayCount[dateStr] || 0) + 1
@@ -165,7 +188,8 @@ export default function InsightsPage() {
       const monthCount = {}
 
       filteredInquiries.forEach((inquiry) => {
-        const date = inquiry.timestamp.toDate()
+        const date = parseTimestamp(inquiry.timestamp);
+        if (!date) return;
         const key = `${monthNames[date.getMonth()]} ${date.getFullYear()}`
         monthCount[key] = (monthCount[key] || 0) + 1
       })

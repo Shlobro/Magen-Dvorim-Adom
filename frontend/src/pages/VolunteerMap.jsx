@@ -610,11 +610,16 @@ export default function VolunteerMap() {
                             <Box>
                               <Typography variant="subtitle2" fontWeight="bold">
                                 תאריך פתיחה
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {selectedInquiry.timestamp
-                                  ? new Date(selectedInquiry.timestamp.toDate()).toLocaleString("he-IL")
-                                  : "אין מידע"}
+                              </Typography>                              <Typography variant="body2" color="text.secondary">
+                                {selectedInquiry.timestamp ? (() => {
+                                  // Handle different timestamp formats
+                                  if (typeof selectedInquiry.timestamp.toDate === 'function') {
+                                    return selectedInquiry.timestamp.toDate().toLocaleString("he-IL");
+                                  } else if (typeof selectedInquiry.timestamp === 'string' || selectedInquiry.timestamp instanceof Date) {
+                                    return new Date(selectedInquiry.timestamp).toLocaleString("he-IL");
+                                  }
+                                  return "אין מידע";
+                                })() : "אין מידע"}
                               </Typography>
                             </Box>
                           </Box>

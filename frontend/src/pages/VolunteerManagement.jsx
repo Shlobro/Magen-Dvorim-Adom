@@ -295,10 +295,9 @@ export default function VolunteerManagement() {
                             <Typography variant="body1" sx={{ fontFamily: "monospace" }} noWrap>
                               {volunteer.email}
                             </Typography>
-                          </TableCell>
-                          <TableCell align="right" sx={{ width: "15%" }}>
+                          </TableCell>                          <TableCell align="right" sx={{ width: "15%" }}>
                             <Typography variant="body1" sx={{ fontFamily: "monospace" }} noWrap>
-                              {volunteer.phone || "-"}
+                              {volunteer.phoneNumber || "-"}
                             </Typography>
                           </TableCell>
                           <TableCell align="right" sx={{ width: "15%" }}>
