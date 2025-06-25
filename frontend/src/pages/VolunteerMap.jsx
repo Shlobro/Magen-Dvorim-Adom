@@ -29,6 +29,9 @@ import {
   Grow,
   Paper,
   Collapse,
+  Select,
+  MenuItem,
+  InputLabel,
 } from "@mui/material"
 import {
   LocationOn,
@@ -43,6 +46,7 @@ import {
   Schedule,
   Navigation,
   ExpandMore,
+  FilterList,
 } from "@mui/icons-material"
 
 // Custom Bee Icon
@@ -56,14 +60,15 @@ const beeIcon = new L.Icon({
 const NAVBAR_HEIGHT = 65
 const isMobile = window.innerWidth <= 768
 
-export default function VolunteerMap() {
-  const [inquiries, setInquiries] = useState([])
+export default function VolunteerMap() {  const [inquiries, setInquiries] = useState([])
+  const [allInquiries, setAllInquiries] = useState([]) // Store all inquiries for filtering
   const [selectedInquiry, setSelectedInquiry] = useState(null)
   const [availableVolunteers, setAvailableVolunteers] = useState([])
   const [radius, setRadius] = useState(20)
   const [selectedVolunteerIds, setSelectedVolunteerIds] = useState([])
   const [isSidebarVisible, setIsSidebarVisible] = useState(window.innerWidth > 768)
   const [showInquiryDetails, setShowInquiryDetails] = useState(false)
+  const [statusFilter, setStatusFilter] = useState("unassigned") // Default to unassigned
 
   const mapRef = useRef()
   const location = useLocation()
@@ -85,15 +90,15 @@ export default function VolunteerMap() {
       lng = data.location.longitude
     } else if (data.lat != null && data.lng != null) {
       lat = data.lat
-      lng = data.lng
-    }
+      lng = data.lng    }
     return { lat, lng }
   }
+
  const fetchInquiries = useCallback(async () => {
   try {
     const q = query(
       collection(db, "inquiry"),
-      where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב"]),
+      where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב", "המתנדב בדרך"]),
     );
     const querySnapshot = await getDocs(q);
     const fetched = querySnapshot.docs.map((doc) => {
@@ -149,7 +154,7 @@ export default function VolunteerMap() {
       assignedVolunteerName: uidToVolunteerName[inq.assignedVolunteers] ?? '-',
     }));
 
-    setInquiries(numbered);
+    setAllInquiries(numbered);
   } catch (error) {
     console.error("Error fetching inquiries:", error);
   }
@@ -158,6 +163,38 @@ export default function VolunteerMap() {
   useEffect(() => {
     fetchInquiries()
   }, [fetchInquiries])
+
+  // Filter inquiries based on status
+  useEffect(() => {
+    if (!allInquiries.length) return;
+
+    let filtered = [];
+    switch (statusFilter) {
+      case "unassigned":
+        filtered = allInquiries.filter(inquiry => 
+          inquiry.status === "נפתחה פנייה (טופס מולא)" && 
+          (!inquiry.assignedVolunteers || inquiry.assignedVolunteers === "")
+        );
+        break;
+      case "assigned":
+        filtered = allInquiries.filter(inquiry => 
+          inquiry.status === "לפנייה שובץ מתנדב" ||
+          (inquiry.assignedVolunteers && inquiry.assignedVolunteers !== "")
+        );
+        break;
+      case "in-progress":
+        filtered = allInquiries.filter(inquiry => 
+          inquiry.status === "המתנדב בדרך"
+        );
+        break;
+      case "all":
+      default:
+        filtered = allInquiries;
+        break;
+    }
+    
+    setInquiries(filtered);
+  }, [allInquiries, statusFilter]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -739,6 +776,45 @@ export default function VolunteerMap() {
           </Fade>
         )}
       </Paper>
+
+      {/* Status Filter */}
+      <Fade in timeout={600}>
+        <Paper
+          elevation={3}
+          sx={{
+            p: 3,
+            mb: 3,
+            borderRadius: 3,
+            background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+            <Avatar sx={{ bgcolor: "primary.main", width: 32, height: 32 }}>
+              <FilterList sx={{ fontSize: 16 }} />
+            </Avatar>
+            <Typography variant="h6" fontWeight="bold">
+              סינון לפי סטטוס
+            </Typography>
+          </Box>
+          <FormControl fullWidth>
+            <InputLabel>בחר סטטוס</InputLabel>
+            <Select
+              value={statusFilter}
+              label="בחר סטטוס"
+              onChange={(e) => setStatusFilter(e.target.value)}
+              sx={{ bgcolor: "white" }}
+            >
+              <MenuItem value="unassigned">ללא מתנדב משובץ</MenuItem>
+              <MenuItem value="assigned">עם מתנדב משובץ</MenuItem>
+              <MenuItem value="in-progress">מתנדב בדרך</MenuItem>
+              <MenuItem value="all">הכל</MenuItem>
+            </Select>
+          </FormControl>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            מציג {inquiries.length} פניות
+          </Typography>
+        </Paper>
+      </Fade>
     </Box>
   )
 }
