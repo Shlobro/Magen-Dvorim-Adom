@@ -5,19 +5,19 @@ import '../styles/HomeScreen.css';
 import mdaLogo from '../assets/mda_logo.png';
 import { FaBell } from 'react-icons/fa';
 
-import { db } from '../firebaseConfig'; // הסרנו את auth כי אנחנו לא משתמשים בו ישירות ליצירת משתמש עם סיסמה
+import { db, auth } from '../firebaseConfig'; // הוסף auth בחזרה
 import { collection, doc, setDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword } from 'firebase/auth'; // הוסף יצירת משתמש
 import axios from 'axios';
 
 export default function SignUp() {
   const navigate = useNavigate();
-
   // form fields
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
-  // const [password, setPassword] = useState(''); // <--- הוסר
+  const [password, setPassword] = useState(''); // הוחזר!
   const [city, setCity] = useState('');
   const [address, setAddress] = useState('');
   const [idNumber, setIdNumber] = useState('');
@@ -37,21 +37,19 @@ export default function SignUp() {
     e.preventDefault();
     setError('');
     setSuccess('');
-    setLoading(true);
-
-    // 1. basic validation
-    if (!firstName || !lastName || !phoneNumber || !email ||
+    setLoading(true);    // 1. basic validation
+    if (!firstName || !lastName || !phoneNumber || !email || !password ||
       !city || !address || !idNumber) {
       setError('אנא מלא את כל השדות הנדרשים (מסומנים בכוכבית).');
       setLoading(false);
       return;
     }
-    // הסיסמה הוסרה, אז אין צורך בבדיקה הזו
-    // if (password.length < 6) {
-    //   setError('הסיסמה חייבת להיות באורך 6 תווים לפחות.');
-    //   setLoading(false);
-    //   return;
-    // }
+    
+    if (password.length < 6) {
+      setError('הסיסמה חייבת להיות באורך 6 תווים לפחות.');
+      setLoading(false);
+      return;
+    }
     if (!agreeToEthics) {
       setError('חובה לאשר את כללי האתיקה כדי להירשם.');
       setLoading(false);
@@ -70,20 +68,17 @@ export default function SignUp() {
         setError('לא הצלחנו לאתר את הכתובת במפה. ודא שהכתובת מדויקת ונסה שוב.');
         setLoading(false);
         return;
-      }
-
-      const { lat, lng } = geoRes.data;
+      }      const { lat, lng } = geoRes.data;
       console.log('Geocode success:', lat, lng);
 
-      // 3. saving volunteer doc directly in Firestore
-      // כיוון שהסרנו את יצירת המשתמש ב-Firebase Auth, נצטרך ליצור ID ייחודי עבור המסמך.
-      // אפשרות אחת היא להשתמש ב-UUID, או פשוט לתת ל-Firestore ליצור ID אוטומטי.
-      // לצורך הדוגמה, נשתמש ב-doc() ללא ארגומנטים כדי ש-Firestore תיצור ID אוטומטי.
-      const newUserRef = doc(collection(db, 'user')); // יצירת הפנייה למסמך חדש עם ID אוטומטי
-      const newUid = newUserRef.id; // שמירת ה-ID שנוצר אוטומטית
+      // 3. Create Firebase Auth user first
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      console.log('Firebase Auth user created:', user.uid);
 
-      await setDoc(newUserRef, { // שמירת הנתונים למסמך החדש
-        uid: newUid, // שימוש ב-ID שנוצר אוטומטית
+      // 4. Save volunteer data to Firestore using the Firebase Auth UID
+      await setDoc(doc(db, 'user', user.uid), {
+        uid: user.uid,
         firstName,
         lastName,
         name: `${firstName} ${lastName}`,
@@ -104,12 +99,19 @@ export default function SignUp() {
       });
 
       setSuccess('הרשמה בוצעה בהצלחה! תועבר לדף הבית.');
-      setTimeout(() => navigate('/'), 2000);
-    } catch (err) {
+      setTimeout(() => navigate('/'), 2000);    } catch (err) {
       console.error('Sign-up error:', err);
       let msg = 'שגיאה בהרשמה. אנא נסה שוב.';
-      // מכיוון שהסרנו את Firebase Auth, רוב שגיאות auth/email-already-in-use וכו' לא יהיו רלוונטיות כאן ישירות
-      // אם תהיה בעיית דוא"ל כפול ב-Firestore, תצטרכו לטפל בזה באופן ידני, לדוגמה ע"י קווארי לפני הוספה.
+      
+      // Handle specific Firebase Auth errors
+      if (err.code === 'auth/email-already-in-use') {
+        msg = 'כתובת אימייל זו כבר רשומה במערכת.';
+      } else if (err.code === 'auth/weak-password') {
+        msg = 'הסיסמה חלשה מדי. אנא בחר סיסמה חזקה יותר.';
+      } else if (err.code === 'auth/invalid-email') {
+        msg = 'כתובת אימייל לא תקינה.';
+      }
+      
       setError(msg);
     } finally {
       setLoading(false);
@@ -146,12 +148,11 @@ export default function SignUp() {
       <form className="report-form" onSubmit={handleSignUp}>
         <div className="report-page">
           <div className="report-card">
-            {/* form inputs */}
-            <input required value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="שם פרטי *" />
+            {/* form inputs */}            <input required value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="שם פרטי *" />
             <input required value={lastName} onChange={e => setLastName(e.target.value)} placeholder="שם משפחה *" />
             <input required value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} placeholder="מספר טלפון *" pattern="[0-9]{7,10}" />
             <input required value={email} onChange={e => setEmail(e.target.value)} placeholder="דואר אלקטרוני *" type="email" />
-            {/* <input required value={password} onChange={e => setPassword(e.target.value)} placeholder="סיסמה (לפחות 6 תווים) *" type="password" /> */} {/* <--- הוסר */}
+            <input required value={password} onChange={e => setPassword(e.target.value)} placeholder="סיסמה (לפחות 6 תווים) *" type="password" />
             <input required value={city} onChange={e => setCity(e.target.value)} placeholder="עיר מגורים *" />
             <input required value={address} onChange={e => setAddress(e.target.value)} placeholder="כתובת מלאה *" />
             <input required value={idNumber} onChange={e => setIdNumber(e.target.value)} placeholder="תעודת זהות *" />

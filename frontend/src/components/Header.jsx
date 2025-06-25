@@ -38,10 +38,14 @@ export default function Header() {
   if (loading) {
     return null;
   }
-
   // הגדרת פריטי הניווט בהתאם למצב המשתמש
   const navItemsLoggedIn = [
-    { label: 'מסך הקריאות', icon: <FaBell />, to: '/dashboard', isButton: false },
+    // רכזים (userType === 1) יראו את מסך הקריאות הרגיל
+    ...(userRole === 1 ? [{ label: 'מסך הקריאות', icon: <FaBell />, to: '/dashboard', isButton: false }] : []),
+    
+    // מתנדבים (userType === 2) יראו את לוח המחוונים שלהם
+    ...(userRole === 2 ? [{ label: 'הפניות שלי', icon: <FaBell />, to: '/volunteer-dashboard', isButton: false }] : []),
+    
     // הוסף את הקישור למפת המתנדבים כאן
     // נציג אותו רק אם המשתמש הוא רכז (userType === 1)
     ...(userRole === 1 ? [{ label: 'מפת מתנדבים', icon: <FaMapMarkedAlt />, to: '/volunteer-map', isButton: false }] : []),

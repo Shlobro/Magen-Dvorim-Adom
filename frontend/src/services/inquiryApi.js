@@ -11,3 +11,16 @@ export async function fetchCoordinatorInquiries(coordinatorId) {
 export async function takeOwnership(inquiryId, coordinatorId) {
   return axios.post(`${API_BASE}/api/inquiries/${inquiryId}/take-ownership`, { coordinatorId });
 }
+
+export async function fetchVolunteerInquiries(volunteerId) {
+  const res = await axios.get(`${API_BASE}/api/inquiries/volunteer/${volunteerId}`);
+  return res.data;
+}
+
+export async function updateInquiryStatus(inquiryId, status, closureReason = null) {
+  const payload = { status };
+  if (closureReason) {
+    payload.closureReason = closureReason;
+  }
+  return axios.post(`${API_BASE}/api/inquiries/${inquiryId}/status`, payload);
+}

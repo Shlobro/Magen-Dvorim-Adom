@@ -263,4 +263,22 @@ router.post('/:id/take-ownership', async (req, res) => {
   }
 });
 
+// GET /api/inquiries/volunteer/:volunteerId
+// Returns inquiries assigned to a specific volunteer
+router.get('/volunteer/:volunteerId', async (req, res) => {
+  const { volunteerId } = req.params;
+  try {
+    // Query inquiries where assignedVolunteers contains the volunteer ID
+    const snap = await db.collection('inquiry')
+      .where('assignedVolunteers', '==', volunteerId)
+      .get();
+    
+    const inquiries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    res.json(inquiries);
+  } catch (e) {
+    console.error('Error fetching volunteer inquiries:', e);
+    res.status(500).send('Error fetching volunteer inquiries');
+  }
+});
+
 export default router;
