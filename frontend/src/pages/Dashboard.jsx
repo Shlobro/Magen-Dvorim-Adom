@@ -409,9 +409,8 @@ export default function Dashboard() {
   const exportToCsv = (data, filename) => {
     if (data.length === 0) {
       alert('אין נתונים להפקת דוח בקריטריונים הנוכחיים.');
-      return;
-    }    const headers = [
-      'מספר סידורי', 'שם מלא פונה', 'טלפון פונה', 'עיר', 'כתובת', 'הערות',
+      return;    }    const headers = [
+      'מס\' פניה', 'שם מלא פונה', 'טלפון פונה', 'עיר', 'כתובת', 'הערות',
       'תאריך דיווח', 'סטטוס', 'סיבת סגירה', 'שם מתנדב משובץ', 'שם רכז'
     ];const rows = data.map((call, index) => {
       // Handle timestamp properly - could be Firestore Timestamp, ISO string, or undefined
@@ -481,12 +480,12 @@ export default function Dashboard() {
         setLoading(false);
         return;
       }      const headers = [
-        'שם מלא', 'מספר טלפון',
+        'מס\' קריאה', 'שם מלא', 'מספר טלפון',
         'שם מתנדב', 'דירוג', 'הערות', 'תאריך ושעת משוב'
       ];
 
-      const rows = feedbackData.map((row) => [
-        row.fullName, row.phoneNumber,
+      const rows = feedbackData.map((row, index) => [
+        index + 1, row.fullName, row.phoneNumber,
         row.volunteerName, row.rating, row.comments, row.timestamp
       ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','));
 
