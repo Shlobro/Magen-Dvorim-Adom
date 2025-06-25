@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import "../styles/HomeScreen.css"
 import { fetchCoordinatorInquiries, takeOwnership, reassignVolunteer } from "../services/inquiryApi"
+import { useNotification } from "../contexts/NotificationContext"
 
 export default function Dashboard() {
   const [calls, setCalls] = useState([])
@@ -14,6 +15,7 @@ export default function Dashboard() {
   const [error, setError] = useState(null)
   const navigate = useNavigate()
   const { currentUser, userRole, loading: authLoading } = useAuth()
+  const { showSuccess, showError, showWarning, showInfo, showConfirmDialog } = useNotification()
 
   // State for coordinator report link
   const [reportLink, setReportLink] = useState("")
@@ -123,7 +125,7 @@ export default function Dashboard() {
     const fetchCalls = async () => {
       if (authLoading || !currentUser) {
         if (!authLoading && !currentUser) {
-          setError("יש להתחבר כדי לצפות בלוח המחוונים.")
+          showError("יש להתחבר כדי לצפות בלוח המחוונים.")
         }
         setLoading(false)
         return
@@ -204,7 +206,7 @@ export default function Dashboard() {
         setLoading(false)
       } catch (err) {
         console.error("Error fetching calls:", err)
-        setError("Failed to fetch calls.")
+        showError("Failed to fetch calls.")
         setLoading(false)
       }
     }
@@ -233,7 +235,7 @@ export default function Dashboard() {
       tempInput.select()
       document.execCommand("copy")
       document.body.removeChild(tempInput)
-      alert("הקישור לדיווח הועתק בהצלחה!")
+      showSuccess("הקישור לדיווח הועתק בהצלחה!")
     }
   }
 
@@ -364,10 +366,10 @@ export default function Dashboard() {
     try {
       await updateDoc(doc(db, "inquiry", callId), { status: newStatus })
       setCalls((prev) => prev.map((c) => (c.id === callId ? { ...c, status: newStatus } : c)))
-      alert("סטטוס עודכן בהצלחה!")
+      showSuccess("סטטוס עודכן בהצלחה!")
     } catch (err) {
       console.error(err)
-      alert("נכשל בעדכון סטטוס.")
+      showError("נכשל בעדכון סטטוס.")
     }
   }
 
@@ -375,10 +377,10 @@ export default function Dashboard() {
     try {
       await updateDoc(doc(db, "inquiry", callId), { closureReason: newClosureReason })
       setCalls((prev) => prev.map((c) => (c.id === callId ? { ...c, closureReason: newClosureReason } : c)))
-      alert("סיבת סגירה עודכנה בהצלחה!")
+      showSuccess("סיבת סגירה עודכנה בהצלחה!")
     } catch (err) {
       console.error(err)
-      alert("נכשל בעדכון סיבת סגירה.")
+      showError("נכשל בעדכון סיבת סגירה.")
     }
   }
 
@@ -389,7 +391,7 @@ export default function Dashboard() {
   // Handle taking ownership of an unassigned report
   const handleTakeOwnership = async (inquiryId) => {
     if (!currentUser) {
-      alert("שגיאה: משתמש לא מחובר")
+      showError("שגיאה: משתמש לא מחובר")
       return
     }
 
@@ -409,13 +411,13 @@ export default function Dashboard() {
         ),
       )
 
-      alert("בעלות נלקחה בהצלחה!")
+      showSuccess("בעלות נלקחה בהצלחה!")
     } catch (error) {
       console.error("Error taking ownership:", error)
       if (error.response?.status === 409) {
-        alert("הפנייה כבר שויכה לרכז אחר")
+        showWarning("הפנייה כבר שויכה לרכז אחר")
       } else {
-        alert("שגיאה בלקיחת בעלות על הפנייה")
+        showError("שגיאה בלקיחת בעלות על הפנייה")
       }
     }
   }
@@ -432,7 +434,7 @@ export default function Dashboard() {
       setVolunteers(volunteerList)
     } catch (error) {
       console.error("Error fetching volunteers:", error)
-      alert("שגיאה בטעינת רשימת המתנדבים")
+      showError("שגיאה בטעינת רשימת המתנדבים")
     } finally {
       setLoadingVolunteers(false)
     }
@@ -465,25 +467,36 @@ export default function Dashboard() {
         ),
       )
 
-      alert("המתנדב הוחלף בהצלחה!")
+      showSuccess("המתנדב הוחלף בהצלחה!")
     } catch (error) {
       console.error("Error reassigning volunteer:", error)
-      alert("שגיאה בהחלפת המתנדב")
+      showError("שגיאה בהחלפת המתנדב")
     }
   }
 
   // ───────────────────────────── Generate feedback link handler
-  const handleGenerateFeedbackLink = (inquiryId) => {
+  const handleGenerateFeedbackLink = async (inquiryId) => {
     const baseUrl = window.location.origin
     const feedbackLink = `${baseUrl}/feedback?inquiryId=${inquiryId}`
-    window.open(feedbackLink, "_blank")
-    alert(`קישור למשוב נוצר ונפתח בחלון חדש:\n${feedbackLink}\nניתן להעתיק ולשלוח לפונה.`)
+
+    const confirmed = await showConfirmDialog({
+      title: "פתיחת קישור משוב",
+      message: `הקישור למשוב יפתח בחלון חדש. ניתן להעתיק ולשלוח לפונה.\n\n${feedbackLink}`,
+      confirmText: "פתח קישור",
+      cancelText: "ביטול",
+      severity: "info",
+    })
+
+    if (confirmed) {
+      window.open(feedbackLink, "_blank")
+      showInfo("הקישור למשוב נפתח בחלון חדש")
+    }
   }
 
   // ───────────────────────────── Helper for CSV export
   const exportToCsv = (data, filename) => {
     if (data.length === 0) {
-      alert("אין נתונים להפקת דוח בקריטריונים הנוכחיים.")
+      showWarning("אין נתונים להפקת דוח בקריטריונים הנוכחיים.")
       return
     }
     const headers = [
@@ -532,7 +545,7 @@ export default function Dashboard() {
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      alert("דוח הופק בהצלחה!")
+      showSuccess("דוח הופק בהצלחה!")
     }
   }
 
@@ -556,7 +569,7 @@ export default function Dashboard() {
       })
 
       if (feedbackData.length === 0) {
-        alert("אין נתוני משוב להפקת דוח.")
+        showWarning("אין נתוני משוב להפקת דוח.")
         setLoading(false)
         return
       }
@@ -580,11 +593,11 @@ export default function Dashboard() {
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
-        alert("דוח משובים הופק בהצלחה!")
+        showSuccess("דוח משובים הופק בהצלחה!")
       }
     } catch (err) {
       console.error("Error exporting feedback:", err)
-      setError("שגיאה בהפקת דוח משובים.")
+      showError("שגיאה בהפקת דוח משובים.")
     } finally {
       setLoading(false)
     }
