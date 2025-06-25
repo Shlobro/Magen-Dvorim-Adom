@@ -363,21 +363,33 @@ export default function Dashboard() {
     const headers = [
       'מזהה קריאה', 'שם מלא פונה', 'טלפון פונה', 'עיר', 'כתובת', 'הערות',
       'תאריך דיווח', 'סטטוס', 'סיבת סגירה', 'שם מתנדב משובץ', 'שם רכז'
-    ];
-
-    const rows = data.map(call => [
-      call.id,
-      call.fullName,
-      call.phoneNumber,
-      call.city || '',
-      call.address,
-      call.additionalDetails,
-      call.timestamp?.toDate().toLocaleString() || `${call.date} ${call.time}`,
-      call.status,
-      call.closureReason || '',
-      call.assignedVolunteerName || '-',
-      call.coordinatorName || '',
-    ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','));
+    ];    const rows = data.map(call => {
+      // Handle timestamp properly - could be Firestore Timestamp, ISO string, or undefined
+      let dateString = `${call.date} ${call.time}`;
+      if (call.timestamp) {
+        if (typeof call.timestamp?.toDate === 'function') {
+          // Firestore Timestamp object
+          dateString = call.timestamp.toDate().toLocaleString();
+        } else if (typeof call.timestamp === 'string' || call.timestamp instanceof Date) {
+          // ISO string or Date object
+          dateString = new Date(call.timestamp).toLocaleString();
+        }
+      }
+      
+      return [
+        call.id,
+        call.fullName,
+        call.phoneNumber,
+        call.city || '',
+        call.address,
+        call.additionalDetails,
+        dateString,
+        call.status,
+        call.closureReason || '',
+        call.assignedVolunteerName || '-',
+        call.coordinatorName || '',
+      ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
+    });
 
     const csvContent = headers.map(h => `"${h}"`).join(',') + '\n' + rows.join('\n');
 
@@ -494,9 +506,19 @@ export default function Dashboard() {
     actualStartDate.setHours(0, 0, 0, 0);
     actualEndDate.setHours(23, 59, 59, 999);
 
-    if (filterStartDate || filterEndDate) {
-      dataToExport = calls.filter(call => {
-        const callDate = call.timestamp?.toDate();
+    if (filterStartDate || filterEndDate) {      dataToExport = calls.filter(call => {
+        // Handle timestamp properly - could be Firestore Timestamp, ISO string, or undefined
+        let callDate = null;
+        if (call.timestamp) {
+          if (typeof call.timestamp?.toDate === 'function') {
+            // Firestore Timestamp object
+            callDate = call.timestamp.toDate();
+          } else if (typeof call.timestamp === 'string' || call.timestamp instanceof Date) {
+            // ISO string or Date object
+            callDate = new Date(call.timestamp);
+          }
+        }
+        
         let fallbackDate = null;
         if (!callDate && call.date && call.time) {
             try {
@@ -512,10 +534,20 @@ export default function Dashboard() {
 
         return effectiveCallDate >= actualStartDate && effectiveCallDate <= actualEndDate;
       });
-      reportName = `${filterStartDate || 'תחילה'}_${filterEndDate || 'סוף'}`;
-    } else {
+      reportName = `${filterStartDate || 'תחילה'}_${filterEndDate || 'סוף'}`;    } else {
       dataToExport = calls.filter(call => {
-        const callDate = call.timestamp?.toDate();
+        // Handle timestamp properly - could be Firestore Timestamp, ISO string, or undefined
+        let callDate = null;
+        if (call.timestamp) {
+          if (typeof call.timestamp?.toDate === 'function') {
+            // Firestore Timestamp object
+            callDate = call.timestamp.toDate();
+          } else if (typeof call.timestamp === 'string' || call.timestamp instanceof Date) {
+            // ISO string or Date object
+            callDate = new Date(call.timestamp);
+          }
+        }
+        
         let fallbackDate = null;
         if (!callDate && call.date && call.time) {
             try {
