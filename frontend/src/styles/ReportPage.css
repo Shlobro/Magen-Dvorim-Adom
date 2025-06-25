@@ -104,3 +104,35 @@
     text-align: center;
   }
   
+  /* Terms and conditions styling */
+.terms-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  font-size: 0.9rem;
+  direction: rtl;
+  text-align: right;
+  line-height: 1.4;
+}
+
+.terms-checkbox {
+  margin-top: 2px;
+  min-width: 18px;
+  accent-color: #d97706;
+}
+
+.terms-label {
+  flex-grow: 1;
+  line-height: 1.4;
+  color: #374151;
+}
+
+.terms-highlight {
+  font-weight: bold;
+  color: #1f2937;
+}
