@@ -259,7 +259,30 @@ router.post('/:id/take-ownership', async (req, res) => {
     res.send('Ownership taken');
   } catch (e) {
     console.error(e);
-    res.status(500).send('Error taking ownership');
+    res.status(500).send('Error taking ownership');  }
+});
+
+// POST /api/inquiries/:id/release-ownership
+// Removes the coordinator assignment from the inquiry, returning it to the unassigned pool
+router.post('/:id/release-ownership', async (req, res) => {
+  const { coordinatorId } = req.body;
+  if (!coordinatorId) return res.status(400).send('coordinatorId required');
+  try {
+    const docRef = db.collection('inquiry').doc(req.params.id);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).send('Inquiry not found');
+    const data = doc.data();
+    if (!data.coordinatorId) {
+      return res.status(400).send('Inquiry is not assigned to any coordinator');
+    }
+    if (data.coordinatorId !== coordinatorId) {
+      return res.status(403).send('Can only release ownership of inquiries assigned to you');
+    }
+    await docRef.update({ coordinatorId: null });
+    res.send('Ownership released');
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Error releasing ownership');
   }
 });
 

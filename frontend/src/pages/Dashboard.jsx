@@ -6,7 +6,7 @@ import { db } from "../firebaseConfig"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import "../styles/HomeScreen.css"
-import { fetchCoordinatorInquiries, takeOwnership, reassignVolunteer } from "../services/inquiryApi"
+import { fetchCoordinatorInquiries, takeOwnership, releaseOwnership, reassignVolunteer } from "../services/inquiryApi"
 import { useNotification } from "../contexts/NotificationContext"
 
 export default function Dashboard() {
@@ -388,7 +388,6 @@ export default function Dashboard() {
   const handleAssignVolunteerClick = (inquiryId) => {
     navigate(`/volunteer-map?inquiryId=${inquiryId}`)
   }
-
   // Handle taking ownership of an unassigned report
   const handleTakeOwnership = async (inquiryId) => {
     if (!currentUser) {
@@ -419,6 +418,52 @@ export default function Dashboard() {
         showWarning("הפנייה כבר שויכה לרכז אחר")
       } else {
         showError("שגיאה בלקיחת בעלות על הפנייה")
+      }
+    }
+  }
+
+  // Handle releasing ownership of an assigned report
+  const handleReleaseOwnership = async (inquiryId) => {
+    if (!currentUser) {
+      showError("שגיאה: משתמש לא מחובר")
+      return
+    }
+
+    const confirmed = await showConfirmDialog({
+      title: "שחרור בעלות על הפנייה",
+      message: "האם אתה בטוח שברצונך לשחרר את הבעלות על הפנייה? הפנייה תחזור למאגר הפניות הזמינות לכל הרכזים.",
+      confirmText: "שחרר בעלות",
+      cancelText: "ביטול",
+      severity: "warning",
+    })
+
+    if (!confirmed) return
+
+    try {
+      await releaseOwnership(inquiryId, currentUser.uid)
+
+      // Update the local state to reflect the ownership release
+      setCalls((prevCalls) =>
+        prevCalls.map((call) =>
+          call.id === inquiryId
+            ? {
+                ...call,
+                coordinatorId: null,
+                coordinatorName: "-",
+              }
+            : call,
+        ),
+      )
+
+      showSuccess("בעלות שוחררה בהצלחה! הפנייה חזרה למאגר הזמין.")
+    } catch (error) {
+      console.error("Error releasing ownership:", error)
+      if (error.response?.status === 403) {
+        showError("ניתן לשחרר רק פניות שבבעלותך")
+      } else if (error.response?.status === 400) {
+        showWarning("הפנייה אינה משויכת לאף רכז")
+      } else {
+        showError("שגיאה בשחרור בעלות על הפנייה")
       }
     }
   }
@@ -1525,9 +1570,7 @@ export default function Dashboard() {
                             >
                               צור קישור למשוב
                             </button>
-                          )}
-
-                          {call.coordinatorId === null || call.coordinatorId === "" ? (
+                          )}                          {call.coordinatorId === null || call.coordinatorId === "" ? (
                             <button
                               onClick={() => handleTakeOwnership(call.id)}
                               style={{
@@ -1554,6 +1597,34 @@ export default function Dashboard() {
                               }}
                             >
                               קח בעלות
+                            </button>
+                          ) : call.coordinatorId === currentUser?.uid ? (
+                            <button
+                              onClick={() => handleReleaseOwnership(call.id)}
+                              style={{
+                                background: "linear-gradient(135deg, #dc3545 0%, #c82333 100%)",
+                                color: "#fff",
+                                padding: "10px 18px",
+                                border: "none",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontSize: "0.9em",
+                                fontWeight: "600",
+                                boxShadow: "0 2px 8px rgba(220,53,69,0.2)",
+                                transition: "all 0.2s ease",
+                                width: "fit-content",
+                                marginBottom: "8px",
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.transform = "translateY(-1px)"
+                                e.currentTarget.style.boxShadow = "0 3px 10px rgba(220,53,69,0.3)"
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.transform = "translateY(0)"
+                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(220,53,69,0.2)"
+                              }}
+                            >
+                              שחרר בעלות
                             </button>
                           ) : null}
 
