@@ -241,11 +241,24 @@ export function NotificationProvider({ children }) {
             fontSize: '1rem',
             '& .MuiAlert-message': {
               fontWeight: 500,
-              paddingRight: 2, // Add space between text and close button
+              paddingRight: 6, // Increased space between text and close button (X)
+              paddingLeft: 1, // Reduced space between icon (checkmark) and text
             },
             '& .MuiAlert-action': {
-              paddingLeft: 2, // Add space on the left side of close button
-              marginRight: 0,
+              paddingLeft: 6, // Much more space on the left side of close button
+              marginRight: 2, // Increased margin to separate X from edge
+              '& .MuiIconButton-root': {
+                backgroundColor: 'rgba(255, 255, 255, 0.25)', // More visible background
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.4)', // Lighter on hover
+                },
+                borderRadius: '50%',
+                padding: '6px', // Slightly larger clickable area
+                border: '1px solid rgba(255, 255, 255, 0.3)', // Subtle border
+              }
+            },
+            '& .MuiAlert-icon': {
+              marginRight: 1, // Bring checkmark closer to text
             },
             boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
           }}
