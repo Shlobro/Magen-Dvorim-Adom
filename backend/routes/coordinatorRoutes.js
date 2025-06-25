@@ -11,11 +11,10 @@ router.post('/approve', async (req, res) => {
 
     if (!pendingId || !coordinatorData) {
       return res.status(400).json({ error: 'Missing required data' });
-    }
-
-    // Create Firebase Auth user first
+    }    // Create Firebase Auth user first (or get existing one)
     let firebaseUser;
     try {
+      // Try to create a new Firebase Auth user
       firebaseUser = await admin.auth().createUser({
         email: coordinatorData.email,
         password: coordinatorData.password,
@@ -24,12 +23,34 @@ router.post('/approve', async (req, res) => {
       });
       console.log('Firebase Auth user created:', firebaseUser.uid);
     } catch (authError) {
-      console.error('Error creating Firebase Auth user:', authError);
-      return res.status(500).json({ 
-        error: 'Failed to create authentication account',
-        details: authError.message 
-      });
-    }    // Create the user in Firestore with coordinator role
+      // If user already exists, try to get the existing user
+      if (authError.code === 'auth/email-already-exists') {
+        try {
+          firebaseUser = await admin.auth().getUserByEmail(coordinatorData.email);
+          console.log('Using existing Firebase Auth user:', firebaseUser.uid);
+          
+          // Update the password for the existing user
+          await admin.auth().updateUser(firebaseUser.uid, {
+            password: coordinatorData.password,
+            displayName: `${coordinatorData.firstName} ${coordinatorData.lastName}`,
+            emailVerified: true
+          });
+          console.log('Updated existing Firebase Auth user password');
+        } catch (getUserError) {
+          console.error('Error getting existing Firebase Auth user:', getUserError);
+          return res.status(500).json({ 
+            error: 'Failed to access existing authentication account',
+            details: getUserError.message 
+          });
+        }
+      } else {
+        console.error('Error creating Firebase Auth user:', authError);
+        return res.status(500).json({ 
+          error: 'Failed to create authentication account',
+          details: authError.message 
+        });
+      }
+    }// Create the user in Firestore with coordinator role
     const userData = {
       id: firebaseUser.uid, // Use Firebase Auth UID as ID (not email)
       uid: firebaseUser.uid, // Store Firebase Auth UID
