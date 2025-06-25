@@ -11,15 +11,15 @@ import {
 import { db } from '../firebaseConfig';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import '../styles/HomeScreen.css';
 import { fetchCoordinatorInquiries, takeOwnership, reassignVolunteer } from '../services/inquiryApi';
 
-export default function Dashboard() {
-  const [calls, setCalls] = useState([]);
+export default function Dashboard() {  const [calls, setCalls] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const navigate = useNavigate();
   const { currentUser, userRole, loading: authLoading } = useAuth();
+  const { showSuccess, showError, showWarning, showInfo, showConfirmDialog } = useNotification();
 
   // State for coordinator report link
   const [reportLink, setReportLink] = useState('');
@@ -118,10 +118,9 @@ export default function Dashboard() {
 
   // ───────────────────────────────── fetch calls once
   useEffect(() => {
-    const fetchCalls = async () => {
-      if (authLoading || !currentUser) {
+    const fetchCalls = async () => {      if (authLoading || !currentUser) {
         if (!authLoading && !currentUser) {
-          setError('יש להתחבר כדי לצפות בלוח המחוונים.');
+          showError('יש להתחבר כדי לצפות בלוח המחוונים.');
         }
         setLoading(false);
         return;
@@ -188,10 +187,9 @@ export default function Dashboard() {
         }));
 
         setCalls(withNames);
-        setLoading(false);
-      } catch (err) {
+        setLoading(false);      } catch (err) {
         console.error('Error fetching calls:', err);
-        setError('Failed to fetch calls.');
+        showError('Failed to fetch calls.');
         setLoading(false);
       }
     };
@@ -214,12 +212,11 @@ export default function Dashboard() {
   const copyReportLink = () => {
     if (reportLink) {
         const tempInput = document.createElement('input');
-        tempInput.value = reportLink;
-        document.body.appendChild(tempInput);
+        tempInput.value = reportLink;        document.body.appendChild(tempInput);
         tempInput.select();
         document.execCommand('copy');
         document.body.removeChild(tempInput);
-        alert('הקישור לדיווח הועתק בהצלחה!');
+        showSuccess('הקישור לדיווח הועתק בהצלחה!');
     }
   };
 
@@ -325,38 +322,35 @@ export default function Dashboard() {
   // ───────────────────────────── status / closure handlers
   const handleStatusChange = async (callId, newStatus) => {
     try {
-      await updateDoc(doc(db, 'inquiry', callId), { status: newStatus });
-      setCalls((prev) =>
+      await updateDoc(doc(db, 'inquiry', callId), { status: newStatus });      setCalls((prev) =>
         prev.map((c) => (c.id === callId ? { ...c, status: newStatus } : c))
       );
-      alert('סטטוס עודכן בהצלחה!');
+      showSuccess('סטטוס עודכן בהצלחה!');
     } catch (err) {
       console.error(err);
-      alert('נכשל בעדכון סטטוס.');
+      showError('נכשל בעדכון סטטוס.');
     }
   };
 
-  const handleClosureChange = async (callId, newClosureReason) => {
-    try {
+  const handleClosureChange = async (callId, newClosureReason) => {    try {
       await updateDoc(doc(db, 'inquiry', callId), { closureReason: newClosureReason });
       setCalls((prev) =>
         prev.map((c) => (c.id === callId ? { ...c, closureReason: newClosureReason } : c))
       );
-      alert('סיבת סגירה עודכנה בהצלחה!');
+      showSuccess('סיבת סגירה עודכנה בהצלחה!');
     } catch (err) {
       console.error(err);
-      alert('נכשל בעדכון סיבת סגירה.');
+      showError('נכשל בעדכון סיבת סגירה.');
     }
   };
 
   const handleAssignVolunteerClick = (inquiryId) => {
     navigate(`/volunteer-map?inquiryId=${inquiryId}`);
   };
-
   // Handle taking ownership of an unassigned report
   const handleTakeOwnership = async (inquiryId) => {
     if (!currentUser) {
-      alert('שגיאה: משתמש לא מחובר');
+      showError('שגיאה: משתמש לא מחובר');
       return;
     }
 
@@ -373,16 +367,15 @@ export default function Dashboard() {
                 coordinatorName: currentUser.displayName || currentUser.email || 'רכז'
               }
             : call
-        )
-      );
+        )      );
       
-      alert('בעלות נלקחה בהצלחה!');
+      showSuccess('בעלות נלקחה בהצלחה!');
     } catch (error) {
       console.error('Error taking ownership:', error);
       if (error.response?.status === 409) {
-        alert('הפנייה כבר שויכה לרכז אחר');
+        showWarning('הפנייה כבר שויכה לרכז אחר');
       } else {
-        alert('שגיאה בלקיחת בעלות על הפנייה');
+        showError('שגיאה בלקיחת בעלות על הפנייה');
       }
     }
   };
@@ -394,12 +387,11 @@ export default function Dashboard() {
     setLoadingVolunteers(true);
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:3001'}/api/users`);
-      const allUsers = await response.json();
-      const volunteerList = allUsers.filter(user => user.userType === 2);
+      const allUsers = await response.json();      const volunteerList = allUsers.filter(user => user.userType === 2);
       setVolunteers(volunteerList);
     } catch (error) {
       console.error('Error fetching volunteers:', error);
-      alert('שגיאה בטעינת רשימת המתנדבים');
+      showError('שגיאה בטעינת רשימת המתנדבים');
     } finally {
       setLoadingVolunteers(false);
     }
@@ -425,34 +417,47 @@ export default function Dashboard() {
                 assignedVolunteers: newVolunteerId,
                 assignedVolunteerName: newVolunteerName,
                 status: 'לפנייה שובץ מתנדב'
-              }
-            : call
+              }            : call
         )
       );
       
-      alert('המתנדב הוחלף בהצלחה!');
+      showSuccess('המתנדב הוחלף בהצלחה!');
     } catch (error) {
       console.error('Error reassigning volunteer:', error);
-      alert('שגיאה בהחלפת המתנדב');
+      showError('שגיאה בהחלפת המתנדב');
     }
   };
-
   // ───────────────────────────── Generate feedback link handler
-  const handleGenerateFeedbackLink = (inquiryId) => {
+  const handleGenerateFeedbackLink = async (inquiryId) => {
     const baseUrl = window.location.origin;
     const feedbackLink = `${baseUrl}/feedback?inquiryId=${inquiryId}`;
-    window.open(feedbackLink, '_blank');
-    alert(`קישור למשוב נוצר ונפתח בחלון חדש:\n${feedbackLink}\nניתן להעתיק ולשלוח לפונה.`);
+    
+    const confirmed = await showConfirmDialog({
+      title: 'פתיחת קישור משוב',
+      message: `הקישור למשוב יפתח בחלון חדש. ניתן להעתיק ולשלוח לפונה.\n\n${feedbackLink}`,
+      confirmText: 'פתח קישור',
+      cancelText: 'ביטול',
+      severity: 'info',
+    });
+    
+    if (confirmed) {
+      window.open(feedbackLink, '_blank');
+      showInfo('הקישור למשוב נפתח בחלון חדש');
+    }
   };
-
   // ───────────────────────────── Helper for CSV export
   const exportToCsv = (data, filename) => {
     if (data.length === 0) {
-      alert('אין נתונים להפקת דוח בקריטריונים הנוכחיים.');
-      return;    }    const headers = [
+      showWarning('אין נתונים להפקת דוח בקריטריונים הנוכחיים.');
+      return;
+    }
+    
+    const headers = [
       'מס\' פניה', 'שם מלא פונה', 'טלפון פונה', 'עיר', 'כתובת', 'הערות',
       'תאריך דיווח', 'סטטוס', 'סיבת סגירה', 'שם מתנדב משובץ', 'שם רכז'
-    ];const rows = data.map((call, index) => {
+    ];
+    
+    const rows = data.map((call, index) => {
       // Use the helper function to handle timestamps consistently
       const dateString = formatDateForDisplay(call.timestamp, call.date, call.time);
       
@@ -480,10 +485,9 @@ export default function Dashboard() {
       link.setAttribute('href', url);
       link.setAttribute('download', filename);
       link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
+      document.body.appendChild(link);      link.click();
       document.body.removeChild(link);
-      alert('דוח הופק בהצלחה!');
+      showSuccess('דוח הופק בהצלחה!');
     }
   };
 
@@ -504,13 +508,11 @@ export default function Dashboard() {
           comments: data.comments || '',
           timestamp: formatDateForDisplay(data.timestamp),
         };
-      });
-
-      if (feedbackData.length === 0) {
-        alert('אין נתוני משוב להפקת דוח.');
+      });      if (feedbackData.length === 0) {
+        showWarning('אין נתוני משוב להפקת דוח.');
         setLoading(false);
         return;
-      }      const headers = [
+      }const headers = [
         'מס\' קריאה', 'שם מלא', 'מספר טלפון',
         'שם מתנדב', 'דירוג', 'הערות', 'תאריך ושעת משוב'
       ];
@@ -529,14 +531,12 @@ export default function Dashboard() {
         link.setAttribute('href', url);
         link.setAttribute('download', `feedback_report_${new Date().toISOString().slice(0, 10)}.csv`);
         link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
+        document.body.appendChild(link);        link.click();
         document.body.removeChild(link);
-        alert('דוח משובים הופק בהצלחה!');
-      }
-    } catch (err) {
+        showSuccess('דוח משובים הופק בהצלחה!');
+      }    } catch (err) {
       console.error('Error exporting feedback:', err);
-      setError('שגיאה בהפקת דוח משובים.');
+      showError('שגיאה בהפקת דוח משובים.');
     } finally {
       setLoading(false);
     }
@@ -646,8 +646,7 @@ export default function Dashboard() {
       minHeight: '60vh',
       fontSize: '1.1em',
       color: '#666'
-    }}>
-      <div style={{
+    }}>      <div style={{
         padding: '40px',
         textAlign: 'center',
         background: '#f8f9fa',
@@ -658,27 +657,8 @@ export default function Dashboard() {
       </div>
     </div>
   );
-  
-  if (error) return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '60vh'
-    }}>
-      <div style={{
-        padding: '40px',
-        textAlign: 'center',
-        background: '#fff5f5',
-        borderRadius: '12px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-        border: '1px solid #fed7d7',
-        color: '#e53e3e'
-      }}>
-        שגיאה: {error}
-      </div>
-    </div>
-  );
+
+  // ────────────────────────────────────────────────── Main Dashboard JSX
   
   if (!currentUser) return (
     <div style={{
@@ -1439,8 +1419,7 @@ export default function Dashboard() {
               © 2025 מגן דבורים אדום. כל הזכויות שמורות.
             </footer>
           </div> {/* End padding div */}
-        </div> {/* End dashboard card inner */}
-      </div> {/* End max-width container */}
+        </div> {/* End dashboard card inner */}      </div> {/* End max-width container */}
     </div> // End dashboard container
   );
 }

@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom'; // NEW: Import useLocation hook
 import '../styles/ReportPage.css'; // Importing the CSS file for styling
 import { FaBell, FaUpload } from 'react-icons/fa';
 import { saveInquiry, uploadPhoto } from '../services/api'; // ייבוא saveInquiry ו-uploadPhoto משירות ה-API שלך
+import { useNotification } from '../contexts/NotificationContext';
 
 export default function ReportPage() {
   const [fullName, setFullName] = useState('');
@@ -14,9 +15,10 @@ export default function ReportPage() {
   const [additionalDetails, setAdditionalDetails] = useState('');  const [imageFile, setImageFile] = useState(null); // To store the actual file
   const [imageName, setImageName] = useState(''); // To display file name
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(''); // For success/error messages
   const [coordinatorId, setCoordinatorId] = useState(''); // NEW: State to store coordinatorId from URL
   const [agreeToTerms, setAgreeToTerms] = useState(false); // State for terms agreement
+  
+  const { showSuccess, showError } = useNotification();
 
   const location = useLocation(); // NEW: Initialize useLocation hook
 
@@ -168,9 +170,7 @@ export default function ReportPage() {
               <br /><br />
               <span className="terms-highlight">אני מאשר/ת שקראתי והבנתי את התנאים הנ"ל ומסכים/ה לפעול על פיהם.</span>
             </label>
-          </div>
-
-          <button type="submit" className="submit-button" disabled={loading}>
+          </div>          <button type="submit" className="submit-button" disabled={loading}>
             {loading ? 'שולח...' : (
               <>
                 <FaBell className="button-icon" />
@@ -178,7 +178,6 @@ export default function ReportPage() {
               </>
             )}
           </button>
-          {message && <p className="form-message">{message}</p>}
         </form>
       </div>
     </div>

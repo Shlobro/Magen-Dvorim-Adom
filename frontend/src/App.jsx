@@ -2,6 +2,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.jsx';
+import { NotificationProvider } from './contexts/NotificationContext.jsx';
 import Dashboard from './pages/Dashboard';
 import VolunteerMap from './pages/VolunteerMap';
 import HomeScreen from './pages/HomeScreen';
@@ -34,9 +35,10 @@ import CoordinatorApproval from './pages/CoordinatorApproval.jsx';
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Header />
-        <div className="main-content">
+      <NotificationProvider>
+        <Router>
+          <Header />
+          <div className="main-content">
           <Routes>
             <Route path="/" element={<HomeScreen />} />
             <Route path="/report" element={<ReportPage />} />
@@ -104,12 +106,12 @@ function App() {
                   <VolunteerDashboard />
                 </ProtectedRoute>
               }
-            />
-            
+            />            
             {/* הוסף כאן נתיבים נוספים שצריכים הגנה לתפקיד "coordinator" */}
           </Routes>
         </div>
       </Router>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

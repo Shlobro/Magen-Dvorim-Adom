@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
 
@@ -8,10 +9,10 @@ export default function CoordinatorApproval() {
   const [existingCoordinators, setExistingCoordinators] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingExisting, setLoadingExisting] = useState(true);
-  const [error, setError] = useState(null);
   const [processingId, setProcessingId] = useState(null);
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'existing'
   const { currentUser, userRole, loading: authLoading } = useAuth();
+  const { showSuccess, showError, showInfo } = useNotification();
 
   // Generate coordinator signup link
   const coordinatorSignupLink = `${window.location.origin}/coordinator-register`;
@@ -50,10 +51,9 @@ export default function CoordinatorApproval() {
         createdAt: convertFirestoreDate(coord.createdAt)
       })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       
-      setPendingCoordinators(processedPending);
-    } catch (err) {
+      setPendingCoordinators(processedPending);    } catch (err) {
       console.error('Error fetching pending coordinators:', err);
-      setError('שגיאה בטעינת רשימת הרכזים הממתינים');
+      showError('שגיאה בטעינת רשימת הרכזים הממתינים');
     } finally {
       setLoading(false);
     }
@@ -106,10 +106,10 @@ export default function CoordinatorApproval() {
       }      // Remove from pending list and refresh existing coordinators
       setPendingCoordinators(prev => prev.filter(p => p.id !== pendingCoordinator.id));
       fetchExistingCoordinators(); // Refresh the existing coordinators list
-      alert('הרכז אושר בהצלחה!');
+      showSuccess('הרכז אושר בהצלחה!');
     } catch (err) {
       console.error('Error approving coordinator:', err);
-      alert('שגיאה באישור הרכז');
+      showError('שגיאה באישור הרכז');
     } finally {
       setProcessingId(null);
     }
@@ -123,19 +123,17 @@ export default function CoordinatorApproval() {
 
       if (!response.ok) {
         throw new Error('Failed to reject coordinator');
-      }
-      
+      }      
       // Remove from local state
       setPendingCoordinators(prev => prev.filter(p => p.id !== pendingId));
-      alert('הבקשה נדחתה והוסרה מהמערכת');
+      showSuccess('הבקשה נדחתה והוסרה מהמערכת');
     } catch (err) {
       console.error('Error rejecting coordinator:', err);
-      alert('שגיאה בדחיית הבקשה');
+      showError('שגיאה בדחיית הבקשה');
     } finally {
       setProcessingId(null);
     }
   };
-
   const copySignupLink = () => {
     const tempInput = document.createElement('input');
     tempInput.value = coordinatorSignupLink;
@@ -143,7 +141,7 @@ export default function CoordinatorApproval() {
     tempInput.select();
     document.execCommand('copy');
     document.body.removeChild(tempInput);
-    alert('קישור הרשמת רכזים הועתק בהצלחה!');
+    showSuccess('קישור הרשמת רכזים הועתק בהצלחה!');
   };
 
   if (authLoading || loading) {
@@ -166,31 +164,7 @@ export default function CoordinatorApproval() {
           טוען נתונים...
         </div>
       </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '60vh'
-      }}>
-        <div style={{
-          padding: '40px',
-          textAlign: 'center',
-          background: '#fff5f5',
-          borderRadius: '12px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-          border: '1px solid #fed7d7',
-          color: '#e53e3e'
-        }}>
-          שגיאה: {error}
-        </div>
-      </div>
-    );
-  }
+    );  }
 
   if (!currentUser || userRole !== 1) {
     return (

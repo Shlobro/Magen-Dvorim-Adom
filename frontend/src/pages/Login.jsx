@@ -1,7 +1,7 @@
-// frontend/src/pages/Login.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useNotification } from '../contexts/NotificationContext';
 import homeBackground from '../assets/home-background.png';
 
 // =========================================================
@@ -102,21 +102,17 @@ const successStyle = {
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login, userRole } = useAuth();
-
+  const { showSuccess, showError } = useNotification();
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
     setLoading(true);
 
     try {
       await login(email, password);
-      setSuccess('התחברת בהצלחה!');
+      showSuccess('התחברת בהצלחה!');
       console.log('התחברות בוצעה בהצלחה!');
 
       setTimeout(() => {
@@ -125,26 +121,25 @@ export default function Login() {
         } else {
           navigate('/');
         }
-      }, 500);
-    } catch (err) {
+      }, 500);    } catch (err) {
       console.error('Login error:', err.code, err.message);
       switch (err.code) {
         case 'auth/invalid-email':
-          setError('פורמט אימייל לא תקין.');
+          showError('פורמט אימייל לא תקין.');
           break;
         case 'auth/user-disabled':
-          setError('המשתמש הושבת.');
+          showError('המשתמש הושבת.');
           break;
         case 'auth/user-not-found':
         case 'auth/wrong-password':
         case 'auth/invalid-credential':
-          setError('אימייל או סיסמה שגויים.');
+          showError('אימייל או סיסמה שגויים.');
           break;
         case 'auth/too-many-requests':
-          setError('מספר רב מדי של ניסיונות כניסה כושלים. אנא נסה שוב מאוחר יותר.');
+          showError('מספר רב מדי של ניסיונות כניסה כושלים. אנא נסה שוב מאוחר יותר.');
           break;
         default:
-          setError('שגיאה בהתחברות. אנא נסה שוב.');
+          showError('שגיאה בהתחברות. אנא נסה שוב.');
           break;
       }
     } finally {
@@ -180,9 +175,7 @@ export default function Login() {
               required
               style={inputStyle}
             />
-          </div>
-
-          <button
+          </div>          <button
             type="submit"
             style={buttonStyle}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = buttonHoverStyle.backgroundColor}
@@ -191,9 +184,6 @@ export default function Login() {
           >
             {loading ? 'מתחבר...' : 'התחבר'}
           </button>
-
-          {error && <p style={errorStyle}>{error}</p>}
-          {success && <p style={successStyle}>{success}</p>}
         </form>
       </div>
     </div>

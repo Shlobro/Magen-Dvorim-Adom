@@ -1,6 +1,6 @@
-// frontend/src/pages/FeedbackForm.jsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useNotification } from '../contexts/NotificationContext';
 import { collection, addDoc, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import '../styles/HomeScreen.css'; // נשתמש בסגנונות הקיימים לצורך עקביות
@@ -11,13 +11,11 @@ export default function FeedbackForm() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [volunteerName, setVolunteerName] = useState(''); // שם המתנדב שטיפל
   const [rating, setRating] = useState(0); // דירוג מ-1 עד 5
-  const [comments, setComments] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+  const [comments, setComments] = useState('');  const [loading, setLoading] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
+  const { showSuccess, showError } = useNotification();
 
   // ──────────────────────────────────────────
   // Fetch inquiry details if inquiryId is provided in URL
@@ -44,14 +42,13 @@ export default function FeedbackForm() {
               if (volunteerSnap.exists()) {
                 const volData = volunteerSnap.data();
                 setVolunteerName(volData.name || `${volData.firstName || ''} ${volData.lastName || ''}`.trim());
-              }
-            }
+              }            }
           } else {
-            setError('מזהה פנייה לא נמצא.');
+            showError('מזהה פנייה לא נמצא.');
           }
         } catch (err) {
           console.error('Error fetching inquiry details:', err);
-          setError('שגיאה בטעינת פרטי הפנייה.');
+          showError('שגיאה בטעינת פרטי הפנייה.');
         }
       };
       fetchInquiryDetails();
@@ -61,12 +58,10 @@ export default function FeedbackForm() {
   // ──────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
     setLoading(true);
 
     if (!inquiryId || !fullName || !phoneNumber || rating === 0) {
-      setError('אנא מלא את כל השדות המסומנים בכוכבית ואת הדירוג.');
+      showError('אנא מלא את כל השדות המסומנים בכוכבית ואת הדירוג.');
       setLoading(false);
       return;
     }
@@ -75,13 +70,12 @@ export default function FeedbackForm() {
       await addDoc(collection(db, 'feedback'), {
         inquiryId,
         fullName,
-        phoneNumber,
-        volunteerName: volunteerName || 'לא צוין', // לשמור את שם המתנדב כפי שנשלף או "לא צוין"
+        phoneNumber,        volunteerName: volunteerName || 'לא צוין', // לשמור את שם המתנדב כפי שנשלף או "לא צוין"
         rating,
         comments,
         timestamp: new Date(),
       });
-      setSuccess('תודה רבה על המשוב שלך! נשמח ללמוד ולשפר.');
+      showSuccess('תודה רבה על המשוב שלך! נשמח ללמוד ולשפר.');
       // איפוס טופס לאחר שליחה מוצלחת
       setInquiryId(''); // לא לאפס אם הגיע מ-URL
       setFullName('');
@@ -95,7 +89,7 @@ export default function FeedbackForm() {
 
     } catch (err) {
       console.error('Error submitting feedback:', err);
-      setError('אירעה שגיאה בשליחת המשוב. אנא נסה שוב.');
+      showError('אירעה שגיאה בשליחת המשוב. אנא נסה שוב.');
     } finally {
       setLoading(false);
     }
@@ -171,10 +165,7 @@ export default function FeedbackForm() {
               onChange={(e) => setComments(e.target.value)}
               rows="5"
             ></textarea>
-
-            {error && <p className="error-message" style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
-            {success && <p className="success-message" style={{ color: 'green', textAlign: 'center' }}>{success}</p>}
-
+            
             <button type="submit" className="submit-button" disabled={loading}>
               {loading ? 'שולח...' : 'שלח משוב'}
             </button>

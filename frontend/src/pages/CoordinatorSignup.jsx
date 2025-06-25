@@ -1,6 +1,7 @@
 // frontend/src/pages/CoordinatorSignup.jsx
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useNotification } from '../contexts/NotificationContext';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
 console.log('CoordinatorSignup - API_BASE:', API_BASE);
@@ -111,43 +112,39 @@ export default function CoordinatorSignup() {
   const [email, setEmail] = useState('');
   const [city, setCity] = useState('');
   const [password, setPassword] = useState(''); // Add password field
-  const [confirmPassword, setConfirmPassword] = useState(''); // Add confirm password field
-  const [agreeToEthics, setAgreeToEthics] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+  const [confirmPassword, setConfirmPassword] = useState(''); // Add confirm password field  const [agreeToEthics, setAgreeToEthics] = useState(false);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();  const handleSubmit = async (e) => {
+  const navigate = useNavigate();
+  const { showSuccess, showError } = useNotification();  const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
     setLoading(true);
 
     // Basic validation
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !phoneNumber.trim() || !city.trim() || !password.trim()) {
-      setError('יש למלא את כל השדות הנדרשים.');
+      showError('יש למלא את כל השדות הנדרשים.');
       setLoading(false);
       return;
     }
 
     // Password validation
     if (password.length < 6) {
-      setError('הסיסמה חייבת להכיל לפחות 6 תווים.');
+      showError('הסיסמה חייבת להכיל לפחות 6 תווים.');
       setLoading(false);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('הסיסמאות אינן תואמות.');
+      showError('הסיסמאות אינן תואמות.');
       setLoading(false);
       return;
     }
 
     // Ethics agreement validation
     if (!agreeToEthics) {
-      setError('חובה לאשר את כללי האתיקה כדי להירשם.');
+      showError('חובה לאשר את כללי האתיקה כדי להירשם.');
       setLoading(false);
       return;
-    }    try {
+    }try {
       // Submit coordinator signup request via backend API
       const apiUrl = `${API_BASE}/api/coordinators/signup`;
       console.log('Submitting to:', apiUrl);
@@ -174,11 +171,9 @@ export default function CoordinatorSignup() {
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to submit signup request');
-      }
-
-      const result = await response.json();
+      }      const result = await response.json();
       console.log('Success result:', result);
-      setSuccess('בקשת הרשמה נשלחה בהצלחה! הבקשה שלך תיבדק על ידי רכז קיים ותקבל עדכון בהקדם.');
+      showSuccess('בקשת הרשמה נשלחה בהצלחה! הבקשה שלך תיבדק על ידי רכז קיים ותקבל עדכון בהקדם.');
       
       // Reset form
       setFirstName('');
@@ -192,11 +187,9 @@ export default function CoordinatorSignup() {
 
       setTimeout(() => {
         navigate('/');
-      }, 4000); 
-
-    } catch (err) {
+      }, 4000);    } catch (err) {
       console.error('שגיאה בשליחת בקשת הרשמה:', err);
-      setError(err.message || 'שגיאה בשליחת בקשת הרשמה. אנא נסה שוב.');
+      showError(err.message || 'שגיאה בשליחת בקשת הרשמה. אנא נסה שוב.');
     } finally {
       setLoading(false);
     }
@@ -328,10 +321,7 @@ export default function CoordinatorSignup() {
               }
             }}
           >
-            {loading ? 'שולח בקשה...' : 'שלח בקשת הרשמה'}
-          </button>
-          {error && <p style={errorStyle}>{error}</p>}
-          {success && <p style={successStyle}>{success}</p>}
+            {loading ? 'שולח בקשה...' : 'שלח בקשת הרשמה'}          </button>
         </form>
       </div>
     </div>
