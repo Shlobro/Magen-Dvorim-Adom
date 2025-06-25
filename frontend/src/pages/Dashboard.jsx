@@ -34,7 +34,7 @@ export default function Dashboard() {
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(7);
+  const [itemsPerPage] = useState(5);
 
   // New state for mobile filter visibility
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
