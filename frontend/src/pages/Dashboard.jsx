@@ -363,18 +363,31 @@ export default function Dashboard() {
   }  // ───────────────────────────── status / closure handlers
   const handleStatusChange = async (callId, newStatus) => {
     try {
+      // Define statuses that require a volunteer to be assigned
+      const statusesRequiringVolunteer = [
+        "לפנייה שובץ מתנדב",
+        "המתנדב בדרך",
+        "הטיפול בנחיל הסתיים"
+      ]
+
       // Define statuses that are before volunteer assignment
       const statusesBeforeVolunteerAssignment = [
         "נשלח קישור אך לא מולא טופס",
         "נפתחה פנייה (טופס מולא)"
       ]
 
-      // Check if the new status is before volunteer assignment
-      const shouldRemoveVolunteer = statusesBeforeVolunteerAssignment.includes(newStatus)
-
       // Find the current call to check if it has a volunteer assigned
       const currentCall = calls.find(c => c.id === callId)
       const hasVolunteerAssigned = currentCall && currentCall.assignedVolunteers && currentCall.assignedVolunteers !== "-" && currentCall.assignedVolunteers !== null
+
+      // Check if trying to set a status that requires a volunteer when none is assigned
+      if (statusesRequiringVolunteer.includes(newStatus) && !hasVolunteerAssigned) {
+        showError(`לא ניתן לשנות את הסטטוס ל"${newStatus}" ללא שיבוץ מתנדב. יש לשבץ מתנדב תחילה.`)
+        return
+      }
+
+      // Check if the new status is before volunteer assignment
+      const shouldRemoveVolunteer = statusesBeforeVolunteerAssignment.includes(newStatus)
 
       // If changing to early status and volunteer is assigned, show confirmation
       if (shouldRemoveVolunteer && hasVolunteerAssigned) {
