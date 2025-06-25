@@ -410,12 +410,10 @@ export default function Dashboard() {
     if (data.length === 0) {
       alert('אין נתונים להפקת דוח בקריטריונים הנוכחיים.');
       return;
-    }
-
-    const headers = [
-      'מזהה קריאה', 'שם מלא פונה', 'טלפון פונה', 'עיר', 'כתובת', 'הערות',
+    }    const headers = [
+      'מספר סידורי', 'שם מלא פונה', 'טלפון פונה', 'עיר', 'כתובת', 'הערות',
       'תאריך דיווח', 'סטטוס', 'סיבת סגירה', 'שם מתנדב משובץ', 'שם רכז'
-    ];    const rows = data.map(call => {
+    ];const rows = data.map((call, index) => {
       // Handle timestamp properly - could be Firestore Timestamp, ISO string, or undefined
       let dateString = `${call.date} ${call.time}`;
       if (call.timestamp) {
@@ -429,7 +427,7 @@ export default function Dashboard() {
       }
       
       return [
-        call.id,
+        index + 1, // Sequential number instead of hash ID
         call.fullName,
         call.phoneNumber,
         call.city || '',
@@ -482,15 +480,13 @@ export default function Dashboard() {
         alert('אין נתוני משוב להפקת דוח.');
         setLoading(false);
         return;
-      }
-
-      const headers = [
-        'מזהה משוב', 'מזהה פנייה', 'שם מלא', 'מספר טלפון',
+      }      const headers = [
+        'מספר סידורי', 'מזהה פנייה', 'שם מלא', 'מספר טלפון',
         'שם מתנדב', 'דירוג', 'הערות', 'תאריך ושעת משוב'
       ];
 
-      const rows = feedbackData.map(row => [
-        row.id, row.inquiryId, row.fullName, row.phoneNumber,
+      const rows = feedbackData.map((row, index) => [
+        index + 1, row.inquiryId, row.fullName, row.phoneNumber,
         row.volunteerName, row.rating, row.comments, row.timestamp
       ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','));
 
