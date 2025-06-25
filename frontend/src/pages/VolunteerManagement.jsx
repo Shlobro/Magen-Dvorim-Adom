@@ -451,7 +451,7 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
               <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
                 <Paper sx={{ p: 2, background: "#e8f5e9", borderRadius: 2 }}>
                   <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#2e7d32", mb: 1 }}>
-                    ניסיון עם דבורים:
+                    ניסיון בפינוי נחילי דבורים:
                   </Typography>
                   <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
                     {selectedVolunteerDetails.beeExperience || "לא צוין"}
@@ -460,7 +460,7 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
 
                 <Paper sx={{ p: 2, background: "#e8f5e9", borderRadius: 2 }}>
                   <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#2e7d32", mb: 1 }}>
-                    ניסיון בדבוראות:
+                    ניסיון בגידול דבורים:
                   </Typography>
                   <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
                     {selectedVolunteerDetails.beekeepingExperience || "לא צוין"}
@@ -470,7 +470,7 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
 
               <Paper sx={{ p: 2, background: "#e3f2fd", borderRadius: 2 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#1565c0", mb: 1 }}>
-                  רישיון עבודה בגובה:
+                  היתר עבודה בגובה:
                 </Typography>
                 <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
                   {selectedVolunteerDetails.heightPermit || "לא צוין"}
