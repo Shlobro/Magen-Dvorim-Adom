@@ -247,20 +247,13 @@ export default function Dashboard() {
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterVolunteer, filterStartDate, filterEndDate, filterStatus]);
-  const handleVolunteerFilterChange = (e) => {
+  }, [filterVolunteer, filterStartDate, filterEndDate, filterStatus]);  const handleVolunteerFilterChange = (e) => {
     setFilterVolunteer(e.target.value);
-    setFilterStatus('נפתחה פנייה (טופס מולא)');
-    setFilterStartDate('');
-    setFilterEndDate('');
     setCurrentPage(1);
   };
 
   const handleStatusFilterChange = (e) => {
     setFilterStatus(e.target.value);
-    setFilterVolunteer('');
-    setFilterStartDate('');
-    setFilterEndDate('');
     setCurrentPage(1);
   };
 
@@ -270,15 +263,20 @@ export default function Dashboard() {
     if (e.target.value && filterEndDate && new Date(e.target.value) > new Date(filterEndDate)) {
       setFilterEndDate('');
     }
-    setFilterVolunteer('');
-    setFilterStatus('נפתחה פנייה (טופס מולא)');
     setCurrentPage(1);
   };
 
   const handleEndDateFilterChange = (e) => {
     setFilterEndDate(e.target.value);
+    setCurrentPage(1);
+  };
+
+  // Clear all filters function
+  const handleClearAllFilters = () => {
     setFilterVolunteer('');
-    setFilterStatus('נפתחה פנייה (טופס מולא)');
+    setFilterStatus('נפתחה פנייה (טופס מולא)'); // Reset to default
+    setFilterStartDate('');
+    setFilterEndDate('');
     setCurrentPage(1);
   };
 
@@ -935,10 +933,38 @@ export default function Dashboard() {
                         background: 'white',
                         transition: 'border-color 0.3s ease',
                         cursor: 'pointer'
-                      }}
-                      onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
+                      }}                      onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
                       onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
                     />
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'end' }}>
+                    <button
+                      onClick={handleClearAllFilters}
+                      style={{
+                        background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
+                        color: 'white',
+                        padding: '12px 20px',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '0.95em',
+                        fontWeight: '600',
+                        boxShadow: '0 3px 10px rgba(108,117,125,0.2)',
+                        transition: 'all 0.3s ease',
+                        whiteSpace: 'nowrap'
+                      }}
+                      onMouseOver={(e) => { 
+                        e.currentTarget.style.transform = 'translateY(-2px)'; 
+                        e.currentTarget.style.boxShadow = '0 5px 15px rgba(108,117,125,0.3)'; 
+                      }}
+                      onMouseOut={(e) => { 
+                        e.currentTarget.style.transform = 'translateY(0)'; 
+                        e.currentTarget.style.boxShadow = '0 3px 10px rgba(108,117,125,0.2)'; 
+                      }}
+                    >
+                      🗑️ נקה פילטרים
+                    </button>
                   </div>
                 </div>
               )} {/* End conditional rendering for filters */}
