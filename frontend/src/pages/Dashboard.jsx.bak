@@ -5,23 +5,24 @@ import { collection, getDocs, getDoc, doc, updateDoc } from "firebase/firestore"
 import { db } from "../firebaseConfig"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
+import { useNotification } from "../contexts/NotificationContext"
 import "../styles/HomeScreen.css"
 import { fetchCoordinatorInquiries, takeOwnership, reassignVolunteer } from "../services/inquiryApi"
-import { useNotification } from "../contexts/NotificationContext"
 
-export default function Dashboard() {
+// Define Dashboard as a simple function component
+const Dashboard = () => {
   const [calls, setCalls] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const navigate = useNavigate()
   const { currentUser, userRole, loading: authLoading } = useAuth()
-  const { showSuccess, showError, showWarning, showInfo, showConfirmDialog } = useNotification()
+  const { showSuccess, showError, showWarning, showConfirmDialog } = useNotification()
 
   // State for coordinator report link
   const [reportLink, setReportLink] = useState("")
 
   // Ref to hold a map of coordinatorId to coordinatorName
   const coordinatorNamesRef = useRef({})
+
   // New state for managing the modal/popup for comments:
   const [selectedComment, setSelectedComment] = useState(null)
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false)
@@ -29,10 +30,6 @@ export default function Dashboard() {
   // Add after the existing comment modal states
   const [selectedCallDetails, setSelectedCallDetails] = useState(null)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
-
-  // State for photo modal
-  const [selectedPhoto, setSelectedPhoto] = useState(null)
-  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false)
 
   // Helper function to convert various timestamp formats to JavaScript Date
   const convertTimestamp = (timestamp) => {
@@ -125,8 +122,7 @@ export default function Dashboard() {
 
   // ───────────────────────────────── fetch calls once
   useEffect(() => {
-    const fetchCalls = async () => {
-      if (authLoading || !currentUser) {
+    const fetchCalls = async () => {      if (authLoading || !currentUser) {
         if (!authLoading && !currentUser) {
           showError("יש להתחבר כדי לצפות בלוח המחוונים.")
         }
@@ -206,8 +202,7 @@ export default function Dashboard() {
         }))
 
         setCalls(withNames)
-        setLoading(false)
-      } catch (err) {
+        setLoading(false)      } catch (err) {
         console.error("Error fetching calls:", err)
         showError("Failed to fetch calls.")
         setLoading(false)
@@ -258,20 +253,10 @@ export default function Dashboard() {
     setSelectedCallDetails(call)
     setIsDetailsModalOpen(true)
   }
+
   const handleCloseDetails = () => {
     setSelectedCallDetails(null)
     setIsDetailsModalOpen(false)
-  }
-
-  // Photo modal handlers
-  const handleOpenPhoto = (photoUrl) => {
-    setSelectedPhoto(photoUrl)
-    setIsPhotoModalOpen(true)
-  }
-
-  const handleClosePhoto = () => {
-    setSelectedPhoto(null)
-    setIsPhotoModalOpen(false)
   }
 
   // ───────────────────────────── Derived State: Unique Volunteer Names
@@ -488,26 +473,14 @@ export default function Dashboard() {
   }
 
   // ───────────────────────────── Generate feedback link handler
-  const handleGenerateFeedbackLink = async (inquiryId) => {
+  const handleGenerateFeedbackLink = (inquiryId) => {
     const baseUrl = window.location.origin
     const feedbackLink = `${baseUrl}/feedback?inquiryId=${inquiryId}`
-
-    const confirmed = await showConfirmDialog({
-      title: "פתיחת קישור משוב",
-      message: `הקישור למשוב יפתח בחלון חדש. ניתן להעתיק ולשלוח לפונה.\n\n${feedbackLink}`,
-      confirmText: "פתח קישור",
-      cancelText: "ביטול",
-      severity: "info",
-    })
-
-    if (confirmed) {
-      window.open(feedbackLink, "_blank")
-      showInfo("הקישור למשוב נפתח בחלון חדש")
-    }
+    window.open(feedbackLink, "_blank")
+    showSuccess(`קישור למשוב נוצר ונפתח בחלון חדש:\n${feedbackLink}\nניתן להעתיק ולשלוח לפונה.`)
   }
 
-  // ───────────────────────────── Helper for CSV export
-  const exportToCsv = (data, filename) => {
+  // ───────────────────────────── Helper for CSV export  const exportToCsv = (data, filename) => {
     if (data.length === 0) {
       showWarning("אין נתונים להפקת דוח בקריטריונים הנוכחיים.")
       return
@@ -705,20 +678,18 @@ export default function Dashboard() {
               e,
             )
           }
-        }
-        const effectiveCallDate = callDate || fallbackDate
+        }        const effectiveCallDate = callDate || fallbackDate
         if (!effectiveCallDate) return false
 
         return effectiveCallDate >= defaultStartDate && effectiveCallDate <= defaultEndDate
       })
     }
-
+    
     const filename = `date_range_report_${reportName.replace(/ /g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`
     exportToCsv(dataToExport, filename)
   }
-
   // ───────────────────────────── ui
-  if (authLoading || loading)
+  if (authLoading || loading) {
     return (
       <div
         style={{
@@ -743,34 +714,8 @@ export default function Dashboard() {
         </div>
       </div>
     )
-
-  if (error)
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: "60vh",
-        }}
-      >
-        <div
-          style={{
-            padding: "40px",
-            textAlign: "center",
-            background: "#fff5f5",
-            borderRadius: "12px",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-            border: "1px solid #fed7d7",
-            color: "#e53e3e",
-          }}
-        >
-          שגיאה: {error}
-        </div>
-      </div>
-    )
-
-  if (!currentUser)
+  }
+  if (!currentUser) {
     return (
       <div
         style={{
@@ -792,9 +737,9 @@ export default function Dashboard() {
           }}
         >
           אנא התחבר כדי לגשת ללוח המחוונים.
-        </div>
-      </div>
+        </div>      </div>
     )
+  }
 
   return (
     <div
@@ -1899,7 +1844,9 @@ export default function Dashboard() {
                         selectedCallDetails.time,
                       )}
                     </div>
-                  </div>                  <div style={{ padding: "15px", background: "#f8f9fa", borderRadius: "8px" }}>
+                  </div>
+
+                  <div style={{ padding: "15px", background: "#f8f9fa", borderRadius: "8px" }}>
                     <div style={{ fontWeight: "600", color: "#495057", marginBottom: "8px" }}>הערות נוספות:</div>
                     <div
                       style={{
@@ -1921,35 +1868,6 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Photo section */}
-                  {selectedCallDetails.photo && (
-                    <div style={{ padding: "15px", background: "#f8f9fa", borderRadius: "8px" }}>
-                      <div style={{ fontWeight: "600", color: "#495057", marginBottom: "8px" }}>תמונת הדיווח:</div>
-                      <div style={{ display: "flex", justifyContent: "center" }}>
-                        <img
-                          src={selectedCallDetails.photo}
-                          alt="תמונת הדיווח"
-                          style={{
-                            maxWidth: "100%",
-                            maxHeight: "200px",
-                            borderRadius: "8px",
-                            cursor: "pointer",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                            transition: "transform 0.2s ease",
-                          }}
-                          onClick={() => handleOpenPhoto(selectedCallDetails.photo)}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.transform = "scale(1.05)"
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.transform = "scale(1)"
-                          }}
-                          title="לחץ להגדלת התמונה"
-                        />
-                      </div>
-                    </div>
-                  )}
-
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
                     <div style={{ padding: "15px", background: "#e8f5e9", borderRadius: "8px" }}>
                       <div style={{ fontWeight: "600", color: "#2e7d32", marginBottom: "8px" }}>סטטוס נוכחי:</div>
@@ -1963,103 +1881,16 @@ export default function Dashboard() {
                       <div style={{ fontSize: "1.1em", color: "#333" }}>
                         {selectedCallDetails.assignedVolunteerName || "לא שובץ מתנדב"}
                       </div>
-                    </div>
-                  </div>
-                </div>
-              </div>            </div>
-          )}
-
-          {/* Photo Modal */}
-          {isPhotoModalOpen && selectedPhoto && (
-            <div
-              style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.8)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                zIndex: 1001,
-                padding: "20px",
-              }}
-              onClick={handleClosePhoto}
-            >
-              <div
-                style={{
-                  position: "relative",
-                  maxWidth: "90vw",
-                  maxHeight: "90vh",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  onClick={handleClosePhoto}
-                  style={{
-                    position: "absolute",
-                    top: "-10px",
-                    right: "-10px",
-                    background: "white",
-                    border: "none",
-                    borderRadius: "50%",
-                    width: "40px",
-                    height: "40px",
-                    fontSize: "1.5em",
-                    cursor: "pointer",
-                    color: "#666",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
-                    zIndex: 1002,
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.backgroundColor = "#f0f0f0"
-                    e.currentTarget.style.color = "#333"
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.backgroundColor = "white"
-                    e.currentTarget.style.color = "#666"
-                  }}
-                  title="סגור תמונה"
-                >
-                  ✕
-                </button>
-                <img
-                  src={selectedPhoto}
-                  alt="תמונת הדיווח - מוגדלת"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "100%",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-                    objectFit: "contain",
-                  }}
-                />
-                <div
-                  style={{
-                    marginTop: "10px",
-                    color: "white",
-                    fontSize: "0.9em",
-                    textAlign: "center",
-                    textShadow: "0 1px 3px rgba(0,0,0,0.5)",
-                  }}
-                >
-                  לחץ על התמונה או על X לסגירה
+                    </div>                  </div>
                 </div>
               </div>
             </div>
           )}
         </div>{" "}
-        {/* End dashboard card inner */}
-      </div>{" "}
+        {/* End dashboard card inner */}      </div>{" "}
       {/* End max-width container */}
-    </div> // End dashboard container
-  )
-}
+    </div>
+  );
+};
+
+export default Dashboard;
