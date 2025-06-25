@@ -138,4 +138,33 @@ router.post('/signup', async (req, res) => {
   }
 });
 
+// GET /api/coordinators - Get all existing coordinators
+router.get('/', async (req, res) => {
+  try {
+    const snapshot = await db.collection('user')
+      .where('userType', '==', 1)
+      .get();
+    
+    const coordinators = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phoneNumber: data.phoneNumber,
+        city: data.city,
+        createdAt: data.createdAt,
+        approvedAt: data.approvedAt,
+        isApproved: data.isApproved
+      };
+    });
+    
+    res.json(coordinators);
+  } catch (error) {
+    console.error('Error fetching coordinators:', error);
+    res.status(500).json({ error: 'Failed to fetch coordinators' });
+  }
+});
+
 export default router;

@@ -5,17 +5,34 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
 
 export default function CoordinatorApproval() {
   const [pendingCoordinators, setPendingCoordinators] = useState([]);
+  const [existingCoordinators, setExistingCoordinators] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingExisting, setLoadingExisting] = useState(true);
   const [error, setError] = useState(null);
   const [processingId, setProcessingId] = useState(null);
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'existing'
   const { currentUser, userRole, loading: authLoading } = useAuth();
 
   // Generate coordinator signup link
   const coordinatorSignupLink = `${window.location.origin}/coordinator-register`;
-
   useEffect(() => {
     fetchPendingCoordinators();
+    fetchExistingCoordinators();
   }, []);
+  
+  // Helper function to convert Firestore timestamp to JavaScript Date
+  const convertFirestoreDate = (timestamp) => {
+    if (!timestamp) return new Date();
+    
+    // Handle Firestore Timestamp object
+    if (timestamp._seconds) {
+      return new Date(timestamp._seconds * 1000);
+    }
+    
+    // Handle regular date string/object
+    return new Date(timestamp);
+  };
+  
   const fetchPendingCoordinators = async () => {
     try {
       setLoading(true);
@@ -27,10 +44,10 @@ export default function CoordinatorApproval() {
       
       const pending = await response.json();
       
-      // Convert createdAt strings back to Date objects and sort
+      // Convert createdAt timestamps and sort
       const processedPending = pending.map(coord => ({
         ...coord,
-        createdAt: coord.createdAt ? new Date(coord.createdAt) : new Date()
+        createdAt: convertFirestoreDate(coord.createdAt)
       })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       
       setPendingCoordinators(processedPending);
@@ -39,6 +56,33 @@ export default function CoordinatorApproval() {
       setError('שגיאה בטעינת רשימת הרכזים הממתינים');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchExistingCoordinators = async () => {
+    try {
+      setLoadingExisting(true);
+      const response = await fetch(`${API_BASE}/api/coordinators`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const existing = await response.json();
+      
+      // Convert timestamps and sort by creation date
+      const processedExisting = existing.map(coord => ({
+        ...coord,
+        createdAt: convertFirestoreDate(coord.createdAt),
+        approvedAt: convertFirestoreDate(coord.approvedAt)
+      })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      setExistingCoordinators(processedExisting);
+    } catch (err) {
+      console.error('Error fetching existing coordinators:', err);
+      // Don't set main error for existing coordinators, just log it
+    } finally {
+      setLoadingExisting(false);
     }
   };
 
@@ -59,10 +103,9 @@ export default function CoordinatorApproval() {
 
       if (!response.ok) {
         throw new Error('Failed to approve coordinator');
-      }
-
-      // Remove from pending list
+      }      // Remove from pending list and refresh existing coordinators
       setPendingCoordinators(prev => prev.filter(p => p.id !== pendingCoordinator.id));
+      fetchExistingCoordinators(); // Refresh the existing coordinators list
       alert('הרכז אושר בהצלחה!');
     } catch (err) {
       console.error('Error approving coordinator:', err);
@@ -257,153 +300,289 @@ export default function CoordinatorApproval() {
               >
                 📋 העתק קישור הרשמה
               </button>
-            </div>
-
-            {/* Pending Coordinators List */}
+            </div>            {/* Tab Navigation */}
             <div style={{
-              marginBottom: '30px'
+              marginBottom: '30px',
+              borderBottom: '2px solid #e9ecef'
             }}>
-              <h3 style={{
-                margin: '0 0 25px 0',
-                color: '#495057',
-                fontSize: '1.3em',
-                fontWeight: '600',
-                textAlign: 'right'
+              <div style={{
+                display: 'flex',
+                gap: '20px',
+                justifyContent: 'center'
               }}>
-                רכזים ממתינים לאישור ({pendingCoordinators.length})
-              </h3>
-
-              {pendingCoordinators.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px',
-                  color: '#666',
-                  fontSize: '1.1em',
-                  background: '#f8f9fa',
-                  borderRadius: '12px',
-                  border: '1px solid #e9ecef'
-                }}>
-                  אין רכזים ממתינים לאישור כרגע
-                </div>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{
-                    width: '100%',
-                    borderCollapse: 'separate',
-                    borderSpacing: '0',
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                    direction: 'rtl'
-                  }}>
-                    <thead>
-                      <tr style={{ background: '#f0f4f7' }}>
-                        {[
-                          'שם פרטי', 'שם משפחה', 'אימייל', 'טלפון', 'עיר', 'תאריך בקשה', 'פעולות'
-                        ].map((header) => (
-                          <th
-                            key={header}
-                            style={{
-                              padding: '15px 20px',
-                              textAlign: 'right',
-                              borderBottom: '2px solid #dae1e8',
-                              fontWeight: '700',
-                              color: '#34495e',
-                              backgroundColor: '#eef4f9'
-                            }}
-                          >
-                            {header}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingCoordinators.map((coordinator, index) => (
-                        <tr
-                          key={coordinator.id}
-                          style={{
-                            borderBottom: '1px solid #eceff1',
-                            backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fcfd',
-                            transition: 'background-color 0.3s ease'
-                          }}
-                          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e3f2fd'}
-                          onMouseOut={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#ffffff' : '#f9fcfd'}
-                        >
-                          <td style={{ padding: '15px 20px' }}>{coordinator.firstName}</td>
-                          <td style={{ padding: '15px 20px' }}>{coordinator.lastName}</td>
-                          <td style={{ padding: '15px 20px' }}>{coordinator.email}</td>
-                          <td style={{ padding: '15px 20px' }}>{coordinator.phoneNumber}</td>
-                          <td style={{ padding: '15px 20px' }}>{coordinator.city}</td>
-                          <td style={{ padding: '15px 20px' }}>
-                            {coordinator.createdAt?.toLocaleDateString('he-IL')}
-                          </td>
-                          <td style={{ padding: '15px 20px' }}>
-                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                              <button
-                                onClick={() => handleApprove(coordinator)}
-                                disabled={processingId === coordinator.id}
-                                style={{
-                                  background: 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
-                                  color: 'white',
-                                  padding: '8px 16px',
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  cursor: processingId === coordinator.id ? 'not-allowed' : 'pointer',
-                                  fontSize: '0.9em',
-                                  fontWeight: '600',
-                                  opacity: processingId === coordinator.id ? 0.6 : 1,
-                                  transition: 'all 0.3s ease'
-                                }}
-                                onMouseOver={(e) => {
-                                  if (processingId !== coordinator.id) {
-                                    e.currentTarget.style.transform = 'translateY(-1px)';
-                                    e.currentTarget.style.boxShadow = '0 3px 10px rgba(40,167,69,0.3)';
-                                  }
-                                }}
-                                onMouseOut={(e) => {
-                                  e.currentTarget.style.transform = 'translateY(0)';
-                                  e.currentTarget.style.boxShadow = 'none';
-                                }}
-                              >
-                                {processingId === coordinator.id ? 'מעבד...' : '✅ אשר'}
-                              </button>
-                              <button
-                                onClick={() => handleReject(coordinator.id)}
-                                disabled={processingId === coordinator.id}
-                                style={{
-                                  background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
-                                  color: 'white',
-                                  padding: '8px 16px',
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  cursor: processingId === coordinator.id ? 'not-allowed' : 'pointer',
-                                  fontSize: '0.9em',
-                                  fontWeight: '600',
-                                  opacity: processingId === coordinator.id ? 0.6 : 1,
-                                  transition: 'all 0.3s ease'
-                                }}
-                                onMouseOver={(e) => {
-                                  if (processingId !== coordinator.id) {
-                                    e.currentTarget.style.transform = 'translateY(-1px)';
-                                    e.currentTarget.style.boxShadow = '0 3px 10px rgba(220,53,69,0.3)';
-                                  }
-                                }}
-                                onMouseOut={(e) => {
-                                  e.currentTarget.style.transform = 'translateY(0)';
-                                  e.currentTarget.style.boxShadow = 'none';
-                                }}
-                              >
-                                {processingId === coordinator.id ? 'מעבד...' : '❌ דחה'}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                <button
+                  onClick={() => setActiveTab('pending')}
+                  style={{
+                    padding: '15px 30px',
+                    border: 'none',
+                    borderRadius: '8px 8px 0 0',
+                    cursor: 'pointer',
+                    fontSize: '1.1em',
+                    fontWeight: '600',
+                    background: activeTab === 'pending' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#f8f9fa',
+                    color: activeTab === 'pending' ? 'white' : '#495057',
+                    transition: 'all 0.3s ease',
+                    transform: activeTab === 'pending' ? 'translateY(2px)' : 'translateY(0)'
+                  }}
+                >
+                  רכזים ממתינים לאישור ({pendingCoordinators.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('existing')}
+                  style={{
+                    padding: '15px 30px',
+                    border: 'none',
+                    borderRadius: '8px 8px 0 0',
+                    cursor: 'pointer',
+                    fontSize: '1.1em',
+                    fontWeight: '600',
+                    background: activeTab === 'existing' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#f8f9fa',
+                    color: activeTab === 'existing' ? 'white' : '#495057',
+                    transition: 'all 0.3s ease',
+                    transform: activeTab === 'existing' ? 'translateY(2px)' : 'translateY(0)'
+                  }}
+                >
+                  רכזים קיימים ({existingCoordinators.length})
+                </button>
+              </div>
             </div>
+
+            {/* Tab Content */}
+            {activeTab === 'pending' ? (
+              /* Pending Coordinators Section */
+              <div style={{ marginBottom: '30px' }}>
+                {pendingCoordinators.length === 0 ? (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '40px',
+                    color: '#666',
+                    fontSize: '1.1em',
+                    background: '#f8f9fa',
+                    borderRadius: '12px',
+                    border: '1px solid #e9ecef'
+                  }}>
+                    אין רכזים ממתינים לאישור כרגע
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{
+                      width: '100%',
+                      borderCollapse: 'separate',
+                      borderSpacing: '0',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                      direction: 'rtl'
+                    }}>
+                      <thead>
+                        <tr style={{ background: '#f0f4f7' }}>
+                          {[
+                            'שם פרטי', 'שם משפחה', 'אימייל', 'טלפון', 'עיר', 'תאריך בקשה', 'פעולות'
+                          ].map((header) => (
+                            <th
+                              key={header}
+                              style={{
+                                padding: '15px 20px',
+                                textAlign: 'right',
+                                borderBottom: '2px solid #dae1e8',
+                                fontWeight: '700',
+                                color: '#34495e',
+                                backgroundColor: '#eef4f9'
+                              }}
+                            >
+                              {header}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingCoordinators.map((coordinator, index) => (
+                          <tr
+                            key={coordinator.id}
+                            style={{
+                              borderBottom: '1px solid #eceff1',
+                              backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fcfd',
+                              transition: 'background-color 0.3s ease'
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e3f2fd'}
+                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#ffffff' : '#f9fcfd'}
+                          >
+                            <td style={{ padding: '15px 20px' }}>{coordinator.firstName}</td>
+                            <td style={{ padding: '15px 20px' }}>{coordinator.lastName}</td>
+                            <td style={{ padding: '15px 20px' }}>{coordinator.email}</td>
+                            <td style={{ padding: '15px 20px' }}>{coordinator.phoneNumber}</td>
+                            <td style={{ padding: '15px 20px' }}>{coordinator.city}</td>
+                            <td style={{ padding: '15px 20px' }}>
+                              {coordinator.createdAt?.toLocaleDateString('he-IL')}
+                            </td>
+                            <td style={{ padding: '15px 20px' }}>
+                              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                                <button
+                                  onClick={() => handleApprove(coordinator)}
+                                  disabled={processingId === coordinator.id}
+                                  style={{
+                                    background: 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
+                                    color: 'white',
+                                    padding: '8px 16px',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: processingId === coordinator.id ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.9em',
+                                    fontWeight: '600',
+                                    opacity: processingId === coordinator.id ? 0.6 : 1,
+                                    transition: 'all 0.3s ease'
+                                  }}
+                                  onMouseOver={(e) => {
+                                    if (processingId !== coordinator.id) {
+                                      e.currentTarget.style.transform = 'translateY(-1px)';
+                                      e.currentTarget.style.boxShadow = '0 3px 10px rgba(40,167,69,0.3)';
+                                    }
+                                  }}
+                                  onMouseOut={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  {processingId === coordinator.id ? 'מעבד...' : '✅ אשר'}
+                                </button>
+                                <button
+                                  onClick={() => handleReject(coordinator.id)}
+                                  disabled={processingId === coordinator.id}
+                                  style={{
+                                    background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+                                    color: 'white',
+                                    padding: '8px 16px',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: processingId === coordinator.id ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.9em',
+                                    fontWeight: '600',
+                                    opacity: processingId === coordinator.id ? 0.6 : 1,
+                                    transition: 'all 0.3s ease'
+                                  }}
+                                  onMouseOver={(e) => {
+                                    if (processingId !== coordinator.id) {
+                                      e.currentTarget.style.transform = 'translateY(-1px)';
+                                      e.currentTarget.style.boxShadow = '0 3px 10px rgba(220,53,69,0.3)';
+                                    }
+                                  }}
+                                  onMouseOut={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  {processingId === coordinator.id ? 'מעבד...' : '❌ דחה'}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Existing Coordinators Section */
+              <div style={{ marginBottom: '30px' }}>
+                {loadingExisting ? (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '40px',
+                    color: '#666',
+                    fontSize: '1.1em',
+                    background: '#f8f9fa',
+                    borderRadius: '12px'
+                  }}>
+                    טוען רכזים קיימים...
+                  </div>
+                ) : existingCoordinators.length === 0 ? (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '40px',
+                    color: '#666',
+                    fontSize: '1.1em',
+                    background: '#f8f9fa',
+                    borderRadius: '12px',
+                    border: '1px solid #e9ecef'
+                  }}>
+                    לא נמצאו רכזים קיימים במערכת
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{
+                      width: '100%',
+                      borderCollapse: 'separate',
+                      borderSpacing: '0',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                      direction: 'rtl'
+                    }}>
+                      <thead>
+                        <tr style={{ background: '#e8f5e8' }}>
+                          {[
+                            'שם פרטי', 'שם משפחה', 'אימייל', 'טלפון', 'עיר', 'תאריך הצטרפות', 'תאריך אישור', 'סטטוס'
+                          ].map((header) => (
+                            <th
+                              key={header}
+                              style={{
+                                padding: '15px 20px',
+                                textAlign: 'right',
+                                borderBottom: '2px solid #c8e6c9',
+                                fontWeight: '700',
+                                color: '#2e7d32',
+                                backgroundColor: '#e8f5e8'
+                              }}
+                            >
+                              {header}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {existingCoordinators.map((coordinator, index) => (
+                          <tr
+                            key={coordinator.id}
+                            style={{
+                              borderBottom: '1px solid #eceff1',
+                              backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fff9',
+                              transition: 'background-color 0.3s ease'
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e8f5e8'}
+                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#ffffff' : '#f9fff9'}
+                          >
+                            <td style={{ padding: '15px 20px' }}>{coordinator.firstName}</td>
+                            <td style={{ padding: '15px 20px' }}>{coordinator.lastName}</td>
+                            <td style={{ padding: '15px 20px' }}>{coordinator.email}</td>
+                            <td style={{ padding: '15px 20px' }}>{coordinator.phoneNumber}</td>
+                            <td style={{ padding: '15px 20px' }}>{coordinator.city}</td>
+                            <td style={{ padding: '15px 20px' }}>
+                              {coordinator.createdAt?.toLocaleDateString('he-IL')}
+                            </td>
+                            <td style={{ padding: '15px 20px' }}>
+                              {coordinator.approvedAt?.toLocaleDateString('he-IL') || 'לא זמין'}
+                            </td>
+                            <td style={{ padding: '15px 20px' }}>
+                              <span style={{
+                                padding: '4px 12px',
+                                borderRadius: '20px',
+                                fontSize: '0.9em',
+                                fontWeight: '600',
+                                background: coordinator.isApproved ? 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' : '#ffc107',
+                                color: 'white'
+                              }}>
+                                {coordinator.isApproved ? '✅ מאושר' : '⏳ ממתין'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
