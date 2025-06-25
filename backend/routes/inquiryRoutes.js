@@ -281,4 +281,29 @@ router.get('/volunteer/:volunteerId', async (req, res) => {
   }
 });
 
+// POST /api/inquiries/:id/reassign
+// Reassign inquiry to a different volunteer
+router.post('/:id/reassign', async (req, res) => {
+  const { volunteerId } = req.body;
+  if (!volunteerId) return res.status(400).send('volunteerId required');
+  
+  try {
+    const docRef = db.collection('inquiry').doc(req.params.id);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).send('Inquiry not found');
+    
+    // Update the assigned volunteer
+    await docRef.update({ 
+      assignedVolunteers: volunteerId,
+      status: 'לפנייה שובץ מתנדב',
+      reassignedAt: new Date().toISOString()
+    });
+    
+    res.send('Volunteer reassigned successfully');
+  } catch (e) {
+    console.error('Error reassigning volunteer:', e);
+    res.status(500).send('Error reassigning volunteer');
+  }
+});
+
 export default router;

@@ -24,3 +24,7 @@ export async function updateInquiryStatus(inquiryId, status, closureReason = nul
   }
   return axios.post(`${API_BASE}/api/inquiries/${inquiryId}/status`, payload);
 }
+
+export async function reassignVolunteer(inquiryId, newVolunteerId) {
+  return axios.post(`${API_BASE}/api/inquiries/${inquiryId}/reassign`, { volunteerId: newVolunteerId });
+}

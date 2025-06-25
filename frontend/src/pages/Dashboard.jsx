@@ -12,7 +12,7 @@ import { db } from '../firebaseConfig';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/HomeScreen.css';
-import { fetchCoordinatorInquiries, takeOwnership } from '../services/inquiryApi';
+import { fetchCoordinatorInquiries, takeOwnership, reassignVolunteer } from '../services/inquiryApi';
 
 export default function Dashboard() {
   const [calls, setCalls] = useState([]);
@@ -40,6 +40,10 @@ export default function Dashboard() {
   // New state for mobile filter visibility
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
+
+  // State for volunteers list (for reassignment)
+  const [volunteers, setVolunteers] = useState([]);
+  const [loadingVolunteers, setLoadingVolunteers] = useState(false);
 
   const statusOptions = [
     'נשלח קישור אך לא מולא טופס',
@@ -342,6 +346,56 @@ export default function Dashboard() {
       } else {
         alert('שגיאה בלקיחת בעלות על הפנייה');
       }
+    }
+  };
+
+  // Fetch volunteers for reassignment
+  const fetchVolunteers = async () => {
+    if (volunteers.length > 0) return; // Already loaded
+    
+    setLoadingVolunteers(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:3001'}/api/users`);
+      const allUsers = await response.json();
+      const volunteerList = allUsers.filter(user => user.userType === 2);
+      setVolunteers(volunteerList);
+    } catch (error) {
+      console.error('Error fetching volunteers:', error);
+      alert('שגיאה בטעינת רשימת המתנדבים');
+    } finally {
+      setLoadingVolunteers(false);
+    }
+  };
+
+  // Handle volunteer reassignment
+  const handleReassignVolunteer = async (inquiryId, newVolunteerId) => {
+    if (!newVolunteerId) return;
+    
+    try {
+      await reassignVolunteer(inquiryId, newVolunteerId);
+      
+      // Find the new volunteer's name
+      const newVolunteer = volunteers.find(v => v.id === newVolunteerId);
+      const newVolunteerName = newVolunteer ? (newVolunteer.name || `${newVolunteer.firstName} ${newVolunteer.lastName}`) : 'מתנדב';
+      
+      // Update the local state
+      setCalls(prevCalls =>
+        prevCalls.map(call =>
+          call.id === inquiryId
+            ? {
+                ...call,
+                assignedVolunteers: newVolunteerId,
+                assignedVolunteerName: newVolunteerName,
+                status: 'לפנייה שובץ מתנדב'
+              }
+            : call
+        )
+      );
+      
+      alert('המתנדב הוחלף בהצלחה!');
+    } catch (error) {
+      console.error('Error reassigning volunteer:', error);
+      alert('שגיאה בהחלפת המתנדב');
     }
   };
 
@@ -1127,10 +1181,49 @@ export default function Dashboard() {
                               ))}
                             </select>
                           )}
-                        </td>
-
-                        <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>
-                          {call.assignedVolunteerName}
+                        </td>                        <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>
+                          {call.assignedVolunteers && call.assignedVolunteers !== '-' ? (
+                            <div style={{ minWidth: '180px' }}>
+                              <div style={{ fontSize: '0.9em', marginBottom: '5px', color: '#666' }}>
+                                נוכחי: {call.assignedVolunteerName}
+                              </div>
+                              <select
+                                value=""
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    handleReassignVolunteer(call.id, e.target.value);
+                                    e.target.value = ""; // Reset dropdown
+                                  }
+                                }}
+                                onFocus={fetchVolunteers}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #b0bec5',
+                                  fontSize: '0.85em',
+                                  backgroundColor: 'white',
+                                  cursor: 'pointer'
+                                }}
+                                disabled={loadingVolunteers}
+                              >
+                                <option value="">החלף מתנדב...</option>
+                                {volunteers.map((volunteer) => (
+                                  <option 
+                                    key={volunteer.id} 
+                                    value={volunteer.id}
+                                    disabled={volunteer.id === call.assignedVolunteers}
+                                  >
+                                    {volunteer.name || `${volunteer.firstName} ${volunteer.lastName}`}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#999', fontStyle: 'italic' }}>
+                              לא שובץ מתנדב
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>
                           {isUnassigned ? (
