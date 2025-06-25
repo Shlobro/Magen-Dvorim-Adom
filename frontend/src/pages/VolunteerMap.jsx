@@ -805,7 +805,7 @@ export default function VolunteerMap() {
                   variant="contained"
                   size="large"
                   startIcon={<CheckCircle />}
-                  sx={{ fontWeight: 600 }}
+                  sx={{ fontWeight: 600 , gap: 1}}
                 >
                   שבץ מתנדב לקריאה
                 </Button>
