@@ -11,12 +11,12 @@ export default function ReportPage() {
   const [city, setCity] = useState(''); // New state for city
   const [address, setAddress] = useState(''); // New state for address (street and house number)
   const [heightFloor, setHeightFloor] = useState('');
-  const [additionalDetails, setAdditionalDetails] = useState('');
-  const [imageFile, setImageFile] = useState(null); // To store the actual file
+  const [additionalDetails, setAdditionalDetails] = useState('');  const [imageFile, setImageFile] = useState(null); // To store the actual file
   const [imageName, setImageName] = useState(''); // To display file name
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(''); // For success/error messages
   const [coordinatorId, setCoordinatorId] = useState(''); // NEW: State to store coordinatorId from URL
+  const [agreeToTerms, setAgreeToTerms] = useState(false); // State for terms agreement
 
   const location = useLocation(); // NEW: Initialize useLocation hook
 
@@ -43,11 +43,15 @@ export default function ReportPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setMessage(''); // Clear previous messages
-
-    // Basic validation
+    setMessage(''); // Clear previous messages    // Basic validation
     if (!fullName || !phoneNumber || !city || !address) {
       setMessage('אנא מלא את כל שדות החובה: שם מלא, טלפון, עיר וכתובת.');
+      setLoading(false);
+      return;
+    }
+
+    if (!agreeToTerms) {
+      setMessage('חובה לאשר את תנאי השירות כדי לשלוח דיווח.');
       setLoading(false);
       return;
     }
@@ -84,10 +88,10 @@ export default function ReportPage() {
       setCity('');
       setAddress('');
       setHeightFloor('');
-      setAdditionalDetails('');
-      setImageFile(null);
+      setAdditionalDetails('');      setImageFile(null);
       setImageName('');
       setCoordinatorId(''); // NEW: Clear coordinatorId after successful submission
+      setAgreeToTerms(false); // Clear terms agreement
     } catch (error) {
       console.error('שגיאה בשליחת הפנייה:', error);
       setMessage(`שגיאה בשליחת הפנייה: ${error.message || 'נסה שוב מאוחר יותר.'}`);
@@ -141,13 +145,30 @@ export default function ReportPage() {
             rows={4}
             value={additionalDetails}
             onChange={(e) => setAdditionalDetails(e.target.value)}
-          ></textarea>
-
-          <label className="file-upload">
+          ></textarea>          <label className="file-upload">
             <input type="file" onChange={handleFileChange} accept="image/*" />
             <FaUpload className="upload-icon" />
             {imageName ? imageName : 'הוסף תמונה של הנחיל (אופציונלי)'}
-          </label>
+          </label>          {/* Terms and Conditions */}
+          <div className="terms-container">
+            <input
+              type="checkbox"
+              id="agreeToTerms"
+              checked={agreeToTerms}
+              onChange={(e) => setAgreeToTerms(e.target.checked)}
+              required
+              className="terms-checkbox"
+            />
+            <label htmlFor="agreeToTerms" className="terms-label">
+              <span className="terms-highlight">לידיעת הפונה - עצם מילוי בקשת הפינוי מהווה הסכמת הפונה:</span>
+              <br /><br />
+              ידוע לי שאם יתברר שהפינוי כרוך בפירוק / הסרה / פגיעה בקיר / תריס / חרת עץ וכיו"ב, שבמסמך נתחיל והוסכם על דעת הפונה והמתנדב ו/או לעמותת "מגן דברים אדום", אין למתנדב על ביצוע הפינוי הנ"ל, כמו כן אין ולא תהיה שום אחריות או התחייבות להחזיר את המצב לקדמותו או לתקן את הנפגע. כמו כן לא תהיה שום אחריות למתנדב ו/או לעמותת "מגן דברים אדום" לגבי כל פגיעה בנפש או כל צד ג' במהלך הפינוי.
+              <br /><br />
+              עמותת "מגן דברים אדום", רשאים לשלול אלי טופס משוב לגבי הפינוי ו/או דיווח אחר.
+              <br /><br />
+              <span className="terms-highlight">אני מאשר/ת שקראתי והבנתי את התנאים הנ"ל ומסכים/ה לפעול על פיהם.</span>
+            </label>
+          </div>
 
           <button type="submit" className="submit-button" disabled={loading}>
             {loading ? 'שולח...' : (
