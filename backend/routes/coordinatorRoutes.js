@@ -1,5 +1,6 @@
 import express from 'express';
 import db from '../services/firebaseAdmin.js';
+import admin from 'firebase-admin';
 
 const router = express.Router();
 
@@ -12,9 +13,26 @@ router.post('/approve', async (req, res) => {
       return res.status(400).json({ error: 'Missing required data' });
     }
 
-    // Create the user in Firebase Auth and Firestore with coordinator role
+    // Create Firebase Auth user first
+    let firebaseUser;
+    try {
+      firebaseUser = await admin.auth().createUser({
+        email: coordinatorData.email,
+        password: coordinatorData.password,
+        displayName: `${coordinatorData.firstName} ${coordinatorData.lastName}`,
+        emailVerified: true, // Set as verified since it's approved by coordinator
+      });
+      console.log('Firebase Auth user created:', firebaseUser.uid);
+    } catch (authError) {
+      console.error('Error creating Firebase Auth user:', authError);
+      return res.status(500).json({ 
+        error: 'Failed to create authentication account',
+        details: authError.message 
+      });
+    }    // Create the user in Firestore with coordinator role
     const userData = {
-      id: coordinatorData.email, // Use email as ID
+      id: firebaseUser.uid, // Use Firebase Auth UID as ID (not email)
+      uid: firebaseUser.uid, // Store Firebase Auth UID
       firstName: coordinatorData.firstName,
       lastName: coordinatorData.lastName,
       email: coordinatorData.email,
@@ -24,24 +42,46 @@ router.post('/approve', async (req, res) => {
       isApproved: true,
       approvedAt: new Date(),
       createdAt: coordinatorData.createdAt || new Date(),
-      // Include password if provided for the coordinator account
-      ...(coordinatorData.password && { password: coordinatorData.password }),
-      // Add any other fields from the coordinator data (excluding password to avoid duplication)
-      ...Object.fromEntries(Object.entries(coordinatorData).filter(([key]) => key !== 'password')),
-      userType: 1 // Ensure it's set to coordinator
+      // Add any other fields from the coordinator data (excluding password for security)
+      ...Object.fromEntries(Object.entries(coordinatorData).filter(([key]) => key !== 'password'))
     };
 
-    // Save to users collection
-    await db.collection('user').doc(coordinatorData.email).set(userData);
+    // Ensure userType is set correctly
+    userData.userType = 1;
+
+    try {
+      // Save to users collection using UID as document ID (not email)
+      await db.collection('user').doc(firebaseUser.uid).set(userData);
+      console.log('Firestore user document created with UID:', firebaseUser.uid);
+    } catch (firestoreError) {
+      console.error('Error creating Firestore document:', firestoreError);
+      // If Firestore fails, clean up the Auth user
+      try {
+        await admin.auth().deleteUser(firebaseUser.uid);
+      } catch (cleanupError) {
+        console.error('Error cleaning up Auth user:', cleanupError);
+      }
+      return res.status(500).json({ 
+        error: 'Failed to create user profile',
+        details: firestoreError.message 
+      });
+    }
 
     // Remove from pending coordinators
-    await db.collection('pendingCoordinators').doc(pendingId).delete();
+    try {
+      await db.collection('pendingCoordinators').doc(pendingId).delete();
+      console.log('Pending coordinator record removed');
+    } catch (deleteError) {
+      console.error('Error removing pending coordinator:', deleteError);
+      // Don't fail the request if we can't delete the pending record
+    }
 
-    console.log(`Coordinator approved: ${coordinatorData.email}`);
+    console.log(`Coordinator approved: ${coordinatorData.email} (Auth UID: ${firebaseUser.uid})`);
     res.json({ 
       success: true, 
       message: 'Coordinator approved successfully',
-      coordinatorId: coordinatorData.email 
+      coordinatorId: coordinatorData.email,
+      authUid: firebaseUser.uid
     });
 
   } catch (error) {
