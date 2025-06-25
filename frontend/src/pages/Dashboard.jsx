@@ -1,769 +1,874 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import {
-  collection,
-  getDocs,
-  getDoc,
-  doc,
-  updateDoc,
-  query,
-  where,
-} from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { useNotification } from '../contexts/NotificationContext';
-import '../styles/HomeScreen.css';
-import { fetchCoordinatorInquiries, takeOwnership, reassignVolunteer } from '../services/inquiryApi';
+"use client"
 
-export default function Dashboard() {  const [calls, setCalls] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-  const { currentUser, userRole, loading: authLoading } = useAuth();
-  const { showSuccess, showError, showWarning, showInfo, showConfirmDialog } = useNotification();
+import { useState, useEffect, useMemo, useRef } from "react"
+import { collection, getDocs, getDoc, doc, updateDoc } from "firebase/firestore"
+import { db } from "../firebaseConfig"
+import { useNavigate } from "react-router-dom"
+import { useAuth } from "../contexts/AuthContext"
+import "../styles/HomeScreen.css"
+import { fetchCoordinatorInquiries, takeOwnership, reassignVolunteer } from "../services/inquiryApi"
+
+export default function Dashboard() {
+  const [calls, setCalls] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const navigate = useNavigate()
+  const { currentUser, userRole, loading: authLoading } = useAuth()
 
   // State for coordinator report link
-  const [reportLink, setReportLink] = useState('');
+  const [reportLink, setReportLink] = useState("")
 
   // Ref to hold a map of coordinatorId to coordinatorName
-  const coordinatorNamesRef = useRef({});
-  
+  const coordinatorNamesRef = useRef({})
+
+  // New state for managing the modal/popup for comments:
+  const [selectedComment, setSelectedComment] = useState(null)
+  const [isCommentModalOpen, setIsCommentModalOpen] = useState(false)
+
+  // Add after the existing comment modal states
+  const [selectedCallDetails, setSelectedCallDetails] = useState(null)
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
+
   // Helper function to convert various timestamp formats to JavaScript Date
   const convertTimestamp = (timestamp) => {
-    if (!timestamp) return null;
-    
+    if (!timestamp) return null
+
     // Handle Firestore Timestamp object with _seconds property (from backend API)
     if (timestamp._seconds) {
-      return new Date(timestamp._seconds * 1000);
+      return new Date(timestamp._seconds * 1000)
     }
-    
+
     // Handle Firestore Timestamp object with toDate method (from direct Firestore)
-    if (typeof timestamp.toDate === 'function') {
-      return timestamp.toDate();
+    if (typeof timestamp.toDate === "function") {
+      return timestamp.toDate()
     }
-    
+
     // Handle regular Date object or ISO string
     if (timestamp instanceof Date) {
-      return timestamp;
+      return timestamp
     }
-    
-    if (typeof timestamp === 'string') {
-      return new Date(timestamp);
+
+    if (typeof timestamp === "string") {
+      return new Date(timestamp)
     }
-    
-    return null;
-  };
-  
+
+    return null
+  }
+
   // Helper function to format date for display
   const formatDateForDisplay = (timestamp, fallbackDate = null, fallbackTime = null) => {
-    const date = convertTimestamp(timestamp);
-    
+    const date = convertTimestamp(timestamp)
+
     if (date && !isNaN(date.getTime())) {
-      return date.toLocaleString('he-IL');
+      return date.toLocaleString("he-IL", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
     }
-    
+
     // Fallback to date/time strings if timestamp conversion fails
     if (fallbackDate && fallbackTime) {
-      return `${fallbackDate} ${fallbackTime}`;
+      return `${fallbackDate} ${fallbackTime}`
     }
-    
-    return 'תאריך לא זמין';
-  };
+
+    return "תאריך לא זמין"
+  }
 
   // ───────────────────────────── Filter States
-  const [filterVolunteer, setFilterVolunteer] = useState('');
-  const [filterStartDate, setFilterStartDate] = useState('');
-  const [filterEndDate, setFilterEndDate] = useState('');
-  const [filterStatus, setFilterStatus] = useState('נפתחה פנייה (טופס מולא)');
+  const [filterVolunteer, setFilterVolunteer] = useState("")
+  const [filterStartDate, setFilterStartDate] = useState("")
+  const [filterEndDate, setFilterEndDate] = useState("")
+  const [filterStatus, setFilterStatus] = useState("נפתחה פנייה (טופס מולא)")
 
   // Pagination states
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5);
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(5)
 
   // New state for mobile filter visibility
-  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-  const [isMobileView, setIsMobileView] = useState(false);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false)
+  const [isMobileView, setIsMobileView] = useState(false)
 
   // State for volunteers list (for reassignment)
-  const [volunteers, setVolunteers] = useState([]);
-  const [loadingVolunteers, setLoadingVolunteers] = useState(false);
+  const [volunteers, setVolunteers] = useState([])
+  const [loadingVolunteers, setLoadingVolunteers] = useState(false)
 
   const statusOptions = [
-    'נשלח קישור אך לא מולא טופס',
-    'נפתחה פנייה (טופס מולא)',
-    'לפנייה שובץ מתנדב',
-    'המתנדב בדרך',
-    'הטיפול בנחיל הסתיים',
-    'הפנייה נסגרה',
-  ];
+    "נשלח קישור אך לא מולא טופס",
+    "נפתחה פנייה (טופס מולא)",
+    "לפנייה שובץ מתנדב",
+    "המתנדב בדרך",
+    "הטיפול בנחיל הסתיים",
+    "הפנייה נסגרה",
+  ]
 
-  const closureOptions = [
-    'נפתר עצמאית',
-    'לא ניתן לטפל',
-    'מיקום לא נגיש',
-    'מתנדב לא הגיע',
-    'אחר',
-  ];
+  const closureOptions = ["נפתר עצמאית", "לא ניתן לטפל", "מיקום לא נגיש", "מתנדב לא הגיע", "אחר"]
 
   // Effect to determine if it's a mobile view
   useEffect(() => {
     const handleResize = () => {
-      setIsMobileView(window.innerWidth <= 768); // Adjust breakpoint as needed
-    };
+      setIsMobileView(window.innerWidth <= 768) // Adjust breakpoint as needed
+    }
 
-    window.addEventListener('resize', handleResize);
-    handleResize(); // Set initial value
+    window.addEventListener("resize", handleResize)
+    handleResize() // Set initial value
 
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    return () => window.removeEventListener("resize", handleResize)
+  }, [])
 
   // ───────────────────────────────── fetch calls once
   useEffect(() => {
-    const fetchCalls = async () => {      if (authLoading || !currentUser) {
+    const fetchCalls = async () => {
+      if (authLoading || !currentUser) {
         if (!authLoading && !currentUser) {
-          showError('יש להתחבר כדי לצפות בלוח המחוונים.');
+          setError("יש להתחבר כדי לצפות בלוח המחוונים.")
         }
-        setLoading(false);
-        return;
+        setLoading(false)
+        return
       }
       try {
-        setLoading(true);
-        let fetchedInquiries = [];
-        if (userRole === 1) { // Coordinator role
-          fetchedInquiries = await fetchCoordinatorInquiries(currentUser.uid);
+        setLoading(true)
+        let fetchedInquiries = []
+        if (userRole === 1) {
+          // Coordinator role
+          fetchedInquiries = await fetchCoordinatorInquiries(currentUser.uid)
         } else {
-          const allInquiriesQuery = inquiriesRef;
-          const inquirySnap = await getDocs(allInquiriesQuery);
-          fetchedInquiries = inquirySnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          const inquiriesRef = collection(db, "inquiry")
+          const allInquiriesQuery = inquiriesRef
+          const inquirySnap = await getDocs(allInquiriesQuery)
+          fetchedInquiries = inquirySnap.docs.map((d) => ({ id: d.id, ...d.data() }))
         }
 
         // Collect all unique volunteer UIDs and coordinator UIDs
-        const volunteerUids = new Set();
-        const coordinatorUids = new Set();
+        const volunteerUids = new Set()
+        const coordinatorUids = new Set()
 
-        fetchedInquiries.forEach(call => {
-          if (call.assignedVolunteers && typeof call.assignedVolunteers === 'string' && call.assignedVolunteers.trim() !== '') {
-            volunteerUids.add(call.assignedVolunteers);
+        fetchedInquiries.forEach((call) => {
+          if (
+            call.assignedVolunteers &&
+            typeof call.assignedVolunteers === "string" &&
+            call.assignedVolunteers.trim() !== ""
+          ) {
+            volunteerUids.add(call.assignedVolunteers)
           }
-          if (call.coordinatorId && typeof call.coordinatorId === 'string' && call.coordinatorId.trim() !== '') {
-            coordinatorUids.add(call.coordinatorId);
+          if (call.coordinatorId && typeof call.coordinatorId === "string" && call.coordinatorId.trim() !== "") {
+            coordinatorUids.add(call.coordinatorId)
           }
-        });
+        })
 
         // Fetch volunteer names
-        const uidToVolunteerName = {};
+        const uidToVolunteerName = {}
         await Promise.all(
           Array.from(volunteerUids).map(async (uid) => {
             try {
-              const snap = await getDoc(doc(db, 'user', uid));
+              const snap = await getDoc(doc(db, "user", uid))
               if (snap.exists()) {
-                const d = snap.data();
-                uidToVolunteerName[uid] = d.name || `${d.firstName ?? ''} ${d.lastName ?? ''}`.trim();
+                const d = snap.data()
+                uidToVolunteerName[uid] = d.name || `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim()
               }
-            } catch (e) { console.error("Error fetching volunteer name:", uid, e); /* ignore */ }
-          })
-        );
+            } catch (e) {
+              console.error("Error fetching volunteer name:", uid, e) /* ignore */
+            }
+          }),
+        )
 
         // Fetch coordinator names
-        const uidToCoordinatorName = {};
+        const uidToCoordinatorName = {}
         await Promise.all(
           Array.from(coordinatorUids).map(async (uid) => {
             try {
-              const snap = await getDoc(doc(db, 'user', uid));
+              const snap = await getDoc(doc(db, "user", uid))
               if (snap.exists()) {
-                const d = snap.data();
-                uidToCoordinatorName[uid] = d.name || `${d.firstName ?? ''} ${d.lastName ?? ''}`.trim();
+                const d = snap.data()
+                uidToCoordinatorName[uid] = d.name || `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim()
               }
-            } catch (e) { console.error("Error fetching coordinator name:", uid, e); /* ignore */ }
-          })
-        );
-        coordinatorNamesRef.current = uidToCoordinatorName; // Store for later use if needed
+            } catch (e) {
+              console.error("Error fetching coordinator name:", uid, e) /* ignore */
+            }
+          }),
+        )
+        coordinatorNamesRef.current = uidToCoordinatorName // Store for later use if needed
 
         // Merge names and ensure coordinatorId is present (or null)
         const withNames = fetchedInquiries.map((c) => ({
           ...c,
-          assignedVolunteerName: uidToVolunteerName[c.assignedVolunteers] ?? '-',
+          assignedVolunteerName: uidToVolunteerName[c.assignedVolunteers] ?? "-",
           coordinatorId: c.coordinatorId || null,
-          coordinatorName: (c.coordinatorId && uidToCoordinatorName[c.coordinatorId]) ? uidToCoordinatorName[c.coordinatorId] : '-', // Add coordinatorName
-        }));
+          coordinatorName:
+            c.coordinatorId && uidToCoordinatorName[c.coordinatorId] ? uidToCoordinatorName[c.coordinatorId] : "-", // Add coordinatorName
+        }))
 
-        setCalls(withNames);
-        setLoading(false);      } catch (err) {
-        console.error('Error fetching calls:', err);
-        showError('Failed to fetch calls.');
-        setLoading(false);
+        setCalls(withNames)
+        setLoading(false)
+      } catch (err) {
+        console.error("Error fetching calls:", err)
+        setError("Failed to fetch calls.")
+        setLoading(false)
       }
-    };
+    }
 
     if (!authLoading) {
-      fetchCalls();
+      fetchCalls()
     }
-  }, [currentUser, userRole, authLoading]);
+  }, [currentUser, userRole, authLoading])
 
   // Generate report link when currentUser is available
   useEffect(() => {
-    if (currentUser && userRole === 1) { // Only generate for coordinators
-      const baseUrl = window.location.origin;
-      setReportLink(`${baseUrl}/report?coordinatorId=${currentUser.uid}`);
+    if (currentUser && userRole === 1) {
+      // Only generate for coordinators
+      const baseUrl = window.location.origin
+      setReportLink(`${baseUrl}/report?coordinatorId=${currentUser.uid}`)
     } else {
-      setReportLink(''); // Clear link if not a coordinator
+      setReportLink("") // Clear link if not a coordinator
     }
-  }, [currentUser, userRole]);
+  }, [currentUser, userRole])
 
   const copyReportLink = () => {
     if (reportLink) {
-        const tempInput = document.createElement('input');
-        tempInput.value = reportLink;        document.body.appendChild(tempInput);
-        tempInput.select();
-        document.execCommand('copy');
-        document.body.removeChild(tempInput);
-        showSuccess('הקישור לדיווח הועתק בהצלחה!');
+      const tempInput = document.createElement("input")
+      tempInput.value = reportLink
+      document.body.appendChild(tempInput)
+      tempInput.select()
+      document.execCommand("copy")
+      document.body.removeChild(tempInput)
+      alert("הקישור לדיווח הועתק בהצלחה!")
     }
-  };
+  }
 
+  // Add functions to handle opening and closing the comment modal:
+  const handleOpenComment = (comment) => {
+    setSelectedComment(comment)
+    setIsCommentModalOpen(true)
+  }
+
+  const handleCloseComment = () => {
+    setSelectedComment(null)
+    setIsCommentModalOpen(false)
+  }
+
+  // Add after the handleCloseComment function
+  const handleOpenDetails = (call) => {
+    setSelectedCallDetails(call)
+    setIsDetailsModalOpen(true)
+  }
+
+  const handleCloseDetails = () => {
+    setSelectedCallDetails(null)
+    setIsDetailsModalOpen(false)
+  }
 
   // ───────────────────────────── Derived State: Unique Volunteer Names
   const uniqueVolunteerNames = useMemo(() => {
-    const names = new Set();
-    calls.forEach(call => {
-      if (call.assignedVolunteerName && call.assignedVolunteerName !== '-') {
-        names.add(call.assignedVolunteerName);
+    const names = new Set()
+    calls.forEach((call) => {
+      if (call.assignedVolunteerName && call.assignedVolunteerName !== "-") {
+        names.add(call.assignedVolunteerName)
       }
-    });
-    return Array.from(names).sort();
-  }, [calls]);
+    })
+    return Array.from(names).sort()
+  }, [calls])
 
   // ───────────────────────────── Filtered Calls Logic with Pagination
   const filteredCalls = useMemo(() => {
-    const filtered = calls.filter(call => {
-      let match = true;
+    const filtered = calls.filter((call) => {
+      let match = true
 
       if (filterVolunteer && call.assignedVolunteerName !== filterVolunteer) {
-        match = false;
+        match = false
       }
       if (filterStatus && call.status !== filterStatus) {
-        match = false;
-      }      if ((filterStartDate || filterEndDate) && match) {
-        const callDate = convertTimestamp(call.timestamp);
-        let fallbackDate = null;
+        match = false
+      }
+      if ((filterStartDate || filterEndDate) && match) {
+        const callDate = convertTimestamp(call.timestamp)
+        let fallbackDate = null
         if (!callDate && call.date && call.time) {
           try {
-                const [day, month, year] = call.date.split('.').map(Number);
-                const [hours, minutes] = call.time.split(':').map(Number);
-                fallbackDate = new Date(year, month - 1, day, hours, minutes);
-            } catch (e) {
-                console.warn("Could not parse date/time strings for filtering:", call.date, call.time, e);
-            }
+            const [day, month, year] = call.date.split(".").map(Number)
+            const [hours, minutes] = call.time.split(":").map(Number)
+            fallbackDate = new Date(year, month - 1, day, hours, minutes)
+          } catch (e) {
+            console.warn("Could not parse date/time strings for filtering:", call.date, call.time, e)
+          }
         }
-        const effectiveCallDate = callDate || fallbackDate;
-        if (!effectiveCallDate) return false;
+        const effectiveCallDate = callDate || fallbackDate
+        if (!effectiveCallDate) return false
 
-        const start = filterStartDate ? new Date(filterStartDate) : null;
-        if (start) start.setHours(0, 0, 0, 0);
+        const start = filterStartDate ? new Date(filterStartDate) : null
+        if (start) start.setHours(0, 0, 0, 0)
 
-        const end = filterEndDate ? new Date(filterEndDate) : null;
-        if (end) end.setHours(23, 59, 59, 999);
+        const end = filterEndDate ? new Date(filterEndDate) : null
+        if (end) end.setHours(23, 59, 59, 999)
 
-        if (start && effectiveCallDate < start) match = false;
-        if (end && effectiveCallDate > end) match = false;
+        if (start && effectiveCallDate < start) match = false
+        if (end && effectiveCallDate > end) match = false
       }
 
-      return match;
-    });
+      return match
+    })
 
-    return filtered;
-  }, [calls, filterVolunteer, filterStartDate, filterEndDate, filterStatus]);
+    return filtered
+  }, [calls, filterVolunteer, filterStartDate, filterEndDate, filterStatus])
 
   // Paginated data
   const paginatedCalls = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return filteredCalls.slice(startIndex, endIndex);
-  }, [filteredCalls, currentPage, itemsPerPage]);
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredCalls.slice(startIndex, endIndex)
+  }, [filteredCalls, currentPage, itemsPerPage])
 
   // Total pages calculation
-  const totalPages = Math.ceil(filteredCalls.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredCalls.length / itemsPerPage)
 
   // Reset pagination when filters change
   useEffect(() => {
-    setCurrentPage(1);
-  }, [filterVolunteer, filterStartDate, filterEndDate, filterStatus]);  const handleVolunteerFilterChange = (e) => {
-    setFilterVolunteer(e.target.value);
-    setCurrentPage(1);
-  };
+    setCurrentPage(1)
+  }, [filterVolunteer, filterStartDate, filterEndDate, filterStatus])
+  const handleVolunteerFilterChange = (e) => {
+    setFilterVolunteer(e.target.value)
+    setCurrentPage(1)
+  }
 
   const handleStatusFilterChange = (e) => {
-    setFilterStatus(e.target.value);
-    setCurrentPage(1);
-  };
+    setFilterStatus(e.target.value)
+    setCurrentPage(1)
+  }
 
   const handleStartDateFilterChange = (e) => {
-    setFilterStartDate(e.target.value);
+    setFilterStartDate(e.target.value)
     // If a start date is selected, clear end date if it's before start date
     if (e.target.value && filterEndDate && new Date(e.target.value) > new Date(filterEndDate)) {
-      setFilterEndDate('');
+      setFilterEndDate("")
     }
-    setCurrentPage(1);
-  };
+    setCurrentPage(1)
+  }
 
   const handleEndDateFilterChange = (e) => {
-    setFilterEndDate(e.target.value);
-    setCurrentPage(1);
-  };
+    setFilterEndDate(e.target.value)
+    setCurrentPage(1)
+  }
 
   // Clear all filters function
   const handleClearAllFilters = () => {
-    setFilterVolunteer('');
-    setFilterStatus('נפתחה פנייה (טופס מולא)'); // Reset to default
-    setFilterStartDate('');
-    setFilterEndDate('');
-    setCurrentPage(1);
-  };
+    setFilterVolunteer("")
+    setFilterStatus("נפתחה פנייה (טופס מולא)") // Reset to default
+    setFilterStartDate("")
+    setFilterEndDate("")
+    setCurrentPage(1)
+  }
 
   // ───────────────────────────── status / closure handlers
   const handleStatusChange = async (callId, newStatus) => {
     try {
-      await updateDoc(doc(db, 'inquiry', callId), { status: newStatus });      setCalls((prev) =>
-        prev.map((c) => (c.id === callId ? { ...c, status: newStatus } : c))
-      );
-      showSuccess('סטטוס עודכן בהצלחה!');
+      await updateDoc(doc(db, "inquiry", callId), { status: newStatus })
+      setCalls((prev) => prev.map((c) => (c.id === callId ? { ...c, status: newStatus } : c)))
+      alert("סטטוס עודכן בהצלחה!")
     } catch (err) {
-      console.error(err);
-      showError('נכשל בעדכון סטטוס.');
+      console.error(err)
+      alert("נכשל בעדכון סטטוס.")
     }
-  };
+  }
 
-  const handleClosureChange = async (callId, newClosureReason) => {    try {
-      await updateDoc(doc(db, 'inquiry', callId), { closureReason: newClosureReason });
-      setCalls((prev) =>
-        prev.map((c) => (c.id === callId ? { ...c, closureReason: newClosureReason } : c))
-      );
-      showSuccess('סיבת סגירה עודכנה בהצלחה!');
+  const handleClosureChange = async (callId, newClosureReason) => {
+    try {
+      await updateDoc(doc(db, "inquiry", callId), { closureReason: newClosureReason })
+      setCalls((prev) => prev.map((c) => (c.id === callId ? { ...c, closureReason: newClosureReason } : c)))
+      alert("סיבת סגירה עודכנה בהצלחה!")
     } catch (err) {
-      console.error(err);
-      showError('נכשל בעדכון סיבת סגירה.');
+      console.error(err)
+      alert("נכשל בעדכון סיבת סגירה.")
     }
-  };
+  }
 
   const handleAssignVolunteerClick = (inquiryId) => {
-    navigate(`/volunteer-map?inquiryId=${inquiryId}`);
-  };
+    navigate(`/volunteer-map?inquiryId=${inquiryId}`)
+  }
+
   // Handle taking ownership of an unassigned report
   const handleTakeOwnership = async (inquiryId) => {
     if (!currentUser) {
-      showError('שגיאה: משתמש לא מחובר');
-      return;
+      alert("שגיאה: משתמש לא מחובר")
+      return
     }
 
     try {
-      await takeOwnership(inquiryId, currentUser.uid);
-      
+      await takeOwnership(inquiryId, currentUser.uid)
+
       // Update the local state to reflect the ownership change
-      setCalls(prevCalls => 
-        prevCalls.map(call => 
-          call.id === inquiryId 
-            ? { 
-                ...call, 
+      setCalls((prevCalls) =>
+        prevCalls.map((call) =>
+          call.id === inquiryId
+            ? {
+                ...call,
                 coordinatorId: currentUser.uid,
-                coordinatorName: currentUser.displayName || currentUser.email || 'רכז'
+                coordinatorName: currentUser.displayName || currentUser.email || "רכז",
               }
-            : call
-        )      );
-      
-      showSuccess('בעלות נלקחה בהצלחה!');
+            : call,
+        ),
+      )
+
+      alert("בעלות נלקחה בהצלחה!")
     } catch (error) {
-      console.error('Error taking ownership:', error);
+      console.error("Error taking ownership:", error)
       if (error.response?.status === 409) {
-        showWarning('הפנייה כבר שויכה לרכז אחר');
+        alert("הפנייה כבר שויכה לרכז אחר")
       } else {
-        showError('שגיאה בלקיחת בעלות על הפנייה');
+        alert("שגיאה בלקיחת בעלות על הפנייה")
       }
     }
-  };
+  }
 
   // Fetch volunteers for reassignment
   const fetchVolunteers = async () => {
-    if (volunteers.length > 0) return; // Already loaded
-    
-    setLoadingVolunteers(true);
+    if (volunteers.length > 0) return // Already loaded
+
+    setLoadingVolunteers(true)
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:3001'}/api/users`);
-      const allUsers = await response.json();      const volunteerList = allUsers.filter(user => user.userType === 2);
-      setVolunteers(volunteerList);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE || "http://localhost:3001"}/api/users`)
+      const allUsers = await response.json()
+      const volunteerList = allUsers.filter((user) => user.userType === 2)
+      setVolunteers(volunteerList)
     } catch (error) {
-      console.error('Error fetching volunteers:', error);
-      showError('שגיאה בטעינת רשימת המתנדבים');
+      console.error("Error fetching volunteers:", error)
+      alert("שגיאה בטעינת רשימת המתנדבים")
     } finally {
-      setLoadingVolunteers(false);
+      setLoadingVolunteers(false)
     }
-  };
+  }
 
   // Handle volunteer reassignment
   const handleReassignVolunteer = async (inquiryId, newVolunteerId) => {
-    if (!newVolunteerId) return;
-    
+    if (!newVolunteerId) return
+
     try {
-      await reassignVolunteer(inquiryId, newVolunteerId);
-      
+      await reassignVolunteer(inquiryId, newVolunteerId)
+
       // Find the new volunteer's name
-      const newVolunteer = volunteers.find(v => v.id === newVolunteerId);
-      const newVolunteerName = newVolunteer ? (newVolunteer.name || `${newVolunteer.firstName} ${newVolunteer.lastName}`) : 'מתנדב';
-      
+      const newVolunteer = volunteers.find((v) => v.id === newVolunteerId)
+      const newVolunteerName = newVolunteer
+        ? newVolunteer.name || `${newVolunteer.firstName} ${newVolunteer.lastName}`
+        : "מתנדב"
+
       // Update the local state
-      setCalls(prevCalls =>
-        prevCalls.map(call =>
+      setCalls((prevCalls) =>
+        prevCalls.map((call) =>
           call.id === inquiryId
             ? {
                 ...call,
                 assignedVolunteers: newVolunteerId,
                 assignedVolunteerName: newVolunteerName,
-                status: 'לפנייה שובץ מתנדב'
-              }            : call
-        )
-      );
-      
-      showSuccess('המתנדב הוחלף בהצלחה!');
+                status: "לפנייה שובץ מתנדב",
+              }
+            : call,
+        ),
+      )
+
+      alert("המתנדב הוחלף בהצלחה!")
     } catch (error) {
-      console.error('Error reassigning volunteer:', error);
-      showError('שגיאה בהחלפת המתנדב');
+      console.error("Error reassigning volunteer:", error)
+      alert("שגיאה בהחלפת המתנדב")
     }
-  };
+  }
+
   // ───────────────────────────── Generate feedback link handler
-  const handleGenerateFeedbackLink = async (inquiryId) => {
-    const baseUrl = window.location.origin;
-    const feedbackLink = `${baseUrl}/feedback?inquiryId=${inquiryId}`;
-    
-    const confirmed = await showConfirmDialog({
-      title: 'פתיחת קישור משוב',
-      message: `הקישור למשוב יפתח בחלון חדש. ניתן להעתיק ולשלוח לפונה.\n\n${feedbackLink}`,
-      confirmText: 'פתח קישור',
-      cancelText: 'ביטול',
-      severity: 'info',
-    });
-    
-    if (confirmed) {
-      window.open(feedbackLink, '_blank');
-      showInfo('הקישור למשוב נפתח בחלון חדש');
-    }
-  };
+  const handleGenerateFeedbackLink = (inquiryId) => {
+    const baseUrl = window.location.origin
+    const feedbackLink = `${baseUrl}/feedback?inquiryId=${inquiryId}`
+    window.open(feedbackLink, "_blank")
+    alert(`קישור למשוב נוצר ונפתח בחלון חדש:\n${feedbackLink}\nניתן להעתיק ולשלוח לפונה.`)
+  }
+
   // ───────────────────────────── Helper for CSV export
   const exportToCsv = (data, filename) => {
     if (data.length === 0) {
-      showWarning('אין נתונים להפקת דוח בקריטריונים הנוכחיים.');
-      return;
+      alert("אין נתונים להפקת דוח בקריטריונים הנוכחיים.")
+      return
     }
-    
     const headers = [
-      'מס\' פניה', 'שם מלא פונה', 'טלפון פונה', 'עיר', 'כתובת', 'הערות',
-      'תאריך דיווח', 'סטטוס', 'סיבת סגירה', 'שם מתנדב משובץ', 'שם רכז'
-    ];
-    
+      "מס' פניה",
+      "שם מלא פונה",
+      "טלפון פונה",
+      "עיר",
+      "כתובת",
+      "הערות",
+      "תאריך דיווח",
+      "סטטוס",
+      "סיבת סגירה",
+      "שם מתנדב משובץ",
+      "שם רכז",
+    ]
     const rows = data.map((call, index) => {
       // Use the helper function to handle timestamps consistently
-      const dateString = formatDateForDisplay(call.timestamp, call.date, call.time);
-      
+      const dateString = formatDateForDisplay(call.timestamp, call.date, call.time)
+
       return [
         index + 1, // Sequential number instead of hash ID
         call.fullName,
         call.phoneNumber,
-        call.city || '',
+        call.city || "",
         call.address,
         call.additionalDetails,
         dateString,
         call.status,
-        call.closureReason || '',
-        call.assignedVolunteerName || '-',
-        call.coordinatorName || '',
-      ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
-    });
+        call.closureReason || "",
+        call.assignedVolunteerName || "-",
+        call.coordinatorName || "",
+      ]
+        .map((field) => `"${String(field).replace(/"/g, '""')}"`)
+        .join(",")
+    })
 
-    const csvContent = headers.map(h => `"${h}"`).join(',') + '\n' + rows.join('\n');
+    const csvContent = headers.map((h) => `"${h}"`).join(",") + "\n" + rows.join("\n")
 
-    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
     if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);      link.click();
-      document.body.removeChild(link);
-      showSuccess('דוח הופק בהצלחה!');
+      const url = URL.createObjectURL(blob)
+      link.setAttribute("href", url)
+      link.setAttribute("download", filename)
+      link.style.visibility = "hidden"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      alert("דוח הופק בהצלחה!")
     }
-  };
+  }
 
   // ───────────────────────────── Export Feedback Report
   const handleExportFeedback = async () => {
     try {
-      setLoading(true);
-      const feedbackSnap = await getDocs(collection(db, 'feedback'));
+      setLoading(true)
+      const feedbackSnap = await getDocs(collection(db, "feedback"))
       const feedbackData = feedbackSnap.docs.map((d) => {
-        const data = d.data();
+        const data = d.data()
         return {
           id: d.id,
-          inquiryId: data.inquiryId || '',
-          fullName: data.fullName || '',
-          phoneNumber: data.phoneNumber || '',
-          volunteerName: data.volunteerName || '',
+          inquiryId: data.inquiryId || "",
+          fullName: data.fullName || "",
+          phoneNumber: data.phoneNumber || "",
+          volunteerName: data.volunteerName || "",
           rating: data.rating || 0,
-          comments: data.comments || '',
+          comments: data.comments || "",
           timestamp: formatDateForDisplay(data.timestamp),
-        };
-      });      if (feedbackData.length === 0) {
-        showWarning('אין נתוני משוב להפקת דוח.');
-        setLoading(false);
-        return;
-      }const headers = [
-        'מס\' קריאה', 'שם מלא', 'מספר טלפון',
-        'שם מתנדב', 'דירוג', 'הערות', 'תאריך ושעת משוב'
-      ];
+        }
+      })
 
-      const rows = feedbackData.map((row, index) => [
-        index + 1, row.fullName, row.phoneNumber,
-        row.volunteerName, row.rating, row.comments, row.timestamp
-      ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','));
+      if (feedbackData.length === 0) {
+        alert("אין נתוני משוב להפקת דוח.")
+        setLoading(false)
+        return
+      }
+      const headers = ["מס' קריאה", "שם מלא", "מספר טלפון", "שם מתנדב", "דירוג", "הערות", "תאריך ושעת משוב"]
 
-      const csvContent = headers.map(h => `"${h}"`).join(',') + '\n' + rows.join('\n');
+      const rows = feedbackData.map((row, index) =>
+        [index + 1, row.fullName, row.phoneNumber, row.volunteerName, row.rating, row.comments, row.timestamp]
+          .map((field) => `"${String(field).replace(/"/g, '""')}"`)
+          .join(","),
+      )
 
-      const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
+      const csvContent = headers.map((h) => `"${h}"`).join(",") + "\n" + rows.join("\n")
+
+      const blob = new Blob([`\uFEFF${csvContent}`], { type: "text/csv;charset=utf-8;" })
+      const link = document.createElement("a")
       if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `feedback_report_${new Date().toISOString().slice(0, 10)}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);        link.click();
-        document.body.removeChild(link);
-        showSuccess('דוח משובים הופק בהצלחה!');
-      }    } catch (err) {
-      console.error('Error exporting feedback:', err);
-      showError('שגיאה בהפקת דוח משובים.');
+        const url = URL.createObjectURL(blob)
+        link.setAttribute("href", url)
+        link.setAttribute("download", `feedback_report_${new Date().toISOString().slice(0, 10)}.csv`)
+        link.style.visibility = "hidden"
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        alert("דוח משובים הופק בהצלחה!")
+      }
+    } catch (err) {
+      console.error("Error exporting feedback:", err)
+      setError("שגיאה בהפקת דוח משובים.")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
-
+  }
 
   // ───────────────────────────── Specific Export functions for filtered data
   const handleExportVolunteerReport = () => {
-    let dataToExport = calls;
-    let reportName = 'כל_המתנדבים';
+    let dataToExport = calls
+    let reportName = "כל_המתנדבים"
 
     if (filterVolunteer) {
-      dataToExport = calls.filter(call => call.assignedVolunteerName === filterVolunteer);
-      reportName = filterVolunteer.replace(/ /g, '_');
+      dataToExport = calls.filter((call) => call.assignedVolunteerName === filterVolunteer)
+      reportName = filterVolunteer.replace(/ /g, "_")
     }
 
-    const filename = `volunteer_report_${reportName}_${new Date().toISOString().slice(0, 10)}.csv`;
-    exportToCsv(dataToExport, filename);
-  };
+    const filename = `volunteer_report_${reportName}_${new Date().toISOString().slice(0, 10)}.csv`
+    exportToCsv(dataToExport, filename)
+  }
 
   const handleExportStatusReport = () => {
-    let dataToExport = calls;
-    let reportName = 'כל_הסטטוסים';
+    let dataToExport = calls
+    let reportName = "כל_הסטטוסים"
 
     if (filterStatus) {
-      dataToExport = calls.filter(call => call.status === filterStatus);
-      reportName = filterStatus.replace(/ /g, '_');
+      dataToExport = calls.filter((call) => call.status === filterStatus)
+      reportName = filterStatus.replace(/ /g, "_")
     }
 
-    const filename = `status_report_${reportName}_${new Date().toISOString().slice(0, 10)}.csv`;
-    exportToCsv(dataToExport, filename);
-  };
+    const filename = `status_report_${reportName}_${new Date().toISOString().slice(0, 10)}.csv`
+    exportToCsv(dataToExport, filename)
+  }
 
   const handleExportDateRangeReport = () => {
-    let dataToExport = calls;
-    let reportName = 'כל_התאריכים';
+    let dataToExport = calls
+    let reportName = "כל_התאריכים"
 
-    const currentYear = new Date().getFullYear();
-    const defaultStartDate = new Date(currentYear, 0, 1);
-    const defaultEndDate = new Date(currentYear, 11, 31);
+    const currentYear = new Date().getFullYear()
+    const defaultStartDate = new Date(currentYear, 0, 1)
+    const defaultEndDate = new Date(currentYear, 11, 31)
 
-    let actualStartDate = filterStartDate ? new Date(filterStartDate) : defaultStartDate;
-    let actualEndDate = filterEndDate ? new Date(filterEndDate) : defaultEndDate;
+    const actualStartDate = filterStartDate ? new Date(filterStartDate) : defaultStartDate
+    const actualEndDate = filterEndDate ? new Date(filterEndDate) : defaultEndDate
 
-    actualStartDate.setHours(0, 0, 0, 0);
-    actualEndDate.setHours(23, 59, 59, 999);    if (filterStartDate || filterEndDate) {      dataToExport = calls.filter(call => {
+    actualStartDate.setHours(0, 0, 0, 0)
+    actualEndDate.setHours(23, 59, 59, 999)
+    if (filterStartDate || filterEndDate) {
+      dataToExport = calls.filter((call) => {
         // Use the helper function to handle timestamps consistently
-        const callDate = convertTimestamp(call.timestamp);
-        
-        let fallbackDate = null;
-        if (!callDate && call.date && call.time) {
-            try {
-                const [day, month, year] = call.date.split('.').map(Number);
-                const [hours, minutes] = call.time.split(':').map(Number);
-                fallbackDate = new Date(year, month - 1, day, hours, minutes);
-            } catch (e) {
-                console.warn("Could not parse date/time strings for filtering in export:", call.date, call.time, e);
-            }
-        }
-        const effectiveCallDate = callDate || fallbackDate;
-        if (!effectiveCallDate) return false;
+        const callDate = convertTimestamp(call.timestamp)
 
-        return effectiveCallDate >= actualStartDate && effectiveCallDate <= actualEndDate;
-      });
-      reportName = `${filterStartDate || 'תחילה'}_${filterEndDate || 'סוף'}`;    } else {
-      dataToExport = calls.filter(call => {
-        // Handle timestamp properly - could be Firestore Timestamp, ISO string, or undefined
-        let callDate = null;
-        if (call.timestamp) {
-          if (typeof call.timestamp?.toDate === 'function') {
-            // Firestore Timestamp object
-            callDate = call.timestamp.toDate();
-          } else if (typeof call.timestamp === 'string' || call.timestamp instanceof Date) {
-            // ISO string or Date object
-            callDate = new Date(call.timestamp);
+        let fallbackDate = null
+        if (!callDate && call.date && call.time) {
+          try {
+            const [day, month, year] = call.date.split(".").map(Number)
+            const [hours, minutes] = call.time.split(":").map(Number)
+            fallbackDate = new Date(year, month - 1, day, hours, minutes)
+          } catch (e) {
+            console.warn("Could not parse date/time strings for filtering in export:", call.date, call.time, e)
           }
         }
-        
-        let fallbackDate = null;
-        if (!callDate && call.date && call.time) {
-            try {
-                const [day, month, year] = call.date.split('.').map(Number);
-                const [hours, minutes] = call.time.split(':').map(Number);
-                fallbackDate = new Date(year, month - 1, day, hours, minutes);
-            } catch (e) {
-                console.warn("Could not parse date/time strings for filtering in export (default):", call.date, call.time, e);
-            }
-        }
-        const effectiveCallDate = callDate || fallbackDate;
-        if (!effectiveCallDate) return false;
+        const effectiveCallDate = callDate || fallbackDate
+        if (!effectiveCallDate) return false
 
-        return effectiveCallDate >= defaultStartDate && effectiveCallDate <= defaultEndDate;
-      });
+        return effectiveCallDate >= actualStartDate && effectiveCallDate <= actualEndDate
+      })
+      reportName = `${filterStartDate || "תחילה"}_${filterEndDate || "סוף"}`
+    } else {
+      dataToExport = calls.filter((call) => {
+        // Handle timestamp properly - could be Firestore Timestamp, ISO string, or undefined
+        let callDate = null
+        if (call.timestamp) {
+          if (typeof call.timestamp?.toDate === "function") {
+            // Firestore Timestamp object
+            callDate = call.timestamp.toDate()
+          } else if (typeof call.timestamp === "string" || call.timestamp instanceof Date) {
+            // ISO string or Date object
+            callDate = new Date(call.timestamp)
+          }
+        }
+
+        let fallbackDate = null
+        if (!callDate && call.date && call.time) {
+          try {
+            const [day, month, year] = call.date.split(".").map(Number)
+            const [hours, minutes] = call.time.split(":").map(Number)
+            fallbackDate = new Date(year, month - 1, day, hours, minutes)
+          } catch (e) {
+            console.warn(
+              "Could not parse date/time strings for filtering in export (default):",
+              call.date,
+              call.time,
+              e,
+            )
+          }
+        }
+        const effectiveCallDate = callDate || fallbackDate
+        if (!effectiveCallDate) return false
+
+        return effectiveCallDate >= defaultStartDate && effectiveCallDate <= defaultEndDate
+      })
     }
 
-    const filename = `date_range_report_${reportName.replace(/ /g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
-    exportToCsv(dataToExport, filename);
-  };
-
+    const filename = `date_range_report_${reportName.replace(/ /g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`
+    exportToCsv(dataToExport, filename)
+  }
 
   // ───────────────────────────── ui
-  if (authLoading || loading) return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '60vh',
-      fontSize: '1.1em',
-      color: '#666'
-    }}>      <div style={{
-        padding: '40px',
-        textAlign: 'center',
-        background: '#f8f9fa',
-        borderRadius: '12px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
-      }}>
-        טוען נתונים...
+  if (authLoading || loading)
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "60vh",
+          fontSize: "1.1em",
+          color: "#666",
+        }}
+      >
+        <div
+          style={{
+            padding: "40px",
+            textAlign: "center",
+            background: "#f8f9fa",
+            borderRadius: "12px",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+          }}
+        >
+          טוען נתונים...
+        </div>
       </div>
-    </div>
-  );
+    )
 
-  // ────────────────────────────────────────────────── Main Dashboard JSX
-  
-  if (!currentUser) return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '60vh'
-    }}>
-      <div style={{
-        padding: '40px',
-        textAlign: 'center',
-        background: '#fff5f5',
-        borderRadius: '12px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-        border: '1px solid #fed7d7',
-        color: '#e53e3e'
-      }}>
-        אנא התחבר כדי לגשת ללוח המחוונים.
+  if (error)
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "60vh",
+        }}
+      >
+        <div
+          style={{
+            padding: "40px",
+            textAlign: "center",
+            background: "#fff5f5",
+            borderRadius: "12px",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+            border: "1px solid #fed7d7",
+            color: "#e53e3e",
+          }}
+        >
+          שגיאה: {error}
+        </div>
       </div>
-    </div>
-  );
+    )
 
+  if (!currentUser)
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "60vh",
+        }}
+      >
+        <div
+          style={{
+            padding: "40px",
+            textAlign: "center",
+            background: "#fff5f5",
+            borderRadius: "12px",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+            border: "1px solid #fed7d7",
+            color: "#e53e3e",
+          }}
+        >
+          אנא התחבר כדי לגשת ללוח המחוונים.
+        </div>
+      </div>
+    )
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-      padding: '20px 0'
-    }}>
-      <div style={{
-        maxWidth: '1400px',
-        margin: '0 auto',
-        padding: '0 20px'
-      }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-          overflow: 'hidden'
-        }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+        padding: "20px 0",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "1400px",
+          margin: "0 auto",
+          padding: "0 20px",
+        }}
+      >
+        <div
+          style={{
+            background: "white",
+            borderRadius: "16px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
+            overflow: "hidden",
+          }}
+        >
           {/* Header Section */}
-          <div style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            padding: '40px 30px',
-            textAlign: 'center'
-          }}>
-            <h1 style={{
-              margin: '0 0 10px 0',
-              fontSize: '2.5em',
-              fontWeight: '700',
-              textShadow: '0 2px 4px rgba(0,0,0,0.2)'
-            }}>
+          <div
+            style={{
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              color: "white",
+              padding: "40px 30px",
+              textAlign: "center",
+            }}
+          >
+            <h1
+              style={{
+                margin: "0 0 10px 0",
+                fontSize: "2.5em",
+                fontWeight: "700",
+                textShadow: "0 2px 4px rgba(0,0,0,0.2)",
+              }}
+            >
               ניהול קריאות נחילים
             </h1>
-            <div style={{
-              fontSize: '1.1em',
-              opacity: '0.9',
-              fontWeight: '400'
-            }}>
+            <div
+              style={{
+                fontSize: "1.1em",
+                opacity: "0.9",
+                fontWeight: "400",
+              }}
+            >
               מערכת ניהול פניות ומעקב אחר מתנדבים
             </div>
           </div>
-
-          <div style={{ padding: '30px' }}>
+          <div style={{ padding: "30px" }}>
             {/* Coordinator Report Link Section */}
             {userRole === 1 && (
-              <div style={{
-                marginBottom: '40px',
-                textAlign: 'center',
-                padding: '25px',
-                background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
-                borderRadius: '12px',
-                border: '1px solid #e1f5fe'
-              }}>                <div style={{
-                  marginBottom: '20px',
-                  fontSize: '1.1em',
-                  color: '#1565c0',
-                  fontWeight: '600'
-                }}>
+              <div
+                style={{
+                  marginBottom: "40px",
+                  textAlign: "center",
+                  padding: "25px",
+                  background: "linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)",
+                  borderRadius: "12px",
+                  border: "1px solid #e1f5fe",
+                }}
+              >
+                {" "}
+                <div
+                  style={{
+                    marginBottom: "20px",
+                    fontSize: "1.1em",
+                    color: "#1565c0",
+                    fontWeight: "600",
+                  }}
+                >
                   קישורים לניהול המערכת
                 </div>
-                <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: "flex", gap: "15px", justifyContent: "center", flexWrap: "wrap" }}>
                   <button
                     onClick={copyReportLink}
                     style={{
-                      background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
-                      color: 'white',
-                      padding: '15px 30px',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '1.1em',
-                      fontWeight: '600',
-                      boxShadow: '0 4px 15px rgba(0,123,255,0.3)',
-                      transition: 'all 0.3s ease',
-                      transform: 'translateY(0)'
+                      background: "linear-gradient(135deg, #007bff 0%, #0056b3 100%)",
+                      color: "white",
+                      padding: "15px 30px",
+                      border: "none",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      fontSize: "1.1em",
+                      fontWeight: "600",
+                      boxShadow: "0 4px 15px rgba(0,123,255,0.3)",
+                      transition: "all 0.3s ease",
+                      transform: "translateY(0)",
                     }}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,123,255,0.4)';
+                      e.currentTarget.style.transform = "translateY(-2px)"
+                      e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,123,255,0.4)"
                     }}
                     onMouseOut={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,123,255,0.3)';
+                      e.currentTarget.style.transform = "translateY(0)"
+                      e.currentTarget.style.boxShadow = "0 4px 15px rgba(0,123,255,0.3)"
                     }}
                   >
                     📋 העתק קישור לדיווח
@@ -773,110 +878,121 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
             )}
 
             {/* Filters Section */}
-            <div style={{
-              marginBottom: '30px',
-              padding: '30px',
-              background: '#f8f9fa',
-              borderRadius: '12px',
-              border: '1px solid #e9ecef'
-            }}>
-              <h3 style={{
-                margin: '0 0 25px 0',
-                color: '#495057',
-                fontSize: '1.3em',
-                fontWeight: '600',
-                textAlign: 'right',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
+            <div
+              style={{
+                marginBottom: "30px",
+                padding: "30px",
+                background: "#f8f9fa",
+                borderRadius: "12px",
+                border: "1px solid #e9ecef",
+              }}
+            >
+              <h3
+                style={{
+                  margin: "0 0 25px 0",
+                  color: "#495057",
+                  fontSize: "1.3em",
+                  fontWeight: "600",
+                  textAlign: "right",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 🔍 סינון נתונים
                 {isMobileView && (
                   <button
                     onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      fontSize: '1.5em',
-                      cursor: 'pointer',
-                      color: '#495057',
-                      transition: 'transform 0.3s ease',
-                      transform: isMobileFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)'
+                      background: "none",
+                      border: "none",
+                      fontSize: "1.5em",
+                      cursor: "pointer",
+                      color: "#495057",
+                      transition: "transform 0.3s ease",
+                      transform: isMobileFilterOpen ? "rotate(180deg)" : "rotate(0deg)",
                     }}
                   >
-                    {isMobileFilterOpen ? '▲' : '▼'}
+                    {isMobileFilterOpen ? "▲" : "▼"}
                   </button>
                 )}
               </h3>
-              
               {(isMobileFilterOpen || !isMobileView) && ( // Render only if open or not mobile
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                  gap: '20px',
-                  direction: 'rtl'
-                }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                    gap: "20px",
+                    direction: "rtl",
+                  }}
+                >
                   <div>
-                    <label style={{
-                      display: 'block',
-                      marginBottom: '8px',
-                      fontWeight: '600',
-                      color: '#495057',
-                      fontSize: '0.95em'
-                    }}>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "8px",
+                        fontWeight: "600",
+                        color: "#495057",
+                        fontSize: "0.95em",
+                      }}
+                    >
                       פילטר מתנדב:
                     </label>
                     <select
                       value={filterVolunteer}
                       onChange={handleVolunteerFilterChange}
                       style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        borderRadius: '8px',
-                        border: '2px solid #e9ecef',
-                        fontSize: '1em',
-                        background: 'white',
-                        transition: 'border-color 0.3s ease',
-                        cursor: 'pointer'
+                        width: "100%",
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "2px solid #e9ecef",
+                        fontSize: "1em",
+                        background: "white",
+                        transition: "border-color 0.3s ease",
+                        cursor: "pointer",
                       }}
-                      onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
-                      onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
+                      onFocus={(e) => (e.currentTarget.style.borderColor = "#007bff")}
+                      onBlur={(e) => (e.currentTarget.style.borderColor = "#e9ecef")}
                     >
                       <option value="">כל המתנדבים</option>
-                      {uniqueVolunteerNames.map(name => (
-                        <option key={name} value={name}>{name}</option>
+                      {uniqueVolunteerNames.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label style={{
-                      display: 'block',
-                      marginBottom: '8px',
-                      fontWeight: '600',
-                      color: '#495057',
-                      fontSize: '0.95em'
-                    }}>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "8px",
+                        fontWeight: "600",
+                        color: "#495057",
+                        fontSize: "0.95em",
+                      }}
+                    >
                       פילטר סטטוס:
                     </label>
                     <select
                       value={filterStatus}
                       onChange={handleStatusFilterChange}
                       style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        borderRadius: '8px',
-                        border: '2px solid #e9ecef',
-                        fontSize: '1em',
-                        background: 'white',
-                        transition: 'border-color 0.3s ease',
-                        cursor: 'pointer'
+                        width: "100%",
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "2px solid #e9ecef",
+                        fontSize: "1em",
+                        background: "white",
+                        transition: "border-color 0.3s ease",
+                        cursor: "pointer",
                       }}
-                      onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
-                      onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
+                      onFocus={(e) => (e.currentTarget.style.borderColor = "#007bff")}
+                      onBlur={(e) => (e.currentTarget.style.borderColor = "#e9ecef")}
                     >
                       <option value="">כל הסטטוסים</option>
-                      {statusOptions.map(status => (
+                      {statusOptions.map((status) => (
                         <option key={status} value={status}>
                           {status}
                         </option>
@@ -885,13 +1001,15 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
                   </div>
 
                   <div>
-                    <label style={{
-                      display: 'block',
-                      marginBottom: '8px',
-                      fontWeight: '600',
-                      color: '#495057',
-                      fontSize: '0.95em'
-                    }}>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "8px",
+                        fontWeight: "600",
+                        color: "#495057",
+                        fontSize: "0.95em",
+                      }}
+                    >
                       מתאריך:
                     </label>
                     <input
@@ -899,28 +1017,30 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
                       value={filterStartDate}
                       onChange={handleStartDateFilterChange}
                       style={{
-                        width: '85%',
-                        padding: '12px 16px',
-                        borderRadius: '8px',
-                        border: '2px solid #e9ecef',
-                        fontSize: '1em',
-                        background: 'white',
-                        transition: 'border-color 0.3s ease',
-                        cursor: 'pointer'
+                        width: "85%",
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "2px solid #e9ecef",
+                        fontSize: "1em",
+                        background: "white",
+                        transition: "border-color 0.3s ease",
+                        cursor: "pointer",
                       }}
-                      onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
-                      onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
+                      onFocus={(e) => (e.currentTarget.style.borderColor = "#007bff")}
+                      onBlur={(e) => (e.currentTarget.style.borderColor = "#e9ecef")}
                     />
                   </div>
 
                   <div>
-                    <label style={{
-                      display: 'block',
-                      marginBottom: '8px',
-                      fontWeight: '600',
-                      color: '#495057',
-                      fontSize: '0.95em'
-                    }}>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "8px",
+                        fontWeight: "600",
+                        color: "#495057",
+                        fontSize: "0.95em",
+                      }}
+                    >
                       עד תאריך:
                     </label>
                     <input
@@ -928,71 +1048,77 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
                       value={filterEndDate}
                       onChange={handleEndDateFilterChange}
                       style={{
-                        width: '85%',
-                        padding: '12px 16px',
-                        borderRadius: '8px',
-                        border: '2px solid #e9ecef',
-                        fontSize: '1em',
-                        background: 'white',
-                        transition: 'border-color 0.3s ease',
-                        cursor: 'pointer'
-                      }}                      onFocus={(e) => e.currentTarget.style.borderColor = '#007bff'}
-                      onBlur={(e) => e.currentTarget.style.borderColor = '#e9ecef'}
+                        width: "85%",
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "2px solid #e9ecef",
+                        fontSize: "1em",
+                        background: "white",
+                        transition: "border-color 0.3s ease",
+                        cursor: "pointer",
+                      }}
+                      onFocus={(e) => (e.currentTarget.style.borderColor = "#007bff")}
+                      onBlur={(e) => (e.currentTarget.style.borderColor = "#e9ecef")}
                     />
                   </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'end' }}>
+
+                  <div style={{ display: "flex", alignItems: "end" }}>
                     <button
                       onClick={handleClearAllFilters}
                       style={{
-                        background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
-                        color: 'white',
-                        padding: '12px 20px',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontSize: '0.95em',
-                        fontWeight: '600',
-                        boxShadow: '0 3px 10px rgba(108,117,125,0.2)',
-                        transition: 'all 0.3s ease',
-                        whiteSpace: 'nowrap'
+                        background: "linear-gradient(135deg, #6c757d 0%, #495057 100%)",
+                        color: "white",
+                        padding: "12px 20px",
+                        border: "none",
+                        borderRadius: "8px",
+                        cursor: "pointer",
+                        fontSize: "0.95em",
+                        fontWeight: "600",
+                        boxShadow: "0 3px 10px rgba(108,117,125,0.2)",
+                        transition: "all 0.3s ease",
+                        whiteSpace: "nowrap",
                       }}
-                      onMouseOver={(e) => { 
-                        e.currentTarget.style.transform = 'translateY(-2px)'; 
-                        e.currentTarget.style.boxShadow = '0 5px 15px rgba(108,117,125,0.3)'; 
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.transform = "translateY(-2px)"
+                        e.currentTarget.style.boxShadow = "0 5px 15px rgba(108,117,125,0.3)"
                       }}
-                      onMouseOut={(e) => { 
-                        e.currentTarget.style.transform = 'translateY(0)'; 
-                        e.currentTarget.style.boxShadow = '0 3px 10px rgba(108,117,125,0.2)'; 
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.transform = "translateY(0)"
+                        e.currentTarget.style.boxShadow = "0 3px 10px rgba(108,117,125,0.2)"
                       }}
                     >
                       🗑️ נקה פילטרים
                     </button>
                   </div>
                 </div>
-              )} {/* End conditional rendering for filters */}
+              )}{" "}
+              {/* End conditional rendering for filters */}
             </div>
 
             {/* Export Buttons Section */}
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '15px',
-              marginBottom: '40px',
-              justifyContent: 'center',
-              padding: '25px',
-              background: '#e8f5e9',
-              borderRadius: '12px',
-              border: '1px solid #c8e6c9'
-            }}>
-              <h3 style={{
-                width: '100%',
-                margin: '0 0 20px 0',
-                color: '#2e7d32',
-                fontSize: '1.2em',
-                fontWeight: '600',
-                textAlign: 'center'
-              }}>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "15px",
+                marginBottom: "40px",
+                justifyContent: "center",
+                padding: "25px",
+                background: "#e8f5e9",
+                borderRadius: "12px",
+                border: "1px solid #c8e6c9",
+              }}
+            >
+              <h3
+                style={{
+                  width: "100%",
+                  margin: "0 0 20px 0",
+                  color: "#2e7d32",
+                  fontSize: "1.2em",
+                  fontWeight: "600",
+                  textAlign: "center",
+                }}
+              >
                 📊 הפקת דוחות
               </h3>
 
@@ -1000,21 +1126,27 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
                 onClick={handleExportFeedback}
                 disabled={loading}
                 style={{
-                  background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
-                  color: 'white',
-                  padding: '12px 25px',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '1em',
-                  fontWeight: '600',
-                  boxShadow: '0 3px 10px rgba(0,123,255,0.2)',
-                  transition: 'all 0.3s ease',
-                  flex: '1 1 auto',
-                  minWidth: '150px'
+                  background: "linear-gradient(135deg, #007bff 0%, #0056b3 100%)",
+                  color: "white",
+                  padding: "12px 25px",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "1em",
+                  fontWeight: "600",
+                  boxShadow: "0 3px 10px rgba(0,123,255,0.2)",
+                  transition: "all 0.3s ease",
+                  flex: "1 1 auto",
+                  minWidth: "150px",
                 }}
-                onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 5px 15px rgba(0,123,255,0.3)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 3px 10px rgba(0,123,255,0.2)'; }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)"
+                  e.currentTarget.style.boxShadow = "0 5px 15px rgba(0,123,255,0.3)"
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)"
+                  e.currentTarget.style.boxShadow = "0 3px 10px rgba(0,123,255,0.2)"
+                }}
               >
                 דוח משובים
               </button>
@@ -1023,21 +1155,27 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
                 onClick={handleExportVolunteerReport}
                 disabled={loading}
                 style={{
-                  background: 'linear-gradient(135deg, #4CAF50 0%, #388E3C 100%)',
-                  color: 'white',
-                  padding: '12px 25px',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '1em',
-                  fontWeight: '600',
-                  boxShadow: '0 3px 10px rgba(76,175,80,0.2)',
-                  transition: 'all 0.3s ease',
-                  flex: '1 1 auto',
-                  minWidth: '150px'
+                  background: "linear-gradient(135deg, #4CAF50 0%, #388E3C 100%)",
+                  color: "white",
+                  padding: "12px 25px",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "1em",
+                  fontWeight: "600",
+                  boxShadow: "0 3px 10px rgba(76,175,80,0.2)",
+                  transition: "all 0.3s ease",
+                  flex: "1 1 auto",
+                  minWidth: "150px",
                 }}
-                onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 5px 15px rgba(76,175,80,0.3)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 3px 10px rgba(76,175,80,0.2)'; }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)"
+                  e.currentTarget.style.boxShadow = "0 5px 15px rgba(76,175,80,0.3)"
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)"
+                  e.currentTarget.style.boxShadow = "0 3px 10px rgba(76,175,80,0.2)"
+                }}
               >
                 דוח מתנדב
               </button>
@@ -1046,21 +1184,27 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
                 onClick={handleExportStatusReport}
                 disabled={loading}
                 style={{
-                  background: 'linear-gradient(135deg, #FFC107 0%, #FFA000 100%)',
-                  color: '#333',
-                  padding: '12px 25px',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '1em',
-                  fontWeight: '600',
-                  boxShadow: '0 3px 10px rgba(255,193,7,0.2)',
-                  transition: 'all 0.3s ease',
-                  flex: '1 1 auto',
-                  minWidth: '150px'
+                  background: "linear-gradient(135deg, #FFC107 0%, #FFA000 100%)",
+                  color: "#333",
+                  padding: "12px 25px",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "1em",
+                  fontWeight: "600",
+                  boxShadow: "0 3px 10px rgba(255,193,7,0.2)",
+                  transition: "all 0.3s ease",
+                  flex: "1 1 auto",
+                  minWidth: "150px",
                 }}
-                onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 5px 15px rgba(255,193,7,0.3)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 3px 10px rgba(255,193,7,0.2)'; }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)"
+                  e.currentTarget.style.boxShadow = "0 5px 15px rgba(255,193,7,0.3)"
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)"
+                  e.currentTarget.style.boxShadow = "0 3px 10px rgba(255,193,7,0.2)"
+                }}
               >
                 דוח סטטוס
               </button>
@@ -1069,55 +1213,70 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
                 onClick={handleExportDateRangeReport}
                 disabled={loading}
                 style={{
-                  background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
-                  color: 'white',
-                  padding: '12px 25px',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '1em',
-                  fontWeight: '600',
-                  boxShadow: '0 3px 10px rgba(108,117,125,0.2)',
-                  transition: 'all 0.3s ease',
-                  flex: '1 1 auto',
-                  minWidth: '150px'
+                  background: "linear-gradient(135deg, #6c757d 0%, #495057 100%)",
+                  color: "white",
+                  padding: "12px 25px",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "1em",
+                  fontWeight: "600",
+                  boxShadow: "0 3px 10px rgba(108,117,125,0.2)",
+                  transition: "all 0.3s ease",
+                  flex: "1 1 auto",
+                  minWidth: "150px",
                 }}
-                onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 5px 15px rgba(108,117,125,0.3)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 3px 10px rgba(108,117,125,0.2)'; }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)"
+                  e.currentTarget.style.boxShadow = "0 5px 15px rgba(108,117,125,0.3)"
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)"
+                  e.currentTarget.style.boxShadow = "0 3px 10px rgba(108,117,125,0.2)"
+                }}
               >
                 דוח תאריכים
               </button>
             </div>
 
             {/* Table Section */}
-            <div style={{ overflowX: 'auto', marginBottom: '30px' }}>
-              <table style={{
-                width: '100%',
-                borderCollapse: 'separate',
-                borderSpacing: '0',
-                borderRadius: '12px',
-                overflow: 'hidden',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                direction: 'rtl'
-              }}>
+            <div style={{ overflowX: "auto", marginBottom: "30px" }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "separate",
+                  borderSpacing: "0",
+                  borderRadius: "12px",
+                  overflow: "hidden",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                  direction: "rtl",
+                }}
+              >
                 <thead>
-                  <tr style={{ background: '#f0f4f7' }}>
+                  <tr style={{ background: "#f0f4f7" }}>
                     {[
-                      'שם מלא', 'טלפון', 'עיר', 'כתובת', 'הערות', 'תאריך דיווח',
-                      'סטטוס', 'סיבת סגירה', 'מתנדב משובץ', 'רכז מטפל', 'פעולות',
+                      "שם מלא",
+                      "כתובת מלאה",
+                      "פרטים מלאים",
+                      "תאריך דיווח",
+                      "סטטוס",
+                      "סיבת סגירה",
+                      "מתנדב משובץ",
+                      "רכז מטפל",
+                      "פעולות",
                     ].map((h) => (
                       <th
                         key={h}
                         style={{
-                          padding: '15px 25px',
-                          textAlign: 'right',
-                          borderBottom: '2px solid #dae1e8',
-                          fontWeight: '700',
-                          color: '#34495e',
-                          backgroundColor: '#eef4f9',
-                          position: 'sticky',
+                          padding: "15px 25px",
+                          textAlign: "right",
+                          borderBottom: "2px solid #dae1e8",
+                          fontWeight: "700",
+                          color: "#34495e",
+                          backgroundColor: "#eef4f9",
+                          position: "sticky",
                           top: 0,
-                          zIndex: 1
+                          zIndex: 1,
                         }}
                       >
                         {h}
@@ -1128,41 +1287,81 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
 
                 <tbody>
                   {paginatedCalls.map((call, index) => {
-                    const isUnassigned = !call.coordinatorId;
-                    const rowBg = isUnassigned ? '#fffaf0' : (index % 2 === 0 ? '#ffffff' : '#f9fcfd');
+                    const isUnassigned = !call.coordinatorId
+                    const rowBg = isUnassigned ? "#fffaf0" : index % 2 === 0 ? "#ffffff" : "#f9fcfd"
 
                     return (
                       <tr
                         key={call.id}
                         style={{
-                          borderBottom: '1px solid #eceff1',
+                          borderBottom: "1px solid #eceff1",
                           backgroundColor: rowBg,
-                          transition: 'background-color 0.3s ease'
+                          transition: "background-color 0.3s ease",
                         }}
-                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = isUnassigned ? '#ffe0b2' : '#e3f2fd'}
-                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = rowBg}
+                        onMouseOver={(e) =>
+                          (e.currentTarget.style.backgroundColor = isUnassigned ? "#ffe0b2" : "#e3f2fd")
+                        }
+                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = rowBg)}
                       >
                         {/* Keep all existing table cell content exactly the same */}
-                        <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>{call.fullName}</td>
-                        <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>{call.phoneNumber}</td>
-                        <td style={{ padding: '15px 25px' }}>{call.city || '-'}</td>
-                        <td style={{ padding: '15px 25px' }}>{call.address}</td>
-                        <td style={{ padding: '15px 25px', maxWidth: '250px', overflowWrap: 'break-word' }}>{call.additionalDetails || '-'}</td>                        <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>
-                          {formatDateForDisplay(call.timestamp, call.date, call.time)}
+                        <td style={{ padding: "15px 25px", whiteSpace: "nowrap" }}>{call.fullName}</td>
+                        <td style={{ padding: "15px 25px" }}>
+                          {`${call.city || ""} ${call.address || ""}`.trim() || "-"}
                         </td>
-
-                        <td style={{ padding: '15px 25px' }}>
+                        <td style={{ padding: "15px 25px", textAlign: "center" }}>
+                          <button
+                            onClick={() => handleOpenDetails(call)}
+                            style={{
+                              background: "linear-gradient(135deg, #6f42c1 0%, #5a2d91 100%)",
+                              color: "white",
+                              padding: "8px 12px",
+                              border: "none",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              fontSize: "0.9em",
+                              fontWeight: "600",
+                              boxShadow: "0 2px 8px rgba(111,66,193,0.2)",
+                              transition: "all 0.2s ease",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "5px",
+                              margin: "0 auto",
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.transform = "translateY(-1px)"
+                              e.currentTarget.style.boxShadow = "0 3px 10px rgba(111,66,193,0.3)"
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.transform = "translateY(0)"
+                              e.currentTarget.style.boxShadow = "0 2px 8px rgba(111,66,193,0.2)"
+                            }}
+                            title="לחץ לצפייה בפרטים המלאים"
+                          >
+                            📋 פרטים
+                          </button>
+                        </td>
+                        <td style={{ padding: "15px 25px", whiteSpace: "nowrap" }}>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+                            <div style={{ fontSize: "0.9em", fontWeight: "600" }}>
+                              {formatDateForDisplay(call.timestamp, call.date, call.time).split(" ")[0]}
+                            </div>
+                            <div style={{ fontSize: "0.8em", color: "#666" }}>
+                              {formatDateForDisplay(call.timestamp, call.date, call.time).split(" ")[1]}
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: "15px 25px" }}>
                           <select
-                            value={call.status || ''}
+                            value={call.status || ""}
                             onChange={(e) => handleStatusChange(call.id, e.target.value)}
                             style={{
-                              padding: '10px 15px',
-                              borderRadius: '6px',
-                              border: '1px solid #b0bec5',
-                              minWidth: '180px',
-                              backgroundColor: 'white',
-                              fontSize: '0.95em',
-                              cursor: 'pointer'
+                              padding: "10px 15px",
+                              borderRadius: "6px",
+                              border: "1px solid #b0bec5",
+                              minWidth: "180px",
+                              backgroundColor: "white",
+                              fontSize: "0.95em",
+                              cursor: "pointer",
                             }}
                           >
                             {statusOptions.map((o) => (
@@ -1172,22 +1371,19 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
                             ))}
                           </select>
                         </td>
-
-                        <td style={{ padding: '15px 25px' }}>
-                          {call.status === 'הפנייה נסגרה' && (
+                        <td style={{ padding: "15px 25px" }}>
+                          {call.status === "הפנייה נסגרה" && (
                             <select
-                              value={call.closureReason || ''}
-                              onChange={(e) =>
-                                handleClosureChange(call.id, e.target.value)
-                              }
+                              value={call.closureReason || ""}
+                              onChange={(e) => handleClosureChange(call.id, e.target.value)}
                               style={{
-                                padding: '10px 15px',
-                                borderRadius: '6px',
-                                border: '1px solid #b0bec5',
-                                minWidth: '180px',
-                                backgroundColor: 'white',
-                                fontSize: '0.95em',
-                                cursor: 'pointer'
+                                padding: "10px 15px",
+                                borderRadius: "6px",
+                                border: "1px solid #b0bec5",
+                                minWidth: "180px",
+                                backgroundColor: "white",
+                                fontSize: "0.95em",
+                                cursor: "pointer",
                               }}
                             >
                               <option value="">בחר סיבה</option>
@@ -1198,36 +1394,37 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
                               ))}
                             </select>
                           )}
-                        </td>                        <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>
-                          {call.assignedVolunteers && call.assignedVolunteers !== '-' ? (
-                            <div style={{ minWidth: '180px' }}>
-                              <div style={{ fontSize: '0.9em', marginBottom: '5px', color: '#666' }}>
+                        </td>{" "}
+                        <td style={{ padding: "15px 25px", whiteSpace: "nowrap" }}>
+                          {call.assignedVolunteers && call.assignedVolunteers !== "-" ? (
+                            <div style={{ minWidth: "180px" }}>
+                              <div style={{ fontSize: "0.9em", marginBottom: "5px", color: "#666" }}>
                                 נוכחי: {call.assignedVolunteerName}
                               </div>
                               <select
                                 value=""
                                 onChange={(e) => {
                                   if (e.target.value) {
-                                    handleReassignVolunteer(call.id, e.target.value);
-                                    e.target.value = ""; // Reset dropdown
+                                    handleReassignVolunteer(call.id, e.target.value)
+                                    e.target.value = "" // Reset dropdown
                                   }
                                 }}
                                 onFocus={fetchVolunteers}
                                 style={{
-                                  width: '100%',
-                                  padding: '8px 12px',
-                                  borderRadius: '6px',
-                                  border: '1px solid #b0bec5',
-                                  fontSize: '0.85em',
-                                  backgroundColor: 'white',
-                                  cursor: 'pointer'
+                                  width: "100%",
+                                  padding: "8px 12px",
+                                  borderRadius: "6px",
+                                  border: "1px solid #b0bec5",
+                                  fontSize: "0.85em",
+                                  backgroundColor: "white",
+                                  cursor: "pointer",
                                 }}
                                 disabled={loadingVolunteers}
                               >
                                 <option value="">החלף מתנדב...</option>
                                 {volunteers.map((volunteer) => (
-                                  <option 
-                                    key={volunteer.id} 
+                                  <option
+                                    key={volunteer.id}
                                     value={volunteer.id}
                                     disabled={volunteer.id === call.assignedVolunteers}
                                   >
@@ -1237,103 +1434,139 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
                               </select>
                             </div>
                           ) : (
-                            <span style={{ color: '#999', fontStyle: 'italic' }}>
-                              לא שובץ מתנדב
-                            </span>
+                            <span style={{ color: "#999", fontStyle: "italic" }}>לא שובץ מתנדב</span>
                           )}
                         </td>
-                        <td style={{ padding: '15px 25px', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: "15px 25px", whiteSpace: "nowrap" }}>
                           {isUnassigned ? (
-                            <span style={{ color: '#e67e22', fontStyle: 'italic', fontWeight: '500' }}>
+                            <span style={{ color: "#e67e22", fontStyle: "italic", fontWeight: "500" }}>
                               לא שויך לרכז
                             </span>
                           ) : (
                             call.coordinatorName
                           )}
                         </td>
-
-                        <td style={{ padding: '15px 25px', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
-                          {call.status === 'נפתחה פנייה (טופס מולא)' && (
+                        <td
+                          style={{
+                            padding: "15px 25px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "8px",
+                            alignItems: "flex-end",
+                          }}
+                        >
+                          {call.status === "נפתחה פנייה (טופס מולא)" && (
                             <button
                               onClick={() => handleAssignVolunteerClick(call.id)}
                               style={{
-                                background: 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
-                                color: '#fff',
-                                padding: '10px 18px',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontSize: '0.9em',
-                                fontWeight: '600',
-                                boxShadow: '0 2px 8px rgba(40,167,69,0.2)',
-                                transition: 'all 0.2s ease',
-                                width: 'fit-content'
+                                background: "linear-gradient(135deg, #28a745 0%, #218838 100%)",
+                                color: "#fff",
+                                padding: "10px 18px",
+                                border: "none",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontSize: "0.9em",
+                                fontWeight: "600",
+                                boxShadow: "0 2px 8px rgba(40,167,69,0.2)",
+                                transition: "all 0.2s ease",
+                                width: "fit-content",
                               }}
-                              onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 3px 10px rgba(40,167,69,0.3)'; }}
-                              onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(40,167,69,0.2)'; }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.transform = "translateY(-1px)"
+                                e.currentTarget.style.boxShadow = "0 3px 10px rgba(40,167,69,0.3)"
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.transform = "translateY(0)"
+                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(40,167,69,0.2)"
+                              }}
                             >
                               שבץ מתנדב
                             </button>
                           )}
 
-                          {call.status === 'הפנייה נסגרה' && (
+                          {call.status === "הפנייה נסגרה" && (
                             <button
                               onClick={() => handleGenerateFeedbackLink(call.id)}
                               style={{
-                                background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
-                                color: '#fff',
-                                padding: '10px 18px',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontSize: '0.9em',
-                                fontWeight: '600',
-                                boxShadow: '0 2px 8px rgba(23,162,184,0.2)',
-                                transition: 'all 0.2s ease',
-                                width: 'fit-content'
+                                background: "linear-gradient(135deg, #17a2b8 0%, #138496 100%)",
+                                color: "#fff",
+                                padding: "10px 18px",
+                                border: "none",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontSize: "0.9em",
+                                fontWeight: "600",
+                                boxShadow: "0 2px 8px rgba(23,162,184,0.2)",
+                                transition: "all 0.2s ease",
+                                width: "fit-content",
                               }}
-                              onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 3px 10px rgba(23,162,184,0.3)'; }}
-                              onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(23,162,184,0.2)'; }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.transform = "translateY(-1px)"
+                                e.currentTarget.style.boxShadow = "0 3px 10px rgba(23,162,184,0.3)"
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.transform = "translateY(0)"
+                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(23,162,184,0.2)"
+                              }}
                             >
                               צור קישור למשוב
                             </button>
                           )}
 
-                          {call.coordinatorId === null || call.coordinatorId === '' ? (
+                          {call.coordinatorId === null || call.coordinatorId === "" ? (
                             <button
                               onClick={() => handleTakeOwnership(call.id)}
                               style={{
-                                background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
-                                color: '#fff',
-                                padding: '10px 18px',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontSize: '0.9em',
-                                fontWeight: '600',
-                                boxShadow: '0 2px 8px rgba(255,152,0,0.2)',
-                                transition: 'all 0.2s ease',
-                                width: 'fit-content',
-                                marginBottom: '8px'
+                                background: "linear-gradient(135deg, #ff9800 0%, #f57c00 100%)",
+                                color: "#fff",
+                                padding: "10px 18px",
+                                border: "none",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontSize: "0.9em",
+                                fontWeight: "600",
+                                boxShadow: "0 2px 8px rgba(255,152,0,0.2)",
+                                transition: "all 0.2s ease",
+                                width: "fit-content",
+                                marginBottom: "8px",
                               }}
-                              onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 3px 10px rgba(255,152,0,0.3)'; }}
-                              onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(255,152,0,0.2)'; }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.transform = "translateY(-1px)"
+                                e.currentTarget.style.boxShadow = "0 3px 10px rgba(255,152,0,0.3)"
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.transform = "translateY(0)"
+                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(255,152,0,0.2)"
+                              }}
                             >
                               קח בעלות
                             </button>
                           ) : null}
 
-                          {call.status !== 'נפתחה פנייה (טופס מולא)' && call.status !== 'הפנייה נסגרה' && (
-                              <span style={{ color: '#888', fontStyle: 'italic', fontSize: '0.8em', whiteSpace: 'nowrap' }}>אין פעולות זמינות</span>
+                          {call.status !== "נפתחה פנייה (טופס מולא)" && call.status !== "הפנייה נסגרה" && (
+                            <span
+                              style={{ color: "#888", fontStyle: "italic", fontSize: "0.8em", whiteSpace: "nowrap" }}
+                            >
+                              אין פעולות זמינות
+                            </span>
                           )}
                         </td>
                       </tr>
-                    );
+                    )
                   })}
 
                   {paginatedCalls.length === 0 && (
                     <tr>
-                      <td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#999', fontSize: '1.1em', fontWeight: '500' }}>
+                      <td
+                        colSpan={9}
+                        style={{
+                          padding: "40px",
+                          textAlign: "center",
+                          color: "#999",
+                          fontSize: "1.1em",
+                          fontWeight: "500",
+                        }}
+                      >
                         אין נתונים להצגה (נסה לשנות פילטרים)
                       </td>
                     </tr>
@@ -1344,62 +1577,69 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
 
             {/* Pagination Controls */}
             {filteredCalls.length > itemsPerPage && (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: '15px',
-                marginTop: '30px',
-                padding: '25px',
-                background: '#f8f9fa',
-                borderRadius: '12px',
-                border: '1px solid #e9ecef'
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "15px",
+                  marginTop: "30px",
+                  padding: "25px",
+                  background: "#f8f9fa",
+                  borderRadius: "12px",
+                  border: "1px solid #e9ecef",
+                }}
+              >
                 <button
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
                   style={{
-                    background: currentPage === 1 ? '#e9ecef' : 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
-                    color: currentPage === 1 ? '#6c757d' : 'white',
-                    padding: '12px 20px',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                    fontSize: '1em',
-                    fontWeight: '600',
-                    transition: 'all 0.3s ease'
+                    background: currentPage === 1 ? "#e9ecef" : "linear-gradient(135deg, #007bff 0%, #0056b3 100%)",
+                    color: currentPage === 1 ? "#6c757d" : "white",
+                    padding: "12px 20px",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                    fontSize: "1em",
+                    fontWeight: "600",
+                    transition: "all 0.3s ease",
                   }}
                 >
                   הקודם →
                 </button>
 
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  fontSize: '1.1em',
-                  fontWeight: '600',
-                  color: '#495057'
-                }}>
-                  <span>עמוד {currentPage} מתוך {totalPages}</span>
-                  <span style={{ color: '#6c757d', fontSize: '0.9em' }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    fontSize: "1.1em",
+                    fontWeight: "600",
+                    color: "#495057",
+                  }}
+                >
+                  <span>
+                    עמוד {currentPage} מתוך {totalPages}
+                  </span>
+                  <span style={{ color: "#6c757d", fontSize: "0.9em" }}>
                     (מציג {paginatedCalls.length} מתוך {filteredCalls.length} רשומות)
                   </span>
                 </div>
 
                 <button
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
                   style={{
-                    background: currentPage === totalPages ? '#e9ecef' : 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
-                    color: currentPage === totalPages ? '#6c757d' : 'white',
-                    padding: '12px 20px',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                    fontSize: '1em',
-                    fontWeight: '600',
-                    transition: 'all 0.3s ease'
+                    background:
+                      currentPage === totalPages ? "#e9ecef" : "linear-gradient(135deg, #007bff 0%, #0056b3 100%)",
+                    color: currentPage === totalPages ? "#6c757d" : "white",
+                    padding: "12px 20px",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                    fontSize: "1em",
+                    fontWeight: "600",
+                    transition: "all 0.3s ease",
                   }}
                 >
                   ← הבא
@@ -1408,18 +1648,278 @@ export default function Dashboard() {  const [calls, setCalls] = useState([]);
             )}
 
             {/* Footer Section */}
-            <footer style={{
-              marginTop: '40px',
-              paddingTop: '25px',
-              borderTop: '1px solid #e0e0e0',
-              textAlign: 'center',
-              color: '#777',
-              fontSize: '0.9em'
-            }}>
+            <footer
+              style={{
+                marginTop: "40px",
+                paddingTop: "25px",
+                borderTop: "1px solid #e0e0e0",
+                textAlign: "center",
+                color: "#777",
+                fontSize: "0.9em",
+              }}
+            >
               © 2025 מגן דבורים אדום. כל הזכויות שמורות.
             </footer>
-          </div> {/* End padding div */}
-        </div> {/* End dashboard card inner */}      </div> {/* End max-width container */}
+          </div>{" "}
+          {/* End padding div */}
+          {/* Comment Modal */}
+          {isCommentModalOpen && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0, 0, 0, 0.5)",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                zIndex: 1000,
+                padding: "20px",
+              }}
+              onClick={handleCloseComment}
+            >
+              <div
+                style={{
+                  backgroundColor: "white",
+                  borderRadius: "12px",
+                  padding: "30px",
+                  maxWidth: "600px",
+                  maxHeight: "80vh",
+                  overflow: "auto",
+                  boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
+                  position: "relative",
+                  direction: "rtl",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "20px",
+                    borderBottom: "2px solid #f0f0f0",
+                    paddingBottom: "15px",
+                  }}
+                >
+                  <h3
+                    style={{
+                      margin: 0,
+                      color: "#333",
+                      fontSize: "1.3em",
+                      fontWeight: "600",
+                    }}
+                  >
+                    הערות נוספות
+                  </h3>
+                  <button
+                    onClick={handleCloseComment}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      fontSize: "1.5em",
+                      cursor: "pointer",
+                      color: "#666",
+                      padding: "5px",
+                      borderRadius: "50%",
+                      width: "35px",
+                      height: "35px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f0f0f0"
+                      e.currentTarget.style.color = "#333"
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent"
+                      e.currentTarget.style.color = "#666"
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div
+                  style={{
+                    fontSize: "1.1em",
+                    lineHeight: "1.6",
+                    color: "#444",
+                    whiteSpace: "pre-wrap",
+                    wordWrap: "break-word",
+                  }}
+                >
+                  {selectedComment}
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Details Modal */}
+          {isDetailsModalOpen && selectedCallDetails && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0, 0, 0, 0.5)",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                zIndex: 1000,
+                padding: "20px",
+              }}
+              onClick={handleCloseDetails}
+            >
+              <div
+                style={{
+                  backgroundColor: "white",
+                  borderRadius: "12px",
+                  padding: "30px",
+                  maxWidth: "700px",
+                  maxHeight: "80vh",
+                  overflow: "auto",
+                  boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
+                  position: "relative",
+                  direction: "rtl",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "25px",
+                    borderBottom: "2px solid #f0f0f0",
+                    paddingBottom: "15px",
+                  }}
+                >
+                  <h3
+                    style={{
+                      margin: 0,
+                      color: "#333",
+                      fontSize: "1.4em",
+                      fontWeight: "600",
+                    }}
+                  >
+                    פרטי הפנייה המלאים
+                  </h3>
+                  <button
+                    onClick={handleCloseDetails}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      fontSize: "1.5em",
+                      cursor: "pointer",
+                      color: "#666",
+                      padding: "5px",
+                      borderRadius: "50%",
+                      width: "35px",
+                      height: "35px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f0f0f0"
+                      e.currentTarget.style.color = "#333"
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent"
+                      e.currentTarget.style.color = "#666"
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div style={{ display: "grid", gap: "20px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+                    <div style={{ padding: "15px", background: "#f8f9fa", borderRadius: "8px" }}>
+                      <div style={{ fontWeight: "600", color: "#495057", marginBottom: "8px" }}>שם מלא:</div>
+                      <div style={{ fontSize: "1.1em", color: "#333" }}>{selectedCallDetails.fullName}</div>
+                    </div>
+
+                    <div style={{ padding: "15px", background: "#f8f9fa", borderRadius: "8px" }}>
+                      <div style={{ fontWeight: "600", color: "#495057", marginBottom: "8px" }}>מספר טלפון:</div>
+                      <div style={{ fontSize: "1.1em", color: "#333" }}>{selectedCallDetails.phoneNumber}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+                    <div style={{ padding: "15px", background: "#f8f9fa", borderRadius: "8px" }}>
+                      <div style={{ fontWeight: "600", color: "#495057", marginBottom: "8px" }}>עיר:</div>
+                      <div style={{ fontSize: "1.1em", color: "#333" }}>{selectedCallDetails.city || "לא צוין"}</div>
+                    </div>
+
+                    <div style={{ padding: "15px", background: "#f8f9fa", borderRadius: "8px" }}>
+                      <div style={{ fontWeight: "600", color: "#495057", marginBottom: "8px" }}>כתובת:</div>
+                      <div style={{ fontSize: "1.1em", color: "#333" }}>{selectedCallDetails.address || "לא צוין"}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: "15px", background: "#f8f9fa", borderRadius: "8px" }}>
+                    <div style={{ fontWeight: "600", color: "#495057", marginBottom: "8px" }}>תאריך ושעת הפנייה:</div>
+                    <div style={{ fontSize: "1.1em", color: "#333" }}>
+                      {formatDateForDisplay(
+                        selectedCallDetails.timestamp,
+                        selectedCallDetails.date,
+                        selectedCallDetails.time,
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ padding: "15px", background: "#f8f9fa", borderRadius: "8px" }}>
+                    <div style={{ fontWeight: "600", color: "#495057", marginBottom: "8px" }}>הערות נוספות:</div>
+                    <div
+                      style={{
+                        fontSize: "1.1em",
+                        color: "#333",
+                        lineHeight: "1.6",
+                        whiteSpace: "pre-wrap",
+                        wordWrap: "break-word",
+                        minHeight: "60px",
+                        maxHeight: "200px",
+                        overflow: "auto",
+                        padding: "10px",
+                        background: "white",
+                        borderRadius: "6px",
+                        border: "1px solid #e9ecef",
+                      }}
+                    >
+                      {selectedCallDetails.additionalDetails || "אין הערות נוספות"}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+                    <div style={{ padding: "15px", background: "#e8f5e9", borderRadius: "8px" }}>
+                      <div style={{ fontWeight: "600", color: "#2e7d32", marginBottom: "8px" }}>סטטוס נוכחי:</div>
+                      <div style={{ fontSize: "1.1em", color: "#333", fontWeight: "500" }}>
+                        {selectedCallDetails.status}
+                      </div>
+                    </div>
+
+                    <div style={{ padding: "15px", background: "#e3f2fd", borderRadius: "8px" }}>
+                      <div style={{ fontWeight: "600", color: "#1565c0", marginBottom: "8px" }}>מתנדב משובץ:</div>
+                      <div style={{ fontSize: "1.1em", color: "#333" }}>
+                        {selectedCallDetails.assignedVolunteerName || "לא שובץ מתנדב"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>{" "}
+        {/* End dashboard card inner */}
+      </div>{" "}
+      {/* End max-width container */}
     </div> // End dashboard container
-  );
+  )
 }
