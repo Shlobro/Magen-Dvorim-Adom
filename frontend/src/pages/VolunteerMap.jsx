@@ -6,7 +6,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import beeIconUrl from "../assets/cuteBeeInquiry.png"
-import { collection, getDocs, doc, updateDoc, query, where, GeoPoint, Timestamp } from "firebase/firestore"
+import { collection, getDocs, getDoc, doc, updateDoc, query, where, GeoPoint, Timestamp } from "firebase/firestore"
 import { db } from "../firebaseConfig"
 import { useLocation, useNavigate } from "react-router-dom"
 import {
@@ -29,6 +29,9 @@ import {
   Grow,
   Paper,
   Collapse,
+  Select,
+  MenuItem,
+  InputLabel,
 } from "@mui/material"
 import {
   LocationOn,
@@ -43,6 +46,7 @@ import {
   Schedule,
   Navigation,
   ExpandMore,
+  FilterList,
 } from "@mui/icons-material"
 
 // Custom Bee Icon
@@ -56,14 +60,15 @@ const beeIcon = new L.Icon({
 const NAVBAR_HEIGHT = 65
 const isMobile = window.innerWidth <= 768
 
-export default function VolunteerMap() {
-  const [inquiries, setInquiries] = useState([])
+export default function VolunteerMap() {  const [inquiries, setInquiries] = useState([])
+  const [allInquiries, setAllInquiries] = useState([]) // Store all inquiries for filtering
   const [selectedInquiry, setSelectedInquiry] = useState(null)
   const [availableVolunteers, setAvailableVolunteers] = useState([])
   const [radius, setRadius] = useState(20)
   const [selectedVolunteerIds, setSelectedVolunteerIds] = useState([])
   const [isSidebarVisible, setIsSidebarVisible] = useState(window.innerWidth > 768)
   const [showInquiryDetails, setShowInquiryDetails] = useState(false)
+  const [statusFilter, setStatusFilter] = useState("unassigned") // Default to unassigned
 
   const mapRef = useRef()
   const location = useLocation()
@@ -85,8 +90,7 @@ export default function VolunteerMap() {
       lng = data.location.longitude
     } else if (data.lat != null && data.lng != null) {
       lat = data.lat
-      lng = data.lng
-    }
+      lng = data.lng    }
     return { lat, lng }
   }
 
@@ -94,7 +98,7 @@ export default function VolunteerMap() {
   try {
     const q = query(
       collection(db, "inquiry"),
-      where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב"]),
+      where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב", "המתנדב בדרך"]),
     );
     const querySnapshot = await getDocs(q);
     const fetched = querySnapshot.docs.map((doc) => {
@@ -111,19 +115,46 @@ export default function VolunteerMap() {
         inquiry.lng != null &&
         !isNaN(inquiry.lng),
     );
-    // 2. Sort by opening timestamp (oldest first)
+
+    // 2. Collect all unique volunteer UIDs
+    const volunteerUids = new Set();
+    validInquiries.forEach(call => {
+      if (call.assignedVolunteers && typeof call.assignedVolunteers === 'string' && call.assignedVolunteers.trim() !== '') {
+        volunteerUids.add(call.assignedVolunteers);
+      }
+    });
+
+    // 3. Fetch volunteer names
+    const uidToVolunteerName = {};
+    await Promise.all(
+      Array.from(volunteerUids).map(async (uid) => {
+        try {
+          const snap = await getDoc(doc(db, 'user', uid));
+          if (snap.exists()) {
+            const d = snap.data();
+            uidToVolunteerName[uid] = d.name || `${d.firstName ?? ''} ${d.lastName ?? ''}`.trim();
+          }
+        } catch (e) { 
+          console.error("Error fetching volunteer name:", uid, e); 
+        }
+      })
+    );
+
+    // 4. Sort by opening timestamp (oldest first)
     validInquiries.sort((a, b) => {
       const ta = a.timestamp?.toDate()?.getTime() || 0;
       const tb = b.timestamp?.toDate()?.getTime() || 0;
       return ta - tb;
     });
-    // 3. Assign sequential number
+
+    // 5. Assign sequential number and add volunteer names
     const numbered = validInquiries.map((inq, idx) => ({
       ...inq,
       seqNum: idx + 1,
+      assignedVolunteerName: uidToVolunteerName[inq.assignedVolunteers] ?? '-',
     }));
 
-    setInquiries(numbered);
+    setAllInquiries(numbered);
   } catch (error) {
     console.error("Error fetching inquiries:", error);
   }
@@ -132,6 +163,38 @@ export default function VolunteerMap() {
   useEffect(() => {
     fetchInquiries()
   }, [fetchInquiries])
+
+  // Filter inquiries based on status
+  useEffect(() => {
+    if (!allInquiries.length) return;
+
+    let filtered = [];
+    switch (statusFilter) {
+      case "unassigned":
+        filtered = allInquiries.filter(inquiry => 
+          inquiry.status === "נפתחה פנייה (טופס מולא)" && 
+          (!inquiry.assignedVolunteers || inquiry.assignedVolunteers === "")
+        );
+        break;
+      case "assigned":
+        filtered = allInquiries.filter(inquiry => 
+          inquiry.status === "לפנייה שובץ מתנדב" ||
+          (inquiry.assignedVolunteers && inquiry.assignedVolunteers !== "")
+        );
+        break;
+      case "in-progress":
+        filtered = allInquiries.filter(inquiry => 
+          inquiry.status === "המתנדב בדרך"
+        );
+        break;
+      case "all":
+      default:
+        filtered = allInquiries;
+        break;
+    }
+    
+    setInquiries(filtered);
+  }, [allInquiries, statusFilter]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -354,9 +417,8 @@ export default function VolunteerMap() {
                         <Typography variant="body2" color="text.secondary" gutterBottom>
                           הערות: {inquiry.notes}
                         </Typography>
-                      )}
-                      <Typography variant="body2" color="text.secondary">
-                        {inquiry.assignedVolunteers ? `שובץ: ${inquiry.assignedVolunteers}` : "טרם שובץ"}
+                      )}                      <Typography variant="body2" color="text.secondary">
+                        {inquiry.assignedVolunteerName && inquiry.assignedVolunteerName !== '-' ? `שובץ: ${inquiry.assignedVolunteerName}` : "טרם שובץ"}
                       </Typography>
                     </Box>
                   </Popup>
@@ -515,9 +577,8 @@ export default function VolunteerMap() {
                             <Box>
                               <Typography variant="subtitle2" fontWeight="bold">
                                 מתנדב משובץ
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {isSelectedInquiryAssigned ? selectedInquiry.assignedVolunteers : "טרם שובץ"}
+                              </Typography>                              <Typography variant="body2" color="text.secondary">
+                                {isSelectedInquiryAssigned ? selectedInquiry.assignedVolunteerName : "טרם שובץ"}
                               </Typography>
                             </Box>
                           </Box>
@@ -715,6 +776,45 @@ export default function VolunteerMap() {
           </Fade>
         )}
       </Paper>
+
+      {/* Status Filter */}
+      <Fade in timeout={600}>
+        <Paper
+          elevation={3}
+          sx={{
+            p: 3,
+            mb: 3,
+            borderRadius: 3,
+            background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+            <Avatar sx={{ bgcolor: "primary.main", width: 32, height: 32 }}>
+              <FilterList sx={{ fontSize: 16 }} />
+            </Avatar>
+            <Typography variant="h6" fontWeight="bold">
+              סינון לפי סטטוס
+            </Typography>
+          </Box>
+          <FormControl fullWidth>
+            <InputLabel>בחר סטטוס</InputLabel>
+            <Select
+              value={statusFilter}
+              label="בחר סטטוס"
+              onChange={(e) => setStatusFilter(e.target.value)}
+              sx={{ bgcolor: "white" }}
+            >
+              <MenuItem value="unassigned">ללא מתנדב משובץ</MenuItem>
+              <MenuItem value="assigned">עם מתנדב משובץ</MenuItem>
+              <MenuItem value="in-progress">מתנדב בדרך</MenuItem>
+              <MenuItem value="all">הכל</MenuItem>
+            </Select>
+          </FormControl>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            מציג {inquiries.length} פניות
+          </Typography>
+        </Paper>
+      </Fade>
     </Box>
   )
 }

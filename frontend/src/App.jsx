@@ -25,6 +25,9 @@ import InsightsPage from './pages/InsightsPage.jsx';
 // ייבוא קומפוננטת ניהול המתנדבים החדשה
 import VolunteerManagement from './pages/VolunteerManagement.jsx';
 
+// ייבוא לוח מחוונים למתנדבים
+import VolunteerDashboard from './pages/VolunteerDashboard.jsx';
+
 function App() {
   return (
     <AuthProvider>
@@ -80,6 +83,17 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            
+            {/* Volunteer Dashboard for volunteers */}
+            <Route
+              path="/volunteer-dashboard"
+              element={
+                <ProtectedRoute requiredRole={2}>
+                  <VolunteerDashboard />
+                </ProtectedRoute>
+              }
+            />
+            
             {/* הוסף כאן נתיבים נוספים שצריכים הגנה לתפקיד "coordinator" */}
           </Routes>
         </div>
