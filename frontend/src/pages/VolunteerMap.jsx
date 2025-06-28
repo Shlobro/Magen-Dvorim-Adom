@@ -10,6 +10,8 @@ import { collection, getDocs, getDoc, doc, updateDoc, query, where, GeoPoint, Ti
 import { db } from "../firebaseConfig"
 import { useLocation, useNavigate } from "react-router-dom"
 import { useNotification } from "../contexts/NotificationContext"
+import { useAuth } from "../contexts/AuthContext"
+import { takeOwnership, releaseOwnership } from "../services/inquiryApi"
 import {
   Card,
   CardContent,
@@ -75,6 +77,7 @@ export default function VolunteerMap() {
   const location = useLocation()
   const navigate = useNavigate()
   const { showSuccess, showError, showWarning, showConfirmDialog } = useNotification()
+  const { currentUser, userRole, loading: authLoading } = useAuth()
 
   const extractCoordinates = (data) => {
     let lat = null
@@ -247,21 +250,27 @@ export default function VolunteerMap() {
   }, [selectedInquiry])
   const assignToInquiry = async () => {
     if (!selectedInquiry || selectedVolunteerIds.length === 0) {
-      showWarning("אנא בחר פנייה ומתנדב לשיבוץ.");
+      showWarning("אנא בחר פנייה ומתנדב לשיבוץ.")
       return
     }
-    
+
+    // Check if coordinator has ownership of this inquiry
+    if (!selectedInquiry.coordinatorId || selectedInquiry.coordinatorId !== currentUser?.uid) {
+      showError("לא ניתן לשבץ מתנדב ללא בעלות על הפנייה. יש לקחת בעלות על הפנייה תחילה.")
+      return
+    }
+
     const inquiryId = selectedInquiry.id
     const volunteerToAssignId = selectedVolunteerIds[0]
-    
+
     const confirmed = await showConfirmDialog({
-      title: 'אישור שיבוץ מתנדב',
+      title: "אישור שיבוץ מתנדב",
       message: `האם אתה בטוח שברצונך לשבץ את המתנדב לפנייה זו?`,
-      confirmText: 'שבץ מתנדב',
-      cancelText: 'ביטול',
-      severity: 'info',
-    });
-        if (!confirmed) return;
+      confirmText: "שבץ מתנדב",
+      cancelText: "ביטול",
+      severity: "info",
+    })
+    if (!confirmed) return
     try {
       const inquiryRef = doc(db, "inquiry", inquiryId)
       await updateDoc(inquiryRef, {
@@ -269,7 +278,7 @@ export default function VolunteerMap() {
         status: "לפנייה שובץ מתנדב",
         assignedTimestamp: Timestamp.now(),
       })
-      showSuccess('מתנדב שובץ בהצלחה לפנייה!')
+      showSuccess("מתנדב שובץ בהצלחה לפנייה!")
       fetchInquiries()
       setSelectedInquiry(null)
       setVolunteerSearchTerm("") // Clear search when clearing selection
@@ -331,6 +340,109 @@ export default function VolunteerMap() {
         sx={{ fontWeight: 600 }}
       />
     )
+  }
+
+  // Handle taking ownership of an inquiry
+  const handleTakeOwnership = async (inquiryId) => {
+    if (!currentUser) {
+      showError("שגיאה: משתמש לא מחובר")
+      return
+    }
+
+    try {
+      await takeOwnership(inquiryId, currentUser.uid)
+
+      // Update the local state to reflect the ownership change
+      setSelectedInquiry((prev) =>
+        prev
+          ? {
+              ...prev,
+              coordinatorId: currentUser.uid,
+              coordinatorName: currentUser.displayName || currentUser.email || "רכז",
+            }
+          : prev,
+      )
+
+      // Also update the inquiries list
+      setAllInquiries((prev) =>
+        prev.map((inquiry) =>
+          inquiry.id === inquiryId
+            ? {
+                ...inquiry,
+                coordinatorId: currentUser.uid,
+                coordinatorName: currentUser.displayName || currentUser.email || "רכז",
+              }
+            : inquiry,
+        ),
+      )
+
+      showSuccess("בעלות נלקחה בהצלחה!")
+    } catch (error) {
+      console.error("Error taking ownership:", error)
+      if (error.response?.status === 409) {
+        showWarning("הפנייה כבר שויכה לרכז אחר")
+      } else {
+        showError("שגיאה בלקיחת בעלות על הפנייה")
+      }
+    }
+  }
+
+  // Handle releasing ownership of an inquiry
+  const handleReleaseOwnership = async (inquiryId) => {
+    if (!currentUser) {
+      showError("שגיאה: משתמש לא מחובר")
+      return
+    }
+
+    const confirmed = await showConfirmDialog({
+      title: "שחרור בעלות על הפנייה",
+      message:
+        "האם אתה בטוח שברצונך לשחרר את הבעלות על הפנייה? הפנייה תחזור למאגר הפניות הזמינות לכל הרכזים.",
+      confirmText: "שחרר בעלות",
+      cancelText: "ביטול",
+      severity: "warning",
+    })
+
+    if (!confirmed) return
+
+    try {
+      await releaseOwnership(inquiryId, currentUser.uid)
+
+      // Update the local state to reflect the ownership release
+      setSelectedInquiry((prev) =>
+        prev
+          ? {
+              ...prev,
+              coordinatorId: null,
+              coordinatorName: "-",
+            }
+          : prev,
+      )
+
+      // Also update the inquiries list
+      setAllInquiries((prev) =>
+        prev.map((inquiry) =>
+          inquiry.id === inquiryId
+            ? {
+                ...inquiry,
+                coordinatorId: null,
+                coordinatorName: "-",
+              }
+            : inquiry,
+        ),
+      )
+
+      showSuccess("בעלות שוחררה בהצלחה! הפנייה חזרה למאגר הזמין.")
+    } catch (error) {
+      console.error("Error releasing ownership:", error)
+      if (error.response?.status === 403) {
+        showError("ניתן לשחרר רק פניות שבבעלותך")
+      } else if (error.response?.status === 400) {
+        showWarning("הפנייה אינה משויכת לאף רכז")
+      } else {
+        showError("שגיאה בשחרור בעלות על הפנייה")
+      }
+    }
   }
 
   return (
@@ -499,7 +611,7 @@ export default function VolunteerMap() {
                     </Box>
                   </Popup>
                 </Marker>
-              ) : null,
+              ) : null
             )}
             {availableVolunteers.map((volunteer) =>
               volunteer.lat != null && volunteer.lng != null && !isNaN(volunteer.lat) && !isNaN(volunteer.lng) ? (
@@ -515,26 +627,26 @@ export default function VolunteerMap() {
                       <Typography variant="body2" color="primary.main" fontWeight="bold">
                         ציון כולל: {volunteer.score?.toFixed(1)}/100
                       </Typography>
-                      
+
                       {/* Score breakdown */}
-                      <Box sx={{ mt: 1, fontSize: '0.75rem' }}>
+                      <Box sx={{ mt: 1, fontSize: "0.75rem" }}>
                         <Typography variant="caption" display="block" color="text.secondary">
-                          ניסיון פינוי: {volunteer.beeExperience ? '✓' : '✗'}
+                          ניסיון פינוי: {volunteer.beeExperience ? "✓" : "✗"}
                         </Typography>
                         <Typography variant="caption" display="block" color="text.secondary">
-                          ניסיון גידול: {volunteer.beekeepingExperience ? '✓' : '✗'}
+                          ניסיון גידול: {volunteer.beekeepingExperience ? "✓" : "✗"}
                         </Typography>
                         <Typography variant="caption" display="block" color="text.secondary">
-                          הדרכות: {volunteer.hasTraining ? '✓' : '✗'}
+                          הדרכות: {volunteer.hasTraining ? "✓" : "✗"}
                         </Typography>
                         <Typography variant="caption" display="block" color="text.secondary">
-                          היתר גובה: {volunteer.heightPermit ? '✓' : '✗'}
+                          היתר גובה: {volunteer.heightPermit ? "✓" : "✗"}
                         </Typography>
                       </Box>
                     </Box>
                   </Popup>
                 </Marker>
-              ) : null,
+              ) : null
             )}
           </MapContainer>
         </Box>
@@ -641,16 +753,19 @@ export default function VolunteerMap() {
                             <Box>
                               <Typography variant="subtitle2" fontWeight="bold">
                                 תאריך פתיחה
-                              </Typography>                              <Typography variant="body2" color="text.secondary">
-                                {selectedInquiry.timestamp ? (() => {
-                                  // Handle different timestamp formats
-                                  if (typeof selectedInquiry.timestamp.toDate === 'function') {
-                                    return selectedInquiry.timestamp.toDate().toLocaleString("he-IL");
-                                  } else if (typeof selectedInquiry.timestamp === 'string' || selectedInquiry.timestamp instanceof Date) {
-                                    return new Date(selectedInquiry.timestamp).toLocaleString("he-IL");
-                                  }
-                                  return "אין מידע";
-                                })() : "אין מידע"}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {selectedInquiry.timestamp
+                                  ? (() => {
+                                      // Handle different timestamp formats
+                                      if (typeof selectedInquiry.timestamp.toDate === "function") {
+                                        return selectedInquiry.timestamp.toDate().toLocaleString("he-IL")
+                                      } else if (typeof selectedInquiry.timestamp === "string" || selectedInquiry.timestamp instanceof Date) {
+                                        return new Date(selectedInquiry.timestamp).toLocaleString("he-IL")
+                                      }
+                                      return "אין מידע"
+                                    })()
+                                  : "אין מידע"}
                               </Typography>
                             </Box>
                           </Box>
@@ -680,143 +795,271 @@ export default function VolunteerMap() {
                               </Typography>
                             </Box>
                           </Box>
+
+                          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+                            <CheckCircle sx={{ color: "text.secondary", mt: 0.5, fontSize: 20 }} />
+                            <Box>
+                              <Typography variant="subtitle2" fontWeight="bold">
+                                רכז אחראי
+                              </Typography>
+                              <Typography 
+                                variant="body2" 
+                                color={selectedInquiry.coordinatorId === currentUser?.uid ? "success.main" : "text.secondary"}
+                                sx={{ fontWeight: selectedInquiry.coordinatorId === currentUser?.uid ? "bold" : "normal" }}
+                              >
+                                {selectedInquiry.coordinatorId 
+                                  ? (selectedInquiry.coordinatorId === currentUser?.uid 
+                                      ? `${selectedInquiry.coordinatorName || "אתה"} (בבעלותך)` 
+                                      : selectedInquiry.coordinatorName || "רכז אחר")
+                                  : "אין רכז אחראי"
+                                }
+                              </Typography>
+                            </Box>
+                          </Box>
                         </Box>
                       </CardContent>
                     </Collapse>
                   </Card>
                 </Grow>
 
-                {/* Available Volunteers Card */}
+                {/* Ownership Management / Available Volunteers Card */}
                 <Grow in timeout={800}>
                   <Card elevation={2} sx={{ borderRadius: 3 }}>
-                    <CardHeader
-                      avatar={
-                        <Avatar sx={{ bgcolor: "success.main", width: 40, height: 40 }}>
-                          <People sx={{ fontSize: 20 }} />
-                        </Avatar>
-                      }
-                      title={
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2, mr: 1 }}>
-                            מתנדבים זמינים (ממוינים לפי ציון)
-                          </Typography>
-                          <Chip label={availableVolunteers.length} size="small" color="primary" />
-                        </Box>
-                      }
-                      sx={{ pb: 1, "& .MuiCardHeader-content": { ml: 2 } }}
-                    />
-                    <CardContent sx={{ pt: 0 }}>
-                      {availableVolunteers.length > 0 ? (
-                        <>
-                          {/* Search input for filtering volunteers */}
-                          <TextField
-                            fullWidth
-                            size="small"
-                            placeholder="חיפוש מתנדב לפי שם..."
-                            value={volunteerSearchTerm}
-                            onChange={(e) => setVolunteerSearchTerm(e.target.value)}
-                            InputProps={{
-                              startAdornment: <Search sx={{ color: 'action.active', mr: 1, my: 0.5 }} />,
-                            }}
-                            sx={{ mb: 2 }}
-                          />
-                          {(() => {
-                            const filteredVolunteers = availableVolunteers.filter(volunteer => 
-                              volunteerSearchTerm === "" || 
-                              volunteer.name.toLowerCase().includes(volunteerSearchTerm.toLowerCase())
-                            );
-                            
-                            return filteredVolunteers.length > 0 ? (
-                              <FormControl component="fieldset" fullWidth>
-                                <RadioGroup
-                                  value={selectedVolunteerIds[0] || ""}
-                                  onChange={(e) => setSelectedVolunteerIds([e.target.value])}
-                                >
-                                  {filteredVolunteers.map((volunteer) => (
-                              <Paper
-                                key={volunteer.id}
-                                elevation={selectedVolunteerIds[0] === volunteer.id ? 3 : 1}
-                                sx={{
-                                  p: 2,
-                                  mb: 1,
-                                  borderRadius: 2,
-                                  bgcolor:
-                                    selectedVolunteerIds[0] === volunteer.id ? "primary.light" : "background.paper",
-                                  opacity: isSelectedInquiryAssigned ? 0.5 : 1,
-                                  transition: "all 0.2s ease-in-out",
-                                  "&:hover": {
-                                    elevation: 2,
-                                    bgcolor: selectedVolunteerIds[0] === volunteer.id ? "primary.light" : "grey.50",
-                                  },
-                                }}
-                              >
-                                <FormControlLabel
-                                  value={volunteer.id}
-                                  control={<Radio disabled={isSelectedInquiryAssigned} />}
-                                  label={
-                                    <Box sx={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
-                                      <Box sx={{ flex: 1 }}>
-                                        <Typography variant="subtitle2" fontWeight="bold">
-                                          {volunteer.name}
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary">
-                                          מרחק: {volunteer.distance?.toFixed(1)} ק"מ
-                                        </Typography>
-                                        
-                                        {/* Experience indicators */}
-                                        <Box sx={{ display: "flex", gap: 0.5, mt: 0.5, flexWrap: "wrap" }}>
-                                          {volunteer.beeExperience && (
-                                            <Chip label="פינוי נחילים" size="small" color="success" variant="outlined" 
-                                                  sx={{ fontSize: "0.65rem", height: "18px" }} />
-                                          )}
-                                          {volunteer.beekeepingExperience && (
-                                            <Chip label="גידול דבורים" size="small" color="info" variant="outlined" 
-                                                  sx={{ fontSize: "0.65rem", height: "18px" }} />
-                                          )}
-                                          {volunteer.hasTraining && (
-                                            <Chip label="הדרכות" size="small" color="primary" variant="outlined" 
-                                                  sx={{ fontSize: "0.65rem", height: "18px" }} />
-                                          )}
-                                          {volunteer.heightPermit && (
-                                            <Chip label="היתר גובה" size="small" color="warning" variant="outlined" 
-                                                  sx={{ fontSize: "0.65rem", height: "18px" }} />
-                                          )}
-                                        </Box>
-                                      </Box>
-                                      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", ml: 1 }}>
-                                        <Chip
-                                          label={`${volunteer.score?.toFixed(1)}/100`}
-                                          size="small"
-                                          color={volunteer.score >= 80 ? "success" : volunteer.score >= 60 ? "warning" : "default"}
-                                          sx={{ fontFamily: "monospace", fontWeight: "bold" }}
-                                        />
-                                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                                          ציון התאמה
-                                        </Typography>
-                                      </Box>
-                                    </Box>
-                                  }
-                                  sx={{ width: "100%", m: 0 }}
-                                />
-                              </Paper>
-                            ))}
-                          </RadioGroup>
-                        </FormControl>
-                        ) : (
-                          <Alert severity="warning" sx={{ borderRadius: 2 }}>
-                            <Typography variant="body2">
-                              לא נמצאו מתנדבים התואמים לחיפוש "{volunteerSearchTerm}"
+                    {/* Check if user has ownership of the selected inquiry */}
+                    {!selectedInquiry.coordinatorId || selectedInquiry.coordinatorId !== currentUser?.uid ? (
+                      // Show ownership management when user doesn't have ownership
+                      <>
+                        <CardHeader
+                          avatar={
+                            <Avatar sx={{ bgcolor: "warning.main", width: 40, height: 40 }}>
+                              <People sx={{ fontSize: 20 }} />
+                            </Avatar>
+                          }
+                          title={
+                            <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.3 }}>
+                              נדרשת בעלות על הפנייה
+                            </Typography>
+                          }
+                          sx={{ 
+                            pb: 2, 
+                            "& .MuiCardHeader-content": { ml: 2 },
+                            "& .MuiCardHeader-avatar": { mr: 1 }
+                          }}
+                        />
+                        <CardContent sx={{ pt: 0, pb: 3 }}>
+                          <Alert severity="info" sx={{ borderRadius: 2, mb: 3 }}>
+                            <Typography variant="body2" sx={{ lineHeight: 1.6 }}>
+                              כדי לשבץ מתנדב לפנייה זו, עליך תחילה לקחת בעלות עליה.
+                              {selectedInquiry.coordinatorId && (
+                                <>
+                                  <br />
+                                  <Box component="span" sx={{ mt: 1, display: "inline-block" }}>
+                                    <strong>הפנייה נמצאת בבעלות של:</strong> {selectedInquiry.coordinatorName || "רכז אחר"}
+                                  </Box>
+                                </>
+                              )}
                             </Typography>
                           </Alert>
-                        );
-                      })()}
-                        </>
-                      ) : (
-                        <Alert severity="info" sx={{ borderRadius: 2 }}>
-                          <Typography variant="body2">אין מתנדבים זמינים במערכת.</Typography>
-                        </Alert>
-                      )}
-                    </CardContent>
+                          {!selectedInquiry.coordinatorId && (
+                            <Button
+                              onClick={() => handleTakeOwnership(selectedInquiry.id)}
+                              variant="contained"
+                              color="primary"
+                              size="large"
+                              fullWidth
+                              startIcon={<CheckCircle sx={{ mr: 1 }} />}
+                              sx={{ 
+                                fontWeight: 600,
+                                py: 1.5,
+                                gap: 1.5,
+                                "& .MuiButton-startIcon": {
+                                  marginLeft: 0,
+                                  marginRight: 1
+                                }
+                              }}
+                            >
+                              קח בעלות על הפנייה
+                            </Button>
+                          )}
+                          {selectedInquiry.coordinatorId && selectedInquiry.coordinatorId !== currentUser?.uid && (
+                            <Alert severity="warning" sx={{ borderRadius: 2, mt: 2 }}>
+                              <Typography variant="body2" sx={{ lineHeight: 1.6 }}>
+                                הפנייה כבר בבעלות של רכז אחר. לא ניתן לשבץ מתנדב.
+                              </Typography>
+                            </Alert>
+                          )}
+                        </CardContent>
+                      </>
+                    ) : (
+                      // Show volunteer assignment when user has ownership
+                      <>
+                        <CardHeader
+                          avatar={
+                            <Avatar sx={{ bgcolor: "success.main", width: 40, height: 40 }}>
+                              <People sx={{ fontSize: 20 }} />
+                            </Avatar>
+                          }
+                          title={
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2, mr: 1 }}>
+                                מתנדבים זמינים (ממוינים לפי ציון)
+                              </Typography>
+                              <Chip label={availableVolunteers.length} size="small" color="primary" />
+                            </Box>
+                          }
+                          sx={{ 
+                            pb: 2, 
+                            "& .MuiCardHeader-content": { ml: 2 },
+                            "& .MuiCardHeader-avatar": { mr: 1 }
+                          }}
+                        />
+                        <CardContent sx={{ pt: 0 }}>
+                          {availableVolunteers.length > 0 ? (
+                            <>
+                              {/* Search input for filtering volunteers */}
+                              <TextField
+                                fullWidth
+                                size="small"
+                                placeholder="חיפוש מתנדב לפי שם..."
+                                value={volunteerSearchTerm}
+                                onChange={(e) => setVolunteerSearchTerm(e.target.value)}
+                                InputProps={{
+                                  startAdornment: <Search sx={{ color: "action.active", mr: 1, my: 0.5 }} />,
+                                }}
+                                sx={{ mb: 2 }}
+                              />
+                              {(() => {
+                                const filteredVolunteers = availableVolunteers.filter((volunteer) =>
+                                  volunteerSearchTerm === "" ||
+                                  volunteer.name.toLowerCase().includes(volunteerSearchTerm.toLowerCase())
+                                );
+
+                                return filteredVolunteers.length > 0 ? (
+                                  <FormControl component="fieldset" fullWidth>
+                                    <RadioGroup
+                                      value={selectedVolunteerIds[0] || ""}
+                                      onChange={(e) => setSelectedVolunteerIds([e.target.value])}
+                                    >
+                                      {filteredVolunteers.map((volunteer) => (
+                                        <Paper
+                                          key={volunteer.id}
+                                          elevation={selectedVolunteerIds[0] === volunteer.id ? 3 : 1}
+                                          sx={{
+                                            p: 2,
+                                            mb: 1,
+                                            borderRadius: 2,
+                                            bgcolor:
+                                              selectedVolunteerIds[0] === volunteer.id ? "primary.light" : "background.paper",
+                                            opacity: isSelectedInquiryAssigned ? 0.5 : 1,
+                                            transition: "all 0.2s ease-in-out",
+                                            "&:hover": {
+                                              elevation: 2,
+                                              bgcolor: selectedVolunteerIds[0] === volunteer.id ? "primary.light" : "grey.50",
+                                            },
+                                          }}
+                                        >
+                                          <FormControlLabel
+                                            value={volunteer.id}
+                                            control={<Radio disabled={isSelectedInquiryAssigned} />}
+                                            label={
+                                              <Box sx={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                                                <Box sx={{ flex: 1 }}>
+                                                  <Typography variant="subtitle2" fontWeight="bold">
+                                                    {volunteer.name}
+                                                  </Typography>
+                                                  <Typography variant="body2" color="text.secondary">
+                                                    מרחק: {volunteer.distance?.toFixed(1)} ק"מ
+                                                  </Typography>
+
+                                                  {/* Experience indicators */}
+                                                  <Box sx={{ display: "flex", gap: 0.5, mt: 0.5, flexWrap: "wrap" }}>
+                                                    {volunteer.beeExperience && (
+                                                      <Chip
+                                                        label="פינוי נחילים"
+                                                        size="small"
+                                                        color="success"
+                                                        variant="outlined"
+                                                        sx={{ fontSize: "0.65rem", height: "18px" }}
+                                                      />
+                                                    )}
+                                                    {volunteer.beekeepingExperience && (
+                                                      <Chip
+                                                        label="גידול דבורים"
+                                                        size="small"
+                                                        color="info"
+                                                        variant="outlined"
+                                                        sx={{ fontSize: "0.65rem", height: "18px" }}
+                                                      />
+                                                    )}
+                                                    {volunteer.hasTraining && (
+                                                      <Chip
+                                                        label="הדרכות"
+                                                        size="small"
+                                                        color="primary"
+                                                        variant="outlined"
+                                                        sx={{ fontSize: "0.65rem", height: "18px" }}
+                                                      />
+                                                    )}
+                                                    {volunteer.heightPermit && (
+                                                      <Chip
+                                                        label="היתר גובה"
+                                                        size="small"
+                                                        color="warning"
+                                                        variant="outlined"
+                                                        sx={{ fontSize: "0.65rem", height: "18px" }}
+                                                      />
+                                                    )}
+                                                  </Box>
+                                                </Box>
+                                                <Box
+                                                  sx={{
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    alignItems: "center",
+                                                    ml: 1,
+                                                  }}
+                                                >
+                                                  <Chip
+                                                    label={`${volunteer.score?.toFixed(1)}/100`}
+                                                    size="small"
+                                                    color={
+                                                      volunteer.score >= 80
+                                                        ? "success"
+                                                        : volunteer.score >= 60
+                                                        ? "warning"
+                                                        : "default"
+                                                    }
+                                                    sx={{ fontFamily: "monospace", fontWeight: "bold" }}
+                                                  />
+                                                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                                                    ציון התאמה
+                                                  </Typography>
+                                                </Box>
+                                              </Box>
+                                            }
+                                            sx={{ width: "100%", m: 0 }}
+                                          />
+                                        </Paper>
+                                      ))}
+                                    </RadioGroup>
+                                  </FormControl>
+                                ) : (
+                                  <Alert severity="warning" sx={{ borderRadius: 2 }}>
+                                    <Typography variant="body2">
+                                      לא נמצאו מתנדבים התואמים לחיפוש "{volunteerSearchTerm}"
+                                    </Typography>
+                                  </Alert>
+                                )
+                              })()}
+                            </>
+                          ) : (
+                            <Alert severity="info" sx={{ borderRadius: 2 }}>
+                              <Typography variant="body2">אין מתנדבים זמינים במערכת.</Typography>
+                            </Alert>
+                          )}
+                        </CardContent>
+                      </>
+                    )}
                   </Card>
                 </Grow>
               </Box>
@@ -834,14 +1077,15 @@ export default function VolunteerMap() {
                 gap: 1,
               }}
             >
-              {!isSelectedInquiryAssigned && (
+              {/* Only show assignment button if user has ownership and inquiry is not assigned */}
+              {selectedInquiry.coordinatorId === currentUser?.uid && !isSelectedInquiryAssigned && (
                 <Button
                   onClick={assignToInquiry}
                   disabled={!selectedInquiry || selectedVolunteerIds.length === 0}
                   variant="contained"
                   size="large"
                   startIcon={<CheckCircle />}
-                  sx={{ fontWeight: 600 , gap: 1}}
+                  sx={{ fontWeight: 600, gap: 1 }}
                 >
                   שבץ מתנדב לקריאה
                 </Button>
