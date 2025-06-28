@@ -21,11 +21,48 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: true,          // expose dev-server on LAN if needed
+      headers: {
+        // Security headers for development
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'X-XSS-Protection': '1; mode=block',
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+        'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=(), usb=()',
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ws: wss: https: blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'",
+      },
       proxy: {
         // Any fetch/axios to "/api/**" will be forwarded to apiBase
         '/api': {
           target: apiBase,
           changeOrigin: true,
+        },
+      },
+    },
+    build: {
+      // Production build optimizations
+      target: ['es2015', 'edge88', 'firefox78', 'chrome87', 'safari12'],
+      minify: 'terser',
+      cssMinify: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom'],
+            mui: ['@mui/material', '@mui/icons-material'],
+            firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+            charts: ['chart.js', 'react-chartjs-2'],
+            maps: ['leaflet', 'react-leaflet'],
+          },
+        },
+      },
+      // Generate legacy bundles for older browsers
+      terserOptions: {
+        compress: {
+          drop_console: true,
+          drop_debugger: true,
         },
       },
     },
