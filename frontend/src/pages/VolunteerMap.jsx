@@ -19,7 +19,6 @@ import {
   Chip,
   Avatar,
   Alert,
-  Slider,
   Radio,
   RadioGroup,
   FormControlLabel,
@@ -41,7 +40,6 @@ import {
   Message,
   Close,
   Menu,
-  GpsFixed,
   CheckCircle,
   Schedule,
   Navigation,
@@ -65,7 +63,6 @@ export default function VolunteerMap() {
   const [allInquiries, setAllInquiries] = useState([]) // Store all inquiries for filtering
   const [selectedInquiry, setSelectedInquiry] = useState(null)
   const [availableVolunteers, setAvailableVolunteers] = useState([])
-  const [radius, setRadius] = useState(20)
   const [selectedVolunteerIds, setSelectedVolunteerIds] = useState([])
   const [isSidebarVisible, setIsSidebarVisible] = useState(window.innerWidth > 768)
   const [showInquiryDetails, setShowInquiryDetails] = useState(false)
@@ -234,7 +231,7 @@ export default function VolunteerMap() {
         const response = await axios.post("/api/users/queryNear", {
           lat: selectedInquiry.lat,
           lng: selectedInquiry.lng,
-          radius,
+          radius: 200, // Large radius to get all volunteers, sorted by score
         })
         setAvailableVolunteers(response.data)
       } catch (error) {
@@ -243,7 +240,7 @@ export default function VolunteerMap() {
       }
     }
     fetchVolunteers()
-  }, [selectedInquiry, radius])
+  }, [selectedInquiry])
   const assignToInquiry = async () => {
     if (!selectedInquiry || selectedVolunteerIds.length === 0) {
       showWarning("אנא בחר פנייה ומתנדב לשיבוץ.");
@@ -489,7 +486,7 @@ export default function VolunteerMap() {
                       )}
                       <Typography variant="body2" color="text.secondary">
                         {inquiry.assignedVolunteerName && inquiry.assignedVolunteerName !== "-"
-                          ? `שובץ: ${inquiry.assignedVolunteerName}`
+                          ? `שם המתנדב: ${inquiry.assignedVolunteerName}`
                           : "טרם שובץ"}
                       </Typography>
                     </Box>
@@ -682,98 +679,8 @@ export default function VolunteerMap() {
                   </Card>
                 </Grow>
 
-                {/* Search Radius Card */}
-                <Grow in timeout={800}>
-                  <Card elevation={2} sx={{ borderRadius: 3 }}>
-                    <CardHeader
-                      avatar={
-                        <Avatar sx={{ bgcolor: "warning.main", width: 40, height: 40 }}>
-                          <GpsFixed sx={{ fontSize: 20 }} />
-                        </Avatar>
-                      }
-                      title={
-                        <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2, mr: 1 }}>
-                          טווח חיפוש
-                        </Typography>
-                      }
-                      sx={{ pb: 1, "& .MuiCardHeader-content": { ml: 2 } }}
-                    />
-                    <CardContent sx={{ pt: 0, pb: 2 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-                        <Typography variant="body2" fontWeight="medium">
-                          רדיוס חיפוש
-                        </Typography>
-                        <Chip label={`${radius} ק"מ`} variant="outlined" size="small" />
-                      </Box>
-                      <Slider
-                        value={radius}
-                        onChange={(e, value) => setRadius(value)}
-                        min={0}
-                        max={100}
-                        step={5}
-                        disabled={isSelectedInquiryAssigned}
-                        valueLabelDisplay="auto"
-                        valueLabelFormat={(value) => `${value} ק"מ`}
-                        sx={{ mt: 0 }}
-                      />
-                    </CardContent>
-                  </Card>
-                </Grow>
-
-                {/* Scoring System Explanation Card */}
-                <Grow in timeout={900}>
-                  <Card elevation={2} sx={{ borderRadius: 3 }}>
-                    <CardHeader
-                      avatar={
-                        <Avatar sx={{ bgcolor: "info.main", width: 40, height: 40 }}>
-                          <Typography variant="body2" fontWeight="bold" color="white">
-                            %
-                          </Typography>
-                        </Avatar>
-                      }
-                      title={
-                        <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2, mr: 1 }}>
-                          מערכת ניקוד
-                        </Typography>
-                      }
-                      sx={{ pb: 1, "& .MuiCardHeader-content": { ml: 2 } }}
-                    />
-                    <CardContent sx={{ pt: 0, pb: 2 }}>
-                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <Typography variant="body2">מרחק (עד 15 ק"מ)</Typography>
-                          <Typography variant="body2" fontWeight="bold">30%</Typography>
-                        </Box>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <Typography variant="body2">ניסיון בפינוי נחילים</Typography>
-                          <Typography variant="body2" fontWeight="bold">15%</Typography>
-                        </Box>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <Typography variant="body2">עבר הדרכות</Typography>
-                          <Typography variant="body2" fontWeight="bold">15%</Typography>
-                        </Box>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <Typography variant="body2">ניסיון בגידול דבורים</Typography>
-                          <Typography variant="body2" fontWeight="bold">10%</Typography>
-                        </Box>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <Typography variant="body2">היתר עבודה בגובה</Typography>
-                          <Typography variant="body2" fontWeight="bold">10%</Typography>
-                        </Box>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <Typography variant="body2">מתנדב חדש</Typography>
-                          <Typography variant="body2" fontWeight="bold">20%</Typography>
-                        </Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, fontStyle: "italic" }}>
-                          מתנדבים חדשים (שלא הסירו נחילים בעבר) מקבלים 20% נוספים. מתנדבים מנוסים מקבלים 5%.
-                        </Typography>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grow>
-
                 {/* Available Volunteers Card */}
-                <Grow in timeout={1000}>
+                <Grow in timeout={800}>
                   <Card elevation={2} sx={{ borderRadius: 3 }}>
                     <CardHeader
                       avatar={
@@ -784,7 +691,7 @@ export default function VolunteerMap() {
                       title={
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2, mr: 1 }}>
-                            מתנדבים זמינים
+                            מתנדבים זמינים (ממוינים לפי ציון)
                           </Typography>
                           <Chip label={availableVolunteers.length} size="small" color="primary" />
                         </Box>
@@ -870,7 +777,7 @@ export default function VolunteerMap() {
                         </FormControl>
                       ) : (
                         <Alert severity="info" sx={{ borderRadius: 2 }}>
-                          <Typography variant="body2">אין מתנדבים זמינים ברדיוס של {radius} ק"מ.</Typography>
+                          <Typography variant="body2">אין מתנדבים זמינים במערכת.</Typography>
                         </Alert>
                       )}
                     </CardContent>
