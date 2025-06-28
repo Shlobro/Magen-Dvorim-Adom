@@ -1,4 +1,3 @@
-// frontend/src/App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.jsx';
@@ -7,6 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 import Dashboard from './pages/Dashboard';
 import VolunteerMap from './pages/VolunteerMap';
 import HomeScreen from './pages/HomeScreen';
+import HomeRedirect from './components/HomeRedirect.jsx';
 import ReportPage from './pages/ReportPage';
 import SignUp from './pages/SignUp';
 import Login from './pages/Login';
@@ -44,7 +44,7 @@ function App() {
             <div className="main-content">
               <ErrorBoundary>
                 <Routes>
-                  <Route path="/" element={<HomeScreen />} />
+                  <Route path="/" element={<HomeRedirect />} />
                   <Route path="/report" element={<ReportPage />} />
                   <Route path="/signup" element={<SignUp />} />
                   <Route path="/login" element={<Login />} />

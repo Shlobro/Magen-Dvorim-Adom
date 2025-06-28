@@ -21,10 +21,13 @@ export async function fetchVolunteerInquiries(volunteerId) {
   return res.data;
 }
 
-export async function updateInquiryStatus(inquiryId, status, closureReason = null) {
+export async function updateInquiryStatus(inquiryId, status, closureReason = null, coordinatorId = null) {
   const payload = { status };
   if (closureReason) {
     payload.closureReason = closureReason;
+  }
+  if (coordinatorId) {
+    payload.coordinatorId = coordinatorId;
   }
   return axios.post(`${API_BASE}/api/inquiries/${inquiryId}/status`, payload);
 }

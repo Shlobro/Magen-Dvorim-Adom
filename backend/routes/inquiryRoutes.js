@@ -86,14 +86,28 @@ router.post('/upload-photo', upload.single('photo'), async (req, res) => {
 router.post('/:id/assign', async (req, res) => {
   try {
     const { id } = req.params; // ID של הפנייה
-    const { volunteerIds } = req.body; // מערך של ID מתנדבים
+    const { volunteerIds, coordinatorId } = req.body; // מערך של ID מתנדבים ו-ID רכז
 
     console.log("Attempting to assign volunteer(s) to inquiry:", id); // LOG
     console.log("Received volunteerIds:", volunteerIds); // LOG
+    console.log("Received coordinatorId:", coordinatorId); // LOG
 
     if (!Array.isArray(volunteerIds) || volunteerIds.length === 0) {
       console.warn("Validation failed: volunteerIds is not an array or is empty."); // LOG
       return res.status(400).send("Volunteer IDs array is required");
+    }
+
+    // Get the current inquiry to check ownership
+    const inquiryDoc = await db.collection("inquiry").doc(id).get();
+    if (!inquiryDoc.exists) {
+      return res.status(404).send("Inquiry not found");
+    }
+
+    const inquiryData = inquiryDoc.data();
+    
+    // Check if the coordinator has ownership (if coordinatorId is provided for validation)
+    if (coordinatorId && inquiryData.coordinatorId !== coordinatorId) {
+      return res.status(403).send("Cannot assign volunteers without ownership of this inquiry");
     }
 
     await db.collection("inquiry").doc(id).update({
@@ -118,10 +132,23 @@ router.post('/:id/assign', async (req, res) => {
 router.post('/:id/unassign', async (req, res) => {
   try {
     const { id } = req.params;
-    const { volunteerIds } = req.body;
+    const { volunteerIds, coordinatorId } = req.body;
 
     if (!Array.isArray(volunteerIds) || volunteerIds.length === 0) {
       return res.status(400).send("Volunteer IDs array is required");
+    }
+
+    // Get the current inquiry to check ownership
+    const inquiryDoc = await db.collection("inquiry").doc(id).get();
+    if (!inquiryDoc.exists) {
+      return res.status(404).send("Inquiry not found");
+    }
+
+    const inquiryData = inquiryDoc.data();
+    
+    // Check if the coordinator has ownership (if coordinatorId is provided for validation)
+    if (coordinatorId && inquiryData.coordinatorId !== coordinatorId) {
+      return res.status(403).send("Cannot unassign volunteers without ownership of this inquiry");
     }
 
     await db.collection("inquiry").doc(id).update({
@@ -144,10 +171,23 @@ router.post('/:id/unassign', async (req, res) => {
 router.post('/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, closureReason } = req.body;
+    const { status, closureReason, coordinatorId } = req.body;
 
     if (!status) {
       return res.status(400).send("Status is required");
+    }
+
+    // Get the current inquiry to check ownership
+    const inquiryDoc = await db.collection("inquiry").doc(id).get();
+    if (!inquiryDoc.exists) {
+      return res.status(404).send("Inquiry not found");
+    }
+
+    const inquiryData = inquiryDoc.data();
+    
+    // Check if the coordinator has ownership (if coordinatorId is provided for validation)
+    if (coordinatorId && inquiryData.coordinatorId !== coordinatorId) {
+      return res.status(403).send("Cannot update status without ownership of this inquiry");
     }
 
     const updateData = { status };
