@@ -325,6 +325,30 @@ export default function Dashboard() {
     window.open(photoUrl, '_blank')
   }
 
+  const handleDownloadPhoto = async (photoUrl, inquiryId) => {
+    try {
+      const response = await fetch(photoUrl)
+      const blob = await response.blob()
+      
+      // Create a temporary URL for the blob
+      const url = window.URL.createObjectURL(blob)
+      
+      // Create a temporary anchor element for download
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `תמונת_דיווח_${inquiryId}_${new Date().toISOString().split('T')[0]}.jpg`
+      document.body.appendChild(a)
+      a.click()
+      
+      // Clean up
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error downloading photo:', error)
+      alert('שגיאה בהורדת התמונה')
+    }
+  }
+
   // ───────────────────────────── Derived State: Unique Volunteer Names
   const uniqueVolunteerNames = useMemo(() => {
     const names = new Set()
@@ -1026,7 +1050,6 @@ export default function Dashboard() {
                   border: "1px solid #e1f5fe",
                 }}
               >
-                {" "}
                 <div
                   style={{
                     marginBottom: "20px",
@@ -1053,6 +1076,7 @@ export default function Dashboard() {
                       transition: "all 0.3s ease",
                       transform: "translateY(0)",
                     }}
+                    className="no-select"
                     onMouseOver={(e) => {
                       e.currentTarget.style.transform = "translateY(-2px)"
                       e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,123,255,0.4)"
@@ -1089,6 +1113,7 @@ export default function Dashboard() {
                   justifyContent: "space-between",
                   alignItems: "center",
                 }}
+                className="no-select"
               >
                 🔍 סינון נתונים
                 {isMobileView && (
@@ -1103,12 +1128,13 @@ export default function Dashboard() {
                       transition: "transform 0.3s ease",
                       transform: isMobileFilterOpen ? "rotate(180deg)" : "rotate(0deg)",
                     }}
+                    className="no-select"
                   >
                     {isMobileFilterOpen ? "▲" : "▼"}
                   </button>
                 )}
               </h3>
-              {(isMobileFilterOpen || !isMobileView) && ( // Render only if open or not mobile
+              {(isMobileFilterOpen || !isMobileView) && (
                 <div
                   style={{
                     display: "grid",
@@ -1126,6 +1152,7 @@ export default function Dashboard() {
                         color: "#495057",
                         fontSize: "0.95em",
                       }}
+                      className="no-select"
                     >
                       פילטר מתנדב:
                     </label>
@@ -1163,6 +1190,7 @@ export default function Dashboard() {
                         color: "#495057",
                         fontSize: "0.95em",
                       }}
+                      className="no-select"
                     >
                       פילטר סטטוס:
                     </label>
@@ -1200,6 +1228,7 @@ export default function Dashboard() {
                         color: "#495057",
                         fontSize: "0.95em",
                       }}
+                      className="no-select"
                     >
                       מתאריך:
                     </label>
@@ -1231,6 +1260,7 @@ export default function Dashboard() {
                         color: "#495057",
                         fontSize: "0.95em",
                       }}
+                      className="no-select"
                     >
                       עד תאריך:
                     </label>
@@ -1269,6 +1299,7 @@ export default function Dashboard() {
                         transition: "all 0.3s ease",
                         whiteSpace: "nowrap",
                       }}
+                      className="no-select"
                       onMouseOver={(e) => {
                         e.currentTarget.style.transform = "translateY(-2px)"
                         e.currentTarget.style.boxShadow = "0 5px 15px rgba(108,117,125,0.3)"
@@ -1282,8 +1313,7 @@ export default function Dashboard() {
                     </button>
                   </div>
                 </div>
-              )}{" "}
-              {/* End conditional rendering for filters */}
+              )}
             </div>
 
             {/* Export Buttons Section */}
@@ -1309,6 +1339,7 @@ export default function Dashboard() {
                   fontWeight: "600",
                   textAlign: "center",
                 }}
+                className="no-select"
               >
                 📊 הפקת דוחות
               </h3>
@@ -1330,6 +1361,7 @@ export default function Dashboard() {
                   flex: "1 1 auto",
                   minWidth: "150px",
                 }}
+                className="no-select"
                 onMouseOver={(e) => {
                   e.currentTarget.style.transform = "translateY(-2px)"
                   e.currentTarget.style.boxShadow = "0 5px 15px rgba(0,123,255,0.3)"
@@ -1359,6 +1391,7 @@ export default function Dashboard() {
                   flex: "1 1 auto",
                   minWidth: "150px",
                 }}
+                className="no-select"
                 onMouseOver={(e) => {
                   e.currentTarget.style.transform = "translateY(-2px)"
                   e.currentTarget.style.boxShadow = "0 5px 15px rgba(76,175,80,0.3)"
@@ -1388,6 +1421,7 @@ export default function Dashboard() {
                   flex: "1 1 auto",
                   minWidth: "150px",
                 }}
+                className="no-select"
                 onMouseOver={(e) => {
                   e.currentTarget.style.transform = "translateY(-2px)"
                   e.currentTarget.style.boxShadow = "0 5px 15px rgba(255,193,7,0.3)"
@@ -1417,6 +1451,7 @@ export default function Dashboard() {
                   flex: "1 1 auto",
                   minWidth: "150px",
                 }}
+                className="no-select"
                 onMouseOver={(e) => {
                   e.currentTarget.style.transform = "translateY(-2px)"
                   e.currentTarget.style.boxShadow = "0 5px 15px rgba(108,117,125,0.3)"
@@ -1446,6 +1481,7 @@ export default function Dashboard() {
                   flex: "1 1 auto",
                   minWidth: "150px",
                 }}
+                className="no-select"
                 onMouseOver={(e) => {
                   e.currentTarget.style.transform = "translateY(-2px)"
                   e.currentTarget.style.boxShadow = "0 5px 15px rgba(156,39,176,0.3)"
@@ -1477,13 +1513,13 @@ export default function Dashboard() {
                     {[
                       { label: "שם מלא", key: "fullName" },
                       { label: "כתובת מלאה", key: "address" },
-                      { label: "פרטים מלאים", key: null }, // Not sortable
+                      { label: "פרטים מלאים", key: null },
                       { label: "תאריך דיווח", key: "timestamp" },
                       { label: "סטטוס", key: "status" },
                       { label: "סיבת סגירה", key: "closureReason" },
                       { label: "מתנדב משובץ", key: "assignedVolunteerName" },
                       { label: "רכז מטפל", key: "coordinatorName" },
-                      { label: "פעולות", key: null }, // Not sortable
+                      { label: "פעולות", key: null },
                     ].map((column) => (
                       <th
                         key={column.label}
@@ -1498,9 +1534,9 @@ export default function Dashboard() {
                           top: 0,
                           zIndex: 1,
                           cursor: column.key ? "pointer" : "default",
-                          userSelect: "none",
                           transition: "background-color 0.2s ease",
                         }}
+                        className={column.key ? "sortable no-select" : "no-select"}
                         onClick={() => column.key && handleSort(column.key)}
                         onMouseOver={(e) => {
                           if (column.key) {
@@ -1550,7 +1586,6 @@ export default function Dashboard() {
                         }
                         onMouseOut={(e) => (e.currentTarget.style.backgroundColor = rowBg)}
                       >
-                        {/* Keep all existing table cell content exactly the same */}
                         <td style={{ padding: "15px 25px", whiteSpace: "nowrap" }}>{call.fullName}</td>
                         <td style={{ padding: "15px 25px" }}>
                           {`${call.city || ""} ${call.address || ""}`.trim() || "-"}
@@ -1574,6 +1609,7 @@ export default function Dashboard() {
                               gap: "5px",
                               margin: "0 auto",
                             }}
+                            className="no-select"
                             onMouseOver={(e) => {
                               e.currentTarget.style.transform = "translateY(-1px)"
                               e.currentTarget.style.boxShadow = "0 3px 10px rgba(111,66,193,0.3)"
@@ -1641,7 +1677,7 @@ export default function Dashboard() {
                               ))}
                             </select>
                           )}
-                        </td>{" "}
+                        </td>
                         <td style={{ padding: "15px 25px", whiteSpace: "nowrap" }}>
                           {call.assignedVolunteers && call.assignedVolunteers !== "-" ? (
                             <div style={{ minWidth: "180px" }}>
@@ -1653,7 +1689,7 @@ export default function Dashboard() {
                                 onChange={(e) => {
                                   if (e.target.value) {
                                     handleReassignVolunteer(call.id, e.target.value)
-                                    e.target.value = "" // Reset dropdown
+                                    e.target.value = ""
                                   }
                                 }}
                                 onFocus={fetchVolunteers}
@@ -1718,6 +1754,7 @@ export default function Dashboard() {
                                 transition: "all 0.2s ease",
                                 width: "fit-content",
                               }}
+                              className="no-select"
                               onMouseOver={(e) => {
                                 e.currentTarget.style.transform = "translateY(-1px)"
                                 e.currentTarget.style.boxShadow = "0 3px 10px rgba(40,167,69,0.3)"
@@ -1747,6 +1784,7 @@ export default function Dashboard() {
                                 transition: "all 0.2s ease",
                                 width: "fit-content",
                               }}
+                              className="no-select"
                               onMouseOver={(e) => {
                                 e.currentTarget.style.transform = "translateY(-1px)"
                                 e.currentTarget.style.boxShadow = "0 3px 10px rgba(23,162,184,0.3)"
@@ -1758,7 +1796,9 @@ export default function Dashboard() {
                             >
                               צור קישור למשוב
                             </button>
-                          )}                          {call.coordinatorId === null || call.coordinatorId === "" ? (
+                          )}
+
+                          {call.coordinatorId === null || call.coordinatorId === "" ? (
                             <button
                               onClick={() => handleTakeOwnership(call.id)}
                               style={{
@@ -1775,6 +1815,7 @@ export default function Dashboard() {
                                 width: "fit-content",
                                 marginBottom: "8px",
                               }}
+                              className="no-select"
                               onMouseOver={(e) => {
                                 e.currentTarget.style.transform = "translateY(-1px)"
                                 e.currentTarget.style.boxShadow = "0 3px 10px rgba(255,152,0,0.3)"
@@ -1803,6 +1844,7 @@ export default function Dashboard() {
                                 width: "fit-content",
                                 marginBottom: "8px",
                               }}
+                              className="no-select"
                               onMouseOver={(e) => {
                                 e.currentTarget.style.transform = "translateY(-1px)"
                                 e.currentTarget.style.boxShadow = "0 3px 10px rgba(220,53,69,0.3)"
@@ -1819,6 +1861,7 @@ export default function Dashboard() {
                           {call.status !== "נפתחה פנייה (טופס מולא)" && call.status !== "הפנייה נסגרה" && (
                             <span
                               style={{ color: "#888", fontStyle: "italic", fontSize: "0.8em", whiteSpace: "nowrap" }}
+                              className="no-select"
                             >
                               אין פעולות זמינות
                             </span>
@@ -1839,6 +1882,7 @@ export default function Dashboard() {
                           fontSize: "1.1em",
                           fontWeight: "500",
                         }}
+                        className="no-select"
                       >
                         אין נתונים להצגה (נסה לשנות פילטרים)
                       </td>
@@ -1877,6 +1921,7 @@ export default function Dashboard() {
                     fontWeight: "600",
                     transition: "all 0.3s ease",
                   }}
+                  className="no-select"
                 >
                   הקודם →
                 </button>
@@ -1890,6 +1935,7 @@ export default function Dashboard() {
                     fontWeight: "600",
                     color: "#495057",
                   }}
+                  className="no-select"
                 >
                   <span>
                     עמוד {currentPage} מתוך {totalPages}
@@ -1914,6 +1960,7 @@ export default function Dashboard() {
                     fontWeight: "600",
                     transition: "all 0.3s ease",
                   }}
+                  className="no-select"
                 >
                   ← הבא
                 </button>
@@ -1930,106 +1977,12 @@ export default function Dashboard() {
                 color: "#777",
                 fontSize: "0.9em",
               }}
+              className="no-select"
             >
               © 2025 מגן דבורים אדום. כל הזכויות שמורות.
             </footer>
-          </div>{" "}
-          {/* End padding div */}
-          {/* Comment Modal */}
-          {isCommentModalOpen && (
-            <div
-              style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                zIndex: 1000,
-                padding: "20px",
-              }}
-              onClick={handleCloseComment}
-            >
-              <div
-                style={{
-                  backgroundColor: "white",
-                  borderRadius: "12px",
-                  padding: "30px",
-                  maxWidth: "600px",
-                  maxHeight: "80vh",
-                  overflow: "auto",
-                  boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
-                  position: "relative",
-                  direction: "rtl",
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "20px",
-                    borderBottom: "2px solid #f0f0f0",
-                    paddingBottom: "15px",
-                  }}
-                >
-                  <h3
-                    style={{
-                      margin: 0,
-                      color: "#333",
-                      fontSize: "1.3em",
-                      fontWeight: "600",
-                    }}
-                  >
-                    הערות נוספות
-                  </h3>
-                  <button
-                    onClick={handleCloseComment}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      fontSize: "1.5em",
-                      cursor: "pointer",
-                      color: "#666",
-                      padding: "5px",
-                      borderRadius: "50%",
-                      width: "35px",
-                      height: "35px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = "#f0f0f0"
-                      e.currentTarget.style.color = "#333"
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent"
-                      e.currentTarget.style.color = "#666"
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div
-                  style={{
-                    fontSize: "1.1em",
-                    lineHeight: "1.6",
-                    color: "#444",
-                    whiteSpace: "pre-wrap",
-                    wordWrap: "break-word",
-                  }}
-                >
-                  {selectedComment}
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
+
           {/* Details Modal */}
           {isDetailsModalOpen && selectedCallDetails && (
             <div
@@ -2146,7 +2099,9 @@ export default function Dashboard() {
                         selectedCallDetails.time,
                       )}
                     </div>
-                  </div>                  <div style={{ padding: "15px", background: "#f8f9fa", borderRadius: "8px" }}>
+                  </div>
+
+                  <div style={{ padding: "15px", background: "#f8f9fa", borderRadius: "8px" }}>
                     <div style={{ fontWeight: "600", color: "#495057", marginBottom: "8px" }}>הערות נוספות:</div>
                     <div
                       style={{
@@ -2168,11 +2123,11 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Photo section */}
+                  {/* Photo section with download button */}
                   {selectedCallDetails.photo && (
                     <div style={{ padding: "15px", background: "#f8f9fa", borderRadius: "8px" }}>
                       <div style={{ fontWeight: "600", color: "#495057", marginBottom: "8px" }}>תמונת הדיווח:</div>
-                      <div style={{ display: "flex", justifyContent: "center" }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "15px" }}>
                         <img
                           src={selectedCallDetails.photo}
                           alt="תמונת הדיווח"
@@ -2183,7 +2138,8 @@ export default function Dashboard() {
                             cursor: "pointer",
                             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
                             transition: "transform 0.2s ease",
-                          }}                          onClick={() => handleOpenPhoto(selectedCallDetails.photo)}
+                          }}
+                          onClick={() => handleOpenPhoto(selectedCallDetails.photo)}
                           onMouseOver={(e) => {
                             e.currentTarget.style.transform = "scale(1.05)"
                           }}
@@ -2192,6 +2148,34 @@ export default function Dashboard() {
                           }}
                           title="לחץ לפתיחת התמונה בטאב חדש"
                         />
+                        <button
+                          onClick={() => handleDownloadPhoto(selectedCallDetails.photo, selectedCallDetails.id)}
+                          style={{
+                            background: "linear-gradient(135deg, #28a745 0%, #218838 100%)",
+                            color: "white",
+                            padding: "10px 20px",
+                            border: "none",
+                            borderRadius: "8px",
+                            cursor: "pointer",
+                            fontSize: "0.9em",
+                            fontWeight: "600",
+                            boxShadow: "0 2px 8px rgba(40,167,69,0.2)",
+                            transition: "all 0.2s ease",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.transform = "translateY(-1px)"
+                            e.currentTarget.style.boxShadow = "0 3px 10px rgba(40,167,69,0.3)"
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.transform = "translateY(0)"
+                            e.currentTarget.style.boxShadow = "0 2px 8px rgba(40,167,69,0.2)"
+                          }}
+                        >
+                          📥 הורד תמונה
+                        </button>
                       </div>
                     </div>
                   )}
@@ -2212,12 +2196,12 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-              </div>            </div>
+              </div>
+            </div>
           )}
-        </div>{" "}
-        {/* End dashboard card inner */}
-      </div>{" "}
-      {/* End max-width container */}
-    </div> // End dashboard container
+        </div>
+      </div>
+    </div>
   )
 }
+       

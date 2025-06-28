@@ -1,0 +1,14 @@
+# Browsers that we support
+
+# Production
+> 0.5%
+last 2 versions
+Firefox ESR
+not dead
+not ie <= 10
+
+# Development
+last 1 chrome version
+last 1 firefox version
+last 1 safari version
+last 1 edge version
