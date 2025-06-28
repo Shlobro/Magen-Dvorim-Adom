@@ -86,7 +86,7 @@ button {
 }
 
 /* Input focus improvements for mobile */
-input, textarea, select {
+input:not([type="checkbox"]):not([type="radio"]), textarea, select {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
@@ -96,6 +96,13 @@ input:focus, textarea:focus, select:focus {
     outline: none;
     border-color: #007bff;
     box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Ensure checkboxes and radio buttons are visible */
+input[type="checkbox"], input[type="radio"] {
+    -webkit-appearance: auto;
+    -moz-appearance: auto;
+    appearance: auto;
 }
 
 /* Smooth scrolling for all browsers */

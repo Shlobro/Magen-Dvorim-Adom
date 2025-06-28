@@ -302,6 +302,7 @@ export default function SignUp() {
     fontSize: '16px',
     direction: 'rtl',
     textAlign: 'right',
+    minHeight: '24px',
   };
 
   const checkboxStyle = {
@@ -309,6 +310,11 @@ export default function SignUp() {
     height: '20px',
     accentColor: '#667eea',
     cursor: 'pointer',
+    appearance: 'auto',
+    WebkitAppearance: 'auto',
+    MozAppearance: 'auto',
+    margin: '0',
+    flexShrink: 0,
   };
 
   const textareaStyle = {
