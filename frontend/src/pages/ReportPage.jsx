@@ -132,6 +132,7 @@ export default function ReportPage() {
             required
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
+            style={{ direction: 'rtl', textAlign: 'right' }} // ⬅️ הוספת יישור RTL
           />
           <input
             type="text"
