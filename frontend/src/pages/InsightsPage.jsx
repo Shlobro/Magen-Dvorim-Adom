@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useEffect } from "react"
 import {
   Container,
@@ -20,7 +18,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from "@mui/material"
-import { TrendingUp, Assessment, LocationOn, People, CheckCircle, PendingActions, BarChart } from "@mui/icons-material"
+import { TrendingUp, Assessment, LocationOn, People, CheckCircle, PendingActions, BarChart, Warning, Schedule, CalendarToday, AccessTime } from "@mui/icons-material"
 import { Bar } from "react-chartjs-2"
 import {
   Chart as ChartJS,
@@ -40,14 +38,74 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTitle, Tooltip, Le
 
 export default function InsightsPage() {
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState({ total: 0, open: 0, closed: 0 })
+  const [stats, setStats] = useState({ 
+    total: 0, 
+    open: 0, 
+    closed: 0, 
+    resolved: 0, 
+    unresolvable: 0, 
+    assigned: 0, 
+    avgResponseTime: 0 
+  })
   const [rawInquiries, setRawInquiries] = useState([])
   const [rawUsers, setRawUsers] = useState([])
+  
+  // Time period state for statistics
+  const [statsPeriod, setStatsPeriod] = useState("all")
 
-  // Time period states for each chart
-  const [monthChartPeriod, setMonthChartPeriod] = useState("month")
-  const [cityChartPeriod, setCityChartPeriod] = useState("month")
-  const [volunteerChartPeriod, setVolunteerChartPeriod] = useState("month")
+  // Calculate statistics for the given inquiries
+  const calculateStats = (inquiries) => {
+    const total = inquiries.length
+    const closed = inquiries.filter((i) => i.status === "הפנייה נסגרה").length
+    const open = total - closed
+
+    // Calculate additional statistics
+    const resolvedInquiries = inquiries.filter(inquiry => 
+      inquiry.status === "הפנייה נסגרה" && inquiry.closureReason === "נפתר עצמאית"
+    ).length
+    
+    const unresolvableInquiries = inquiries.filter(inquiry => 
+      inquiry.status === "הפנייה נסגרה" && 
+      ["לא ניתן לטפל", "מיקום לא נגיש", "מתנדב לא הגיע"].includes(inquiry.closureReason)
+    ).length
+
+    const assignedInquiries = inquiries.filter(inquiry => 
+      inquiry.assignedVolunteers && 
+      ((Array.isArray(inquiry.assignedVolunteers) && inquiry.assignedVolunteers.length > 0) ||
+       (typeof inquiry.assignedVolunteers === "string" && inquiry.assignedVolunteers !== ""))
+    ).length
+
+    const avgResponseTime = inquiries.length > 0 ? 
+      Math.round(inquiries.reduce((sum, inquiry) => {
+        if (inquiry.timestamp && inquiry.assignedAt) {
+          const start = parseTimestamp(inquiry.timestamp)
+          const assigned = parseTimestamp(inquiry.assignedAt)
+          if (start && assigned) {
+            return sum + (assigned - start) / (1000 * 60 * 60) // hours
+          }
+        }
+        return sum
+      }, 0) / inquiries.length) : 0
+
+    return { 
+      total, 
+      open, 
+      closed, 
+      resolved: resolvedInquiries,
+      unresolvable: unresolvableInquiries,
+      assigned: assignedInquiries,
+      avgResponseTime
+    }
+  }
+
+  // Update stats when period changes
+  useEffect(() => {
+    if (rawInquiries.length > 0) {
+      const filteredInquiries = filterByTimePeriod(rawInquiries, statsPeriod)
+      const newStats = calculateStats(filteredInquiries)
+      setStats(newStats)
+    }
+  }, [statsPeriod, rawInquiries])
 
   const { userRole, loading: authLoading } = useAuth()
   const { showError } = useNotification()
@@ -68,11 +126,10 @@ export default function InsightsPage() {
           setRawInquiries(inquiries)
           setRawUsers(users)
 
-          const total = inquiries.length
-          const closed = inquiries.filter((i) => i.status === "הפנייה נסגרה").length
-          const open = total - closed
-
-          setStats({ total, open, closed })        } catch (e) {
+          // Calculate initial stats for the selected period
+          const filteredInquiries = filterByTimePeriod(inquiries, statsPeriod)
+          const initialStats = calculateStats(filteredInquiries)
+          setStats(initialStats)        } catch (e) {
           console.error(e)
           showError("אירעה שגיאה בטעינת הנתונים.")
         } finally {
@@ -132,112 +189,29 @@ export default function InsightsPage() {
     return filtered
   }
 
-  // Generate chart data based on time period
-  const generateMonthChart = (period) => {
-    const filteredInquiries = filterByTimePeriod(rawInquiries, period)
+  // Generate chart data for seasonal trends (by month across all years)
+  const generateSeasonalChart = () => {
+    const monthNames = [
+      "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
+      "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"
+    ]
+    const monthCount = new Array(12).fill(0)
 
-    if (period === "week") {
-      // Group by days for week view
-      const dayCount = {}
-      const dayNames = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"]
-
-      filteredInquiries.forEach((inquiry) => {
-        const date = parseTimestamp(inquiry.timestamp);
-        if (!date) return;
-        const dayName = dayNames[date.getDay()]
-        const dateStr = `${dayName} ${date.getDate()}/${date.getMonth() + 1}`
-        dayCount[dateStr] = (dayCount[dateStr] || 0) + 1
-      })
-
-      const sortedDays = Object.keys(dayCount).sort((a, b) => {
-        const dateA = new Date(a.split(" ")[1].split("/").reverse().join("/"))
-        const dateB = new Date(b.split(" ")[1].split("/").reverse().join("/"))
-        return dateA - dateB
-      })
-
-      return {
-        labels: sortedDays,
-        datasets: [
-          {
-            label: "מספר פניות",
-            data: sortedDays.map((day) => dayCount[day]),
-            backgroundColor: "rgba(25, 118, 210, 0.8)",
-            borderColor: "rgba(25, 118, 210, 1)",
-            borderWidth: 2,
-            borderRadius: 8,
-            borderSkipped: false,
-          },
-        ],
-      }
-    } else {
-      // Group by months for month/year view
-      const monthNames = [
-        "ינואר",
-        "פברואר",
-        "מרץ",
-        "אפריל",
-        "מאי",
-        "יוני",
-        "יולי",
-        "אוגוסט",
-        "ספטמבר",
-        "אוקטובר",
-        "נובמבר",
-        "דצמבר",
-      ]
-      const monthCount = {}
-
-      filteredInquiries.forEach((inquiry) => {
-        const date = parseTimestamp(inquiry.timestamp);
-        if (!date) return;
-        const key = `${monthNames[date.getMonth()]} ${date.getFullYear()}`
-        monthCount[key] = (monthCount[key] || 0) + 1
-      })
-
-      const sortedMonths = Object.keys(monthCount).sort((a, b) => {
-        const [mA, yA] = a.split(" ")
-        const [mB, yB] = b.split(" ")
-        return new Date(yA, monthNames.indexOf(mA)) - new Date(yB, monthNames.indexOf(mB))
-      })
-
-      return {
-        labels: sortedMonths,
-        datasets: [
-          {
-            label: "מספר פניות",
-            data: sortedMonths.map((month) => monthCount[month]),
-            backgroundColor: "rgba(25, 118, 210, 0.8)",
-            borderColor: "rgba(25, 118, 210, 1)",
-            borderWidth: 2,
-            borderRadius: 8,
-            borderSkipped: false,
-          },
-        ],
-      }
-    }
-  }
-
-  const generateCityChart = (period) => {
-    const filteredInquiries = filterByTimePeriod(rawInquiries, period)
-    const cityCount = {}
-
-    filteredInquiries.forEach((inquiry) => {
-      if (inquiry.city) {
-        const city = inquiry.city.trim()
-        cityCount[city] = (cityCount[city] || 0) + 1
+    rawInquiries.forEach((inquiry) => {
+      const date = parseTimestamp(inquiry.timestamp)
+      if (date) {
+        monthCount[date.getMonth()]++
       }
     })
 
-    const sortedCities = Object.entries(cityCount).sort((a, b) => b[1] - a[1])
-
     return {
-      labels: sortedCities.map(([city]) => city),
+      labels: monthNames,
       datasets: [
         {
           label: "מספר פניות",
-          data: sortedCities.map(([, count]) => count),
-          backgroundColor: "rgba(156, 39, 176, 0.8)",
-          borderColor: "rgba(156, 39, 176, 1)",
+          data: monthCount,
+          backgroundColor: "rgba(76, 175, 80, 0.8)",
+          borderColor: "rgba(76, 175, 80, 1)",
           borderWidth: 2,
           borderRadius: 8,
           borderSkipped: false,
@@ -246,30 +220,101 @@ export default function InsightsPage() {
     }
   }
 
-  const generateVolunteerChart = (period) => {
-    const filteredInquiries = filterByTimePeriod(rawInquiries, period)
-    const volMap = {}
-    const volNames = rawUsers
-      .filter((u) => u.userType === 2)
-      .reduce((acc, u) => ((acc[u.id] = u.name || `מתנדב ${u.id.substring(0, 4)}`), acc), {})
+  // Generate chart data for closure reasons
+  const generateClosureReasonsChart = () => {
+    const closureReasons = {}
+    const closedInquiries = rawInquiries.filter(inquiry => 
+      inquiry.status === "הפנייה נסגרה" && inquiry.closureReason
+    )
 
-    filteredInquiries.forEach((inquiry) => {
-      const volunteerName = volNames[inquiry.assignedVolunteerId]
-      if (volunteerName) {
-        volMap[volunteerName] = (volMap[volunteerName] || 0) + 1
+    closedInquiries.forEach((inquiry) => {
+      const reason = inquiry.closureReason || "לא צוין"
+      closureReasons[reason] = (closureReasons[reason] || 0) + 1
+    })
+
+    const sortedReasons = Object.entries(closureReasons).sort((a, b) => b[1] - a[1])
+
+    return {
+      labels: sortedReasons.map(([reason]) => reason),
+      datasets: [
+        {
+          label: "מספר פניות",
+          data: sortedReasons.map(([, count]) => count),
+          backgroundColor: [
+            "rgba(76, 175, 80, 0.8)",   // נפתר עצמאית - ירוק
+            "rgba(244, 67, 54, 0.8)",   // לא ניתן לטפל - אדום
+            "rgba(255, 152, 0, 0.8)",   // מיקום לא נגיש - כתום
+            "rgba(156, 39, 176, 0.8)",  // מתנדב לא הגיע - סגול
+            "rgba(96, 125, 139, 0.8)",  // אחר - אפור
+          ],
+          borderColor: [
+            "rgba(76, 175, 80, 1)",
+            "rgba(244, 67, 54, 1)",
+            "rgba(255, 152, 0, 1)",
+            "rgba(156, 39, 176, 1)",
+            "rgba(96, 125, 139, 1)",
+          ],
+          borderWidth: 2,
+          borderRadius: 8,
+          borderSkipped: false,
+        },
+      ],
+    }
+  }
+
+  // Generate chart data for peak hours
+  const generatePeakHoursChart = () => {
+    const hourCount = new Array(24).fill(0)
+    const hourLabels = []
+    
+    // Create hour labels in Hebrew
+    for (let i = 0; i < 24; i++) {
+      hourLabels.push(`${i.toString().padStart(2, '0')}:00`)
+    }
+
+    rawInquiries.forEach((inquiry) => {
+      const date = parseTimestamp(inquiry.timestamp)
+      if (date) {
+        hourCount[date.getHours()]++
       }
     })
 
-    const sortedVolunteers = Object.entries(volMap).sort((a, b) => b[1] - a[1])
-
     return {
-      labels: sortedVolunteers.map(([name]) => name),
+      labels: hourLabels,
       datasets: [
         {
-          label: "שיבוצים",
-          data: sortedVolunteers.map(([, count]) => count),
-          backgroundColor: "rgba(255, 152, 0, 0.8)",
-          borderColor: "rgba(255, 152, 0, 1)",
+          label: "מספר פניות",
+          data: hourCount,
+          backgroundColor: "rgba(33, 150, 243, 0.8)",
+          borderColor: "rgba(33, 150, 243, 1)",
+          borderWidth: 2,
+          borderRadius: 8,
+          borderSkipped: false,
+        },
+      ],
+    }
+  }
+
+  // Generate chart data for day of week patterns
+  const generateDayOfWeekChart = () => {
+    const dayNames = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"]
+    const dayCount = new Array(7).fill(0)
+
+    rawInquiries.forEach((inquiry) => {
+      const date = parseTimestamp(inquiry.timestamp)
+      if (date) {
+        dayCount[date.getDay()]++
+      }
+    })
+
+    return {
+      labels: dayNames,
+      datasets: [
+        {
+          label: "מספר פניות",
+          data: dayCount,
+          backgroundColor: "rgba(103, 58, 183, 0.8)",
+          borderColor: "rgba(103, 58, 183, 1)",
           borderWidth: 2,
           borderRadius: 8,
           borderSkipped: false,
@@ -338,39 +383,6 @@ export default function InsightsPage() {
       },
     },
   })
-
-  const TimeToggle = ({ value, onChange, sx = {} }) => (
-    <ToggleButtonGroup
-      value={value}
-      exclusive
-      onChange={(event, newValue) => {
-        if (newValue !== null) {
-          onChange(newValue)
-        }
-      }}
-      sx={{
-        "& .MuiToggleButton-root": {
-          px: 2,
-          py: 1,
-          fontSize: "0.875rem",
-          fontWeight: 500,
-          border: "1px solid rgba(0, 0, 0, 0.12)",
-          "&.Mui-selected": {
-            backgroundColor: "primary.main",
-            color: "white",
-            "&:hover": {
-              backgroundColor: "primary.dark",
-            },
-          },
-        },
-        ...sx,
-      }}
-    >
-      <ToggleButton value="week">שבוע</ToggleButton>
-      <ToggleButton value="month">חודש</ToggleButton>
-      <ToggleButton value="year">שנה</ToggleButton>
-    </ToggleButtonGroup>
-  )
 
   if (authLoading) {
     return (
@@ -449,6 +461,70 @@ export default function InsightsPage() {
           </Box>
         ) : (
           <>
+            {/* Time Period Filter */}
+            <Fade in timeout={600}>
+              <Paper
+                elevation={2}
+                sx={{
+                  p: 3,
+                  mb: 4,
+                  borderRadius: 3,
+                  textAlign: "center",
+                  background: "rgba(255,255,255,0.9)",
+                  backdropFilter: "blur(10px)",
+                }}
+              >
+                <Typography variant="h6" sx={{ mb: 2, color: "text.primary", fontWeight: 600 }}>
+                  בחר תקופת זמן לסטטיסטיקות
+                </Typography>
+                <ToggleButtonGroup
+                  value={statsPeriod}
+                  exclusive
+                  onChange={(event, newPeriod) => {
+                    if (newPeriod !== null) {
+                      setStatsPeriod(newPeriod)
+                    }
+                  }}
+                  sx={{
+                    '& .MuiToggleButton-root': {
+                      border: '2px solid #e0e0e0',
+                      borderRadius: '12px !important',
+                      mx: 0.5,
+                      px: 3,
+                      py: 1,
+                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                      color: '#666',
+                      '&.Mui-selected': {
+                        backgroundColor: '#1976d2',
+                        color: 'white',
+                        border: '2px solid #1976d2',
+                        '&:hover': {
+                          backgroundColor: '#1565c0',
+                        },
+                      },
+                      '&:hover': {
+                        backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                      },
+                    },
+                  }}
+                >
+                  <ToggleButton value="week">
+                    שבוע אחרון
+                  </ToggleButton>
+                  <ToggleButton value="month">
+                    חודש אחרון
+                  </ToggleButton>
+                  <ToggleButton value="year">
+                    שנה אחרונה
+                  </ToggleButton>
+                  <ToggleButton value="all">
+                    כל הזמנים
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Paper>
+            </Fade>
+
             {/* Statistics Cards */}
             <Grid container spacing={3} sx={{ mb: 5 }}>
               {[
@@ -458,23 +534,50 @@ export default function InsightsPage() {
                   color: "#1976d2",
                   bgColor: "linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)",
                   icon: <BarChart sx={{ fontSize: 40 }} />,
+                  description: "כלל הפניות במערכת"
                 },
                 {
                   label: "פניות פתוחות",
                   value: stats.open,
-                  color: "#2e7d32",
-                  bgColor: "linear-gradient(135deg, #2e7d32 0%, #66bb6a 100%)",
+                  color: "#ff9800",
+                  bgColor: "linear-gradient(135deg, #ff9800 0%, #ffb74d 100%)",
                   icon: <PendingActions sx={{ fontSize: 40 }} />,
+                  description: "ממתינות לטיפול"
                 },
                 {
-                  label: "פניות סגורות",
-                  value: stats.closed,
-                  color: "#d32f2f",
-                  bgColor: "linear-gradient(135deg, #d32f2f 0%, #ef5350 100%)",
+                  label: "נפתרו בהצלחה",
+                  value: stats.resolved,
+                  color: "#4caf50",
+                  bgColor: "linear-gradient(135deg, #4caf50 0%, #81c784 100%)",
                   icon: <CheckCircle sx={{ fontSize: 40 }} />,
+                  description: "טופלו בהצלחה"
                 },
-              ].map(({ label, value, color, bgColor, icon }, index) => (
-                <Grid item xs={12} sm={4} key={label}>
+                {
+                  label: "שובצו למתנדבים",
+                  value: stats.assigned,
+                  color: "#9c27b0",
+                  bgColor: "linear-gradient(135deg, #9c27b0 0%, #ba68c8 100%)",
+                  icon: <People sx={{ fontSize: 40 }} />,
+                  description: "שובצו למתנדבים"
+                },
+                {
+                  label: "לא ניתן לטפל",
+                  value: stats.unresolvable,
+                  color: "#f44336",
+                  bgColor: "linear-gradient(135deg, #f44336 0%, #ef5350 100%)",
+                  icon: <Warning sx={{ fontSize: 40 }} />,
+                  description: "נסגרו ללא פתרון"
+                },
+                {
+                  label: "זמן תגובה ממוצע",
+                  value: `${stats.avgResponseTime}h`,
+                  color: "#00bcd4",
+                  bgColor: "linear-gradient(135deg, #00bcd4 0%, #4dd0e1 100%)",
+                  icon: <TrendingUp sx={{ fontSize: 40 }} />,
+                  description: "עד שיבוץ מתנדב"
+                },
+              ].map(({ label, value, color, bgColor, icon, description }, index) => (
+                <Grid item xs={12} sm={6} md={4} lg={2} key={label}>
                   <Grow in timeout={600 + index * 200}>
                     <Card
                       elevation={8}
@@ -489,22 +592,20 @@ export default function InsightsPage() {
                         },
                       }}
                     >
-                      <CardContent sx={{ p: 4, textAlign: "center" }}>
-                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-                          <Box sx={{ textAlign: "left" }}>
-                            <Typography variant="h6" fontWeight="bold" sx={{ opacity: 0.9, mb: 1 }}>
-                              {label}
-                            </Typography>
-                            <Typography variant="h2" fontWeight="bold">
-                              {value.toLocaleString()}
-                            </Typography>
-                          </Box>
-                          <Avatar sx={{ bgcolor: "rgba(255,255,255,0.2)", width: 64, height: 64 }}>{icon}</Avatar>
+                      <CardContent sx={{ p: 3, textAlign: "center" }}>
+                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mb: 2 }}>
+                          <Avatar sx={{ bgcolor: "rgba(255,255,255,0.2)", width: 56, height: 56, mb: 2 }}>
+                            {icon}
+                          </Avatar>
+                          <Typography variant="h6" fontWeight="bold" sx={{ opacity: 0.9, mb: 1, fontSize: "0.9rem" }}>
+                            {label}
+                          </Typography>
+                          <Typography variant="h3" fontWeight="bold" sx={{ fontSize: "1.8rem" }}>
+                            {typeof value === 'string' ? value : value.toLocaleString()}
+                          </Typography>
                         </Box>
-                        <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                          {label === 'סה"כ פניות' && "כלל הפניות במערכת"}
-                          {label === "פניות פתוחות" && "ממתינות לטיפול"}
-                          {label === "פניות סגורות" && "טופלו בהצלחה"}
+                        <Typography variant="body2" sx={{ opacity: 0.8, fontSize: "0.8rem" }}>
+                          {description}
                         </Typography>
                       </CardContent>
                     </Card>
@@ -515,7 +616,7 @@ export default function InsightsPage() {
 
             <Divider sx={{ my: 4 }}>
               <Chip
-                label="ניתוח נתונים מתקדם"
+                label="תובנות מתקדמות לניהול הפעילות"
                 sx={{
                   fontSize: "1.1rem",
                   fontWeight: "bold",
@@ -527,7 +628,7 @@ export default function InsightsPage() {
 
             {/* Charts Section */}
             <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {/* Month Chart */}
+              {/* Seasonal Trends Chart */}
               <Box>
                 <Grow in timeout={800}>
                   <Card
@@ -543,36 +644,30 @@ export default function InsightsPage() {
                     <Box
                       sx={{
                         p: 3,
-                        background: "linear-gradient(135deg, #1976d215 0%, #1976d205 100%)",
+                        background: "linear-gradient(135deg, #4caf5015 0%, #4caf5005 100%)",
                         borderBottom: "1px solid rgba(0,0,0,0.05)",
                       }}
                     >
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          flexWrap: "wrap",
-                          gap: 2,
-                        }}
-                      >
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                          <Avatar sx={{ bgcolor: "#1976d2", width: 48, height: 48 }}>
-                            <TrendingUp />
-                          </Avatar>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                        <Avatar sx={{ bgcolor: "#4caf50", width: 48, height: 48 }}>
+                          <CalendarToday />
+                        </Avatar>
+                        <Box>
                           <Typography variant="h5" fontWeight="bold" color="text.primary">
-                            מספר פניות לפי זמן
+                            מגמות עונתיות - פעילות דבורים לפי חודש
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            זיהוי עונות השיא לפעילות דבורים ותכנון משאבים בהתאם
                           </Typography>
                         </Box>
-                        <TimeToggle value={monthChartPeriod} onChange={setMonthChartPeriod} />
                       </Box>
                     </Box>
                     <CardContent sx={{ p: 4 }}>
                       {rawInquiries.length > 0 ? (
                         <Box sx={{ height: 400 }}>
                           <Bar
-                            data={generateMonthChart(monthChartPeriod)}
-                            options={chartOpts("מספר פניות לפי זמן", "#1976d2")}
+                            data={generateSeasonalChart()}
+                            options={chartOpts("מגמות עונתיות", "#4caf50")}
                           />
                         </Box>
                       ) : (
@@ -587,9 +682,9 @@ export default function InsightsPage() {
                           }}
                         >
                           <Avatar sx={{ bgcolor: "grey.100", width: 80, height: 80, mb: 2 }}>
-                            <TrendingUp />
+                            <CalendarToday />
                           </Avatar>
-                          <Typography variant="h6">אין נתונים זמינים עבור פניות לפי זמן</Typography>
+                          <Typography variant="h6">אין נתונים זמינים עבור מגמות עונתיות</Typography>
                         </Box>
                       )}
                     </CardContent>
@@ -597,79 +692,9 @@ export default function InsightsPage() {
                 </Grow>
               </Box>
 
-              {/* City Chart */}
+              {/* Closure Reasons Chart */}
               <Box>
                 <Grow in timeout={1000}>
-                  <Card
-                    elevation={6}
-                    sx={{
-                      borderRadius: 4,
-                      transition: "all 0.3s ease",
-                      "&:hover": {
-                        boxShadow: "0 16px 32px rgba(0,0,0,0.1)",
-                      },
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        p: 3,
-                        background: "linear-gradient(135deg, #9c27b015 0%, #9c27b005 100%)",
-                        borderBottom: "1px solid rgba(0,0,0,0.05)",
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          flexWrap: "wrap",
-                          gap: 2,
-                        }}
-                      >
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                          <Avatar sx={{ bgcolor: "#9c27b0", width: 48, height: 48 }}>
-                            <LocationOn />
-                          </Avatar>
-                          <Typography variant="h5" fontWeight="bold" color="text.primary">
-                            מספר פניות לפי עיר
-                          </Typography>
-                        </Box>
-                        <TimeToggle value={cityChartPeriod} onChange={setCityChartPeriod} />
-                      </Box>
-                    </Box>
-                    <CardContent sx={{ p: 4 }}>
-                      {rawInquiries.length > 0 ? (
-                        <Box sx={{ height: 400 }}>
-                          <Bar
-                            data={generateCityChart(cityChartPeriod)}
-                            options={chartOpts("מספר פניות לפי עיר", "#9c27b0")}
-                          />
-                        </Box>
-                      ) : (
-                        <Box
-                          sx={{
-                            height: 400,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            flexDirection: "column",
-                            color: "text.secondary",
-                          }}
-                        >
-                          <Avatar sx={{ bgcolor: "grey.100", width: 80, height: 80, mb: 2 }}>
-                            <LocationOn />
-                          </Avatar>
-                          <Typography variant="h6">אין נתונים זמינים עבור פניות לפי עיר</Typography>
-                        </Box>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grow>
-              </Box>
-
-              {/* Volunteer Chart */}
-              <Box>
-                <Grow in timeout={1200}>
                   <Card
                     elevation={6}
                     sx={{
@@ -687,32 +712,26 @@ export default function InsightsPage() {
                         borderBottom: "1px solid rgba(0,0,0,0.05)",
                       }}
                     >
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          flexWrap: "wrap",
-                          gap: 2,
-                        }}
-                      >
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                          <Avatar sx={{ bgcolor: "#ff9800", width: 48, height: 48 }}>
-                            <People />
-                          </Avatar>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                        <Avatar sx={{ bgcolor: "#ff9800", width: 48, height: 48 }}>
+                          <Assessment />
+                        </Avatar>
+                        <Box>
                           <Typography variant="h5" fontWeight="bold" color="text.primary">
-                            מתנדבים מובילים לפי שיבוצים
+                            סיבות סגירת פניות
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            ניתוח סיבות סגירת פניות לזיהוי בעיות תפעוליות ושיפור השירות
                           </Typography>
                         </Box>
-                        <TimeToggle value={volunteerChartPeriod} onChange={setVolunteerChartPeriod} />
                       </Box>
                     </Box>
                     <CardContent sx={{ p: 4 }}>
-                      {rawInquiries.length > 0 ? (
+                      {rawInquiries.filter(i => i.status === "הפנייה נסגרה").length > 0 ? (
                         <Box sx={{ height: 400 }}>
                           <Bar
-                            data={generateVolunteerChart(volunteerChartPeriod)}
-                            options={chartOpts("מתנדבים מובילים לפי שיבוצים", "#ff9800")}
+                            data={generateClosureReasonsChart()}
+                            options={chartOpts("סיבות סגירת פניות", "#ff9800")}
                           />
                         </Box>
                       ) : (
@@ -727,15 +746,148 @@ export default function InsightsPage() {
                           }}
                         >
                           <Avatar sx={{ bgcolor: "grey.100", width: 80, height: 80, mb: 2 }}>
-                            <People />
+                            <Assessment />
                           </Avatar>
-                          <Typography variant="h6">אין נתונים זמינים עבור מתנדבים מובילים</Typography>
+                          <Typography variant="h6">אין נתונים זמינים עבור סיבות סגירה</Typography>
                         </Box>
                       )}
                     </CardContent>
                   </Card>
                 </Grow>
               </Box>
+
+              {/* Peak Hours Charts */}
+              <Grid container spacing={3}>
+                {/* Peak Hours Chart */}
+                <Grid item xs={12} md={6}>
+                  <Grow in timeout={1200}>
+                    <Card
+                      elevation={6}
+                      sx={{
+                        borderRadius: 4,
+                        height: "100%",
+                        transition: "all 0.3s ease",
+                        "&:hover": {
+                          boxShadow: "0 16px 32px rgba(0,0,0,0.1)",
+                        },
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          p: 3,
+                          background: "linear-gradient(135deg, #2196f315 0%, #2196f305 100%)",
+                          borderBottom: "1px solid rgba(0,0,0,0.05)",
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                          <Avatar sx={{ bgcolor: "#2196f3", width: 48, height: 48 }}>
+                            <AccessTime />
+                          </Avatar>
+                          <Box>
+                            <Typography variant="h5" fontWeight="bold" color="text.primary">
+                              שעות השיא
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              זמני היום הפעילים ביותר
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Box>
+                      <CardContent sx={{ p: 4 }}>
+                        {rawInquiries.length > 0 ? (
+                          <Box sx={{ height: 350 }}>
+                            <Bar
+                              data={generatePeakHoursChart()}
+                              options={chartOpts("שעות השיא", "#2196f3")}
+                            />
+                          </Box>
+                        ) : (
+                          <Box
+                            sx={{
+                              height: 350,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexDirection: "column",
+                              color: "text.secondary",
+                            }}
+                          >
+                            <Avatar sx={{ bgcolor: "grey.100", width: 60, height: 60, mb: 2 }}>
+                              <AccessTime />
+                            </Avatar>
+                            <Typography variant="h6">אין נתונים זמינים</Typography>
+                          </Box>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Grow>
+                </Grid>
+
+                {/* Day of Week Chart */}
+                <Grid item xs={12} md={6}>
+                  <Grow in timeout={1400}>
+                    <Card
+                      elevation={6}
+                      sx={{
+                        borderRadius: 4,
+                        height: "100%",
+                        transition: "all 0.3s ease",
+                        "&:hover": {
+                          boxShadow: "0 16px 32px rgba(0,0,0,0.1)",
+                        },
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          p: 3,
+                          background: "linear-gradient(135deg, #673ab715 0%, #673ab705 100%)",
+                          borderBottom: "1px solid rgba(0,0,0,0.05)",
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                          <Avatar sx={{ bgcolor: "#673ab7", width: 48, height: 48 }}>
+                            <Schedule />
+                          </Avatar>
+                          <Box>
+                            <Typography variant="h5" fontWeight="bold" color="text.primary">
+                              ימי השבוע הפעילים
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              התפלגות פניות לפי ימי השבוע
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Box>
+                      <CardContent sx={{ p: 4 }}>
+                        {rawInquiries.length > 0 ? (
+                          <Box sx={{ height: 350 }}>
+                            <Bar
+                              data={generateDayOfWeekChart()}
+                              options={chartOpts("ימי השבוע הפעילים", "#673ab7")}
+                            />
+                          </Box>
+                        ) : (
+                          <Box
+                            sx={{
+                              height: 350,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexDirection: "column",
+                              color: "text.secondary",
+                            }}
+                          >
+                            <Avatar sx={{ bgcolor: "grey.100", width: 60, height: 60, mb: 2 }}>
+                              <Schedule />
+                            </Avatar>
+                            <Typography variant="h6">אין נתונים זמינים</Typography>
+                          </Box>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Grow>
+                </Grid>
+              </Grid>
             </Box>
 
             {/* Footer */}
