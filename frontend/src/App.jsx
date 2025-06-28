@@ -34,6 +34,9 @@ import VolunteerDashboard from './pages/VolunteerDashboard.jsx';
 // ייבוא דף אישור רכזים
 import CoordinatorApproval from './pages/CoordinatorApproval.jsx';
 
+// ייבוא דף פרופיל משתמש
+import UserProfile from './pages/UserProfile.jsx';
+
 function App() {
   return (
     <ErrorBoundary>
@@ -119,6 +122,18 @@ function App() {
                       <ProtectedRoute requiredRole={2}>
                         <ErrorBoundary>
                           <VolunteerDashboard />
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  {/* User Profile page for both coordinators and volunteers */}
+                  <Route
+                    path="/profile"
+                    element={
+                      <ProtectedRoute>
+                        <ErrorBoundary>
+                          <UserProfile />
                         </ErrorBoundary>
                       </ProtectedRoute>
                     }
