@@ -34,6 +34,7 @@ import {
   Select,
   MenuItem,
   TextField,
+  CircularProgress,
 } from "@mui/material"
 import {
   LocationOn,
@@ -72,6 +73,7 @@ export default function VolunteerMap() {
   const [showInquiryDetails, setShowInquiryDetails] = useState(false)
   const [statusFilter, setStatusFilter] = useState("unassigned") // Default to unassigned
   const [volunteerSearchTerm, setVolunteerSearchTerm] = useState("") // Search filter for volunteers
+  const [loadingVolunteers, setLoadingVolunteers] = useState(false) // Loading state for volunteers
 
   const mapRef = useRef()
   const location = useLocation()
@@ -223,6 +225,7 @@ export default function VolunteerMap() {
     const fetchVolunteers = async () => {
       if (!selectedInquiry) {
         setAvailableVolunteers([])
+        setLoadingVolunteers(false)
         return
       }
       if (
@@ -232,8 +235,11 @@ export default function VolunteerMap() {
         isNaN(selectedInquiry.lng)
       ) {
         setAvailableVolunteers([])
+        setLoadingVolunteers(false)
         return
       }
+      
+      setLoadingVolunteers(true)
       try {
         const response = await axios.post("/api/users/queryNear", {
           lat: selectedInquiry.lat,
@@ -244,6 +250,8 @@ export default function VolunteerMap() {
       } catch (error) {
         console.error("Error fetching available volunteers:", error)
         setAvailableVolunteers([])
+      } finally {
+        setLoadingVolunteers(false)
       }
     }
     fetchVolunteers()
@@ -904,7 +912,11 @@ export default function VolunteerMap() {
                               <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2, mr: 1 }}>
                                 מתנדבים זמינים (ממוינים לפי ציון)
                               </Typography>
-                              <Chip label={availableVolunteers.length} size="small" color="primary" />
+                              {loadingVolunteers ? (
+                                <Chip label="טוען..." size="small" color="default" />
+                              ) : (
+                                <Chip label={availableVolunteers.length} size="small" color="primary" />
+                              )}
                             </Box>
                           }
                           sx={{ 
@@ -914,7 +926,14 @@ export default function VolunteerMap() {
                           }}
                         />
                         <CardContent sx={{ pt: 0 }}>
-                          {availableVolunteers.length > 0 ? (
+                          {loadingVolunteers ? (
+                            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4 }}>
+                              <CircularProgress size={40} sx={{ mb: 2 }} />
+                              <Typography variant="body2" color="text.secondary">
+                                מחפש מתנדבים זמינים...
+                              </Typography>
+                            </Box>
+                          ) : availableVolunteers.length > 0 ? (
                             <>
                               {/* Search input for filtering volunteers */}
                               <TextField
@@ -1054,7 +1073,7 @@ export default function VolunteerMap() {
                             </>
                           ) : (
                             <Alert severity="info" sx={{ borderRadius: 2 }}>
-                              <Typography variant="body2">אין מתנדבים זמינים במערכת.</Typography>
+                              <Typography variant="body2">לא נמצאו מתנדבים זמינים באזור.</Typography>
                             </Alert>
                           )}
                         </CardContent>
