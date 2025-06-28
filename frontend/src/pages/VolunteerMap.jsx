@@ -19,7 +19,6 @@ import {
   Chip,
   Avatar,
   Alert,
-  Slider,
   Radio,
   RadioGroup,
   FormControlLabel,
@@ -41,7 +40,6 @@ import {
   Message,
   Close,
   Menu,
-  GpsFixed,
   CheckCircle,
   Schedule,
   Navigation,
@@ -65,7 +63,6 @@ export default function VolunteerMap() {
   const [allInquiries, setAllInquiries] = useState([]) // Store all inquiries for filtering
   const [selectedInquiry, setSelectedInquiry] = useState(null)
   const [availableVolunteers, setAvailableVolunteers] = useState([])
-  const [radius, setRadius] = useState(20)
   const [selectedVolunteerIds, setSelectedVolunteerIds] = useState([])
   const [isSidebarVisible, setIsSidebarVisible] = useState(window.innerWidth > 768)
   const [showInquiryDetails, setShowInquiryDetails] = useState(false)
@@ -234,7 +231,7 @@ export default function VolunteerMap() {
         const response = await axios.post("/api/users/queryNear", {
           lat: selectedInquiry.lat,
           lng: selectedInquiry.lng,
-          radius,
+          radius: 200, // Large radius to get all volunteers, sorted by score
         })
         setAvailableVolunteers(response.data)
       } catch (error) {
@@ -243,7 +240,7 @@ export default function VolunteerMap() {
       }
     }
     fetchVolunteers()
-  }, [selectedInquiry, radius])
+  }, [selectedInquiry])
   const assignToInquiry = async () => {
     if (!selectedInquiry || selectedVolunteerIds.length === 0) {
       showWarning("אנא בחר פנייה ומתנדב לשיבוץ.");
@@ -489,8 +486,8 @@ export default function VolunteerMap() {
                       )}
                       <Typography variant="body2" color="text.secondary">
                         {inquiry.assignedVolunteerName && inquiry.assignedVolunteerName !== "-"
-                          ? `שובץ: ${inquiry.assignedVolunteerName}`
-                          : "טרם שובץ"}
+                          ? `שם המתנדב: ${inquiry.assignedVolunteerName}`
+                          : "שם המתנדב: טרם שובץ מתנדב"}
                       </Typography>
                     </Box>
                   </Popup>
@@ -501,16 +498,32 @@ export default function VolunteerMap() {
               volunteer.lat != null && volunteer.lng != null && !isNaN(volunteer.lat) && !isNaN(volunteer.lng) ? (
                 <Marker key={volunteer.id} position={[volunteer.lat, volunteer.lng]}>
                   <Popup>
-                    <Box sx={{ p: 1 }}>
+                    <Box sx={{ p: 1, minWidth: 200 }}>
                       <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
                         מתנדב: {volunteer.name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         מרחק: {volunteer.distance?.toFixed(1)} ק"מ
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        ציון: {volunteer.score?.toFixed(1)}
+                      <Typography variant="body2" color="primary.main" fontWeight="bold">
+                        ציון כולל: {volunteer.score?.toFixed(1)}/100
                       </Typography>
+                      
+                      {/* Score breakdown */}
+                      <Box sx={{ mt: 1, fontSize: '0.75rem' }}>
+                        <Typography variant="caption" display="block" color="text.secondary">
+                          ניסיון פינוי: {volunteer.beeExperience ? '✓' : '✗'}
+                        </Typography>
+                        <Typography variant="caption" display="block" color="text.secondary">
+                          ניסיון גידול: {volunteer.beekeepingExperience ? '✓' : '✗'}
+                        </Typography>
+                        <Typography variant="caption" display="block" color="text.secondary">
+                          הדרכות: {volunteer.hasTraining ? '✓' : '✗'}
+                        </Typography>
+                        <Typography variant="caption" display="block" color="text.secondary">
+                          היתר גובה: {volunteer.heightPermit ? '✓' : '✗'}
+                        </Typography>
+                      </Box>
                     </Box>
                   </Popup>
                 </Marker>
@@ -666,46 +679,8 @@ export default function VolunteerMap() {
                   </Card>
                 </Grow>
 
-                {/* Search Radius Card */}
-                <Grow in timeout={800}>
-                  <Card elevation={2} sx={{ borderRadius: 3 }}>
-                    <CardHeader
-                      avatar={
-                        <Avatar sx={{ bgcolor: "warning.main", width: 40, height: 40 }}>
-                          <GpsFixed sx={{ fontSize: 20 }} />
-                        </Avatar>
-                      }
-                      title={
-                        <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2, mr: 1 }}>
-                          טווח חיפוש
-                        </Typography>
-                      }
-                      sx={{ pb: 1, "& .MuiCardHeader-content": { ml: 2 } }}
-                    />
-                    <CardContent sx={{ pt: 0, pb: 2 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-                        <Typography variant="body2" fontWeight="medium">
-                          רדיוס חיפוש
-                        </Typography>
-                        <Chip label={`${radius} ק"מ`} variant="outlined" size="small" />
-                      </Box>
-                      <Slider
-                        value={radius}
-                        onChange={(e, value) => setRadius(value)}
-                        min={0}
-                        max={100}
-                        step={5}
-                        disabled={isSelectedInquiryAssigned}
-                        valueLabelDisplay="auto"
-                        valueLabelFormat={(value) => `${value} ק"מ`}
-                        sx={{ mt: 0 }}
-                      />
-                    </CardContent>
-                  </Card>
-                </Grow>
-
                 {/* Available Volunteers Card */}
-                <Grow in timeout={1000}>
+                <Grow in timeout={800}>
                   <Card elevation={2} sx={{ borderRadius: 3 }}>
                     <CardHeader
                       avatar={
@@ -716,7 +691,7 @@ export default function VolunteerMap() {
                       title={
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2, mr: 1 }}>
-                            מתנדבים זמינים
+                            מתנדבים זמינים (ממוינים לפי ציון)
                           </Typography>
                           <Chip label={availableVolunteers.length} size="small" color="primary" />
                         </Box>
@@ -753,20 +728,45 @@ export default function VolunteerMap() {
                                   control={<Radio disabled={isSelectedInquiryAssigned} />}
                                   label={
                                     <Box sx={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
-                                      <Box>
+                                      <Box sx={{ flex: 1 }}>
                                         <Typography variant="subtitle2" fontWeight="bold">
                                           {volunteer.name}
                                         </Typography>
                                         <Typography variant="body2" color="text.secondary">
                                           מרחק: {volunteer.distance?.toFixed(1)} ק"מ
                                         </Typography>
+                                        
+                                        {/* Experience indicators */}
+                                        <Box sx={{ display: "flex", gap: 0.5, mt: 0.5, flexWrap: "wrap" }}>
+                                          {volunteer.beeExperience && (
+                                            <Chip label="פינוי נחילים" size="small" color="success" variant="outlined" 
+                                                  sx={{ fontSize: "0.65rem", height: "18px" }} />
+                                          )}
+                                          {volunteer.beekeepingExperience && (
+                                            <Chip label="גידול דבורים" size="small" color="info" variant="outlined" 
+                                                  sx={{ fontSize: "0.65rem", height: "18px" }} />
+                                          )}
+                                          {volunteer.hasTraining && (
+                                            <Chip label="הדרכות" size="small" color="primary" variant="outlined" 
+                                                  sx={{ fontSize: "0.65rem", height: "18px" }} />
+                                          )}
+                                          {volunteer.heightPermit && (
+                                            <Chip label="היתר גובה" size="small" color="warning" variant="outlined" 
+                                                  sx={{ fontSize: "0.65rem", height: "18px" }} />
+                                          )}
+                                        </Box>
                                       </Box>
-                                      <Chip
-                                        label={volunteer.score?.toFixed(1)}
-                                        size="small"
-                                        variant="outlined"
-                                        sx={{ fontFamily: "monospace" }}
-                                      />
+                                      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", ml: 1 }}>
+                                        <Chip
+                                          label={`${volunteer.score?.toFixed(1)}/100`}
+                                          size="small"
+                                          color={volunteer.score >= 80 ? "success" : volunteer.score >= 60 ? "warning" : "default"}
+                                          sx={{ fontFamily: "monospace", fontWeight: "bold" }}
+                                        />
+                                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                                          ציון התאמה
+                                        </Typography>
+                                      </Box>
                                     </Box>
                                   }
                                   sx={{ width: "100%", m: 0 }}
@@ -777,7 +777,7 @@ export default function VolunteerMap() {
                         </FormControl>
                       ) : (
                         <Alert severity="info" sx={{ borderRadius: 2 }}>
-                          <Typography variant="body2">אין מתנדבים זמינים ברדיוס של {radius} ק"מ.</Typography>
+                          <Typography variant="body2">אין מתנדבים זמינים במערכת.</Typography>
                         </Alert>
                       )}
                     </CardContent>
