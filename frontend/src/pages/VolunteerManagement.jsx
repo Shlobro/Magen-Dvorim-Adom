@@ -433,7 +433,9 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
                     כתובת:
                   </Typography>
                   <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
-                    {selectedVolunteerDetails.address || "לא צוין"}
+                    {selectedVolunteerDetails.address || 
+                     `${selectedVolunteerDetails.streetName || ""} ${selectedVolunteerDetails.houseNumber || ""}`.trim() || 
+                     "לא צוין"}
                   </Typography>
                 </Paper>
               </Box>
@@ -448,34 +450,57 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
               </Paper>
 
               {/* Experience Information */}
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 3 }}>
                 <Paper sx={{ p: 2, background: "#e8f5e9", borderRadius: 2 }}>
                   <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#2e7d32", mb: 1 }}>
                     ניסיון בפינוי נחילי דבורים:
                   </Typography>
-                  <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
-                    {selectedVolunteerDetails.beeExperience || "לא צוין"}
-                  </Typography>
+                  <Chip 
+                    label={selectedVolunteerDetails.beeExperience === true ? "כן" : 
+                           selectedVolunteerDetails.beeExperience === false ? "לא" : 
+                           selectedVolunteerDetails.beeExperience || "לא צוין"}
+                    color={selectedVolunteerDetails.beeExperience === true ? "success" : "default"}
+                    sx={{ fontWeight: 500 }}
+                  />
                 </Paper>
 
                 <Paper sx={{ p: 2, background: "#e8f5e9", borderRadius: 2 }}>
                   <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#2e7d32", mb: 1 }}>
                     ניסיון בגידול דבורים:
                   </Typography>
-                  <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
-                    {selectedVolunteerDetails.beekeepingExperience || "לא צוין"}
+                  <Chip 
+                    label={selectedVolunteerDetails.beekeepingExperience === true ? "כן" : 
+                           selectedVolunteerDetails.beekeepingExperience === false ? "לא" : 
+                           selectedVolunteerDetails.beekeepingExperience || "לא צוין"}
+                    color={selectedVolunteerDetails.beekeepingExperience === true ? "success" : "default"}
+                    sx={{ fontWeight: 500 }}
+                  />
+                </Paper>
+
+                <Paper sx={{ p: 2, background: "#e8f5e9", borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#2e7d32", mb: 1 }}>
+                    עבר הדרכות:
                   </Typography>
+                  <Chip 
+                    label={selectedVolunteerDetails.hasTraining === true ? "כן" : 
+                           selectedVolunteerDetails.hasTraining === false ? "לא" : "לא צוין"}
+                    color={selectedVolunteerDetails.hasTraining === true ? "success" : "default"}
+                    sx={{ fontWeight: 500 }}
+                  />
+                </Paper>
+
+                <Paper sx={{ p: 2, background: "#e8f5e9", borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#2e7d32", mb: 1 }}>
+                    היתר עבודה בגובה:
+                  </Typography>
+                  <Chip 
+                    label={selectedVolunteerDetails.heightPermit === true ? "כן" : 
+                           selectedVolunteerDetails.heightPermit === false ? "לא" : "לא צוין"}
+                    color={selectedVolunteerDetails.heightPermit === true ? "success" : "default"}
+                    sx={{ fontWeight: 500 }}
+                  />
                 </Paper>
               </Box>
-
-              <Paper sx={{ p: 2, background: "#e3f2fd", borderRadius: 2 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#1565c0", mb: 1 }}>
-                  היתר עבודה בגובה:
-                </Typography>
-                <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
-                  {selectedVolunteerDetails.heightPermit || "לא צוין"}
-                </Typography>
-              </Paper>
 
               <Paper sx={{ p: 2, background: "#f8f9fa", borderRadius: 2 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#495057", mb: 1 }}>
@@ -509,9 +534,10 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
                     תאריך הרשמה:
                   </Typography>
                   <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
-                    {selectedVolunteerDetails.createdAt 
+                    {selectedVolunteerDetails.signupDate ||
+                     (selectedVolunteerDetails.createdAt 
                       ? new Date(selectedVolunteerDetails.createdAt).toLocaleDateString("he-IL")
-                      : "לא זמין"}
+                      : "לא זמין")}
                   </Typography>
                 </Paper>
 
@@ -520,8 +546,8 @@ export default function VolunteerManagement() {  const [volunteers, setVolunteer
                     סטטוס:
                   </Typography>
                   <Chip 
-                    label="מתנדב פעיל" 
-                    color="success" 
+                    label={selectedVolunteerDetails.isActive !== false ? "מתנדב פעיל" : "מתנדב לא פעיל"}
+                    color={selectedVolunteerDetails.isActive !== false ? "success" : "error"}
                     sx={{ fontWeight: 500 }}
                   />
                 </Paper>
