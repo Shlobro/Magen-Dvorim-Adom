@@ -31,6 +31,7 @@ import {
   Collapse,
   Select,
   MenuItem,
+  TextField,
 } from "@mui/material"
 import {
   LocationOn,
@@ -45,6 +46,7 @@ import {
   Navigation,
   ExpandMore,
   FilterList,
+  Search,
 } from "@mui/icons-material"
 
 // Custom Bee Icon
@@ -67,6 +69,7 @@ export default function VolunteerMap() {
   const [isSidebarVisible, setIsSidebarVisible] = useState(window.innerWidth > 768)
   const [showInquiryDetails, setShowInquiryDetails] = useState(false)
   const [statusFilter, setStatusFilter] = useState("unassigned") // Default to unassigned
+  const [volunteerSearchTerm, setVolunteerSearchTerm] = useState("") // Search filter for volunteers
 
   const mapRef = useRef()
   const location = useLocation()
@@ -202,6 +205,7 @@ export default function VolunteerMap() {
       const inquiryToSelect = inquiries.find((inc) => inc.id === inquiryIdFromUrl)
       if (inquiryToSelect) {
         setSelectedInquiry(inquiryToSelect)
+        setVolunteerSearchTerm("") // Clear search when selecting a new inquiry
         if (mapRef.current && inquiryToSelect.lat != null && inquiryToSelect.lng != null) {
           mapRef.current.setView([inquiryToSelect.lat, inquiryToSelect.lng], 13)
         }
@@ -268,6 +272,7 @@ export default function VolunteerMap() {
       showSuccess('מתנדב שובץ בהצלחה לפנייה!')
       fetchInquiries()
       setSelectedInquiry(null)
+      setVolunteerSearchTerm("") // Clear search when clearing selection
       setAvailableVolunteers([])
       setSelectedVolunteerIds([])
       navigate("/dashboard")
@@ -283,6 +288,7 @@ export default function VolunteerMap() {
       mapRef.current = map
       map.on("click", () => {
         setSelectedInquiry(null)
+        setVolunteerSearchTerm("") // Clear search when clearing selection
         setSelectedVolunteerIds([])
         setAvailableVolunteers([])
         if (location.search.includes("inquiryId")) {
@@ -466,6 +472,7 @@ export default function VolunteerMap() {
                   eventHandlers={{
                     click: () => {
                       setSelectedInquiry(inquiry)
+                      setVolunteerSearchTerm("") // Clear search when selecting a new inquiry
                       setSelectedVolunteerIds([])
                       if (!isSidebarVisible) setIsSidebarVisible(true)
                     },
@@ -700,12 +707,32 @@ export default function VolunteerMap() {
                     />
                     <CardContent sx={{ pt: 0 }}>
                       {availableVolunteers.length > 0 ? (
-                        <FormControl component="fieldset" fullWidth>
-                          <RadioGroup
-                            value={selectedVolunteerIds[0] || ""}
-                            onChange={(e) => setSelectedVolunteerIds([e.target.value])}
-                          >
-                            {availableVolunteers.map((volunteer) => (
+                        <>
+                          {/* Search input for filtering volunteers */}
+                          <TextField
+                            fullWidth
+                            size="small"
+                            placeholder="חיפוש מתנדב לפי שם..."
+                            value={volunteerSearchTerm}
+                            onChange={(e) => setVolunteerSearchTerm(e.target.value)}
+                            InputProps={{
+                              startAdornment: <Search sx={{ color: 'action.active', mr: 1, my: 0.5 }} />,
+                            }}
+                            sx={{ mb: 2 }}
+                          />
+                          {(() => {
+                            const filteredVolunteers = availableVolunteers.filter(volunteer => 
+                              volunteerSearchTerm === "" || 
+                              volunteer.name.toLowerCase().includes(volunteerSearchTerm.toLowerCase())
+                            );
+                            
+                            return filteredVolunteers.length > 0 ? (
+                              <FormControl component="fieldset" fullWidth>
+                                <RadioGroup
+                                  value={selectedVolunteerIds[0] || ""}
+                                  onChange={(e) => setSelectedVolunteerIds([e.target.value])}
+                                >
+                                  {filteredVolunteers.map((volunteer) => (
                               <Paper
                                 key={volunteer.id}
                                 elevation={selectedVolunteerIds[0] === volunteer.id ? 3 : 1}
@@ -775,6 +802,15 @@ export default function VolunteerMap() {
                             ))}
                           </RadioGroup>
                         </FormControl>
+                        ) : (
+                          <Alert severity="warning" sx={{ borderRadius: 2 }}>
+                            <Typography variant="body2">
+                              לא נמצאו מתנדבים התואמים לחיפוש "{volunteerSearchTerm}"
+                            </Typography>
+                          </Alert>
+                        );
+                      })()}
+                        </>
                       ) : (
                         <Alert severity="info" sx={{ borderRadius: 2 }}>
                           <Typography variant="body2">אין מתנדבים זמינים במערכת.</Typography>
@@ -813,6 +849,7 @@ export default function VolunteerMap() {
               <Button
                 onClick={() => {
                   setSelectedInquiry(null)
+                  setVolunteerSearchTerm("") // Clear search when clearing selection
                   setSelectedVolunteerIds([])
                   setAvailableVolunteers([])
                   if (location.search.includes("inquiryId")) {
