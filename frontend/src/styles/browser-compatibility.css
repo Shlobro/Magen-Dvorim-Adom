@@ -1,0 +1,211 @@
+/* Browser Compatibility Fixes */
+
+/* CSS Reset for cross-browser consistency */
+* {
+    box-sizing: border-box;
+}
+
+/* Fix for Leaflet user-select compatibility */
+.leaflet-overlay-pane svg {
+    -webkit-user-select: none; /* Safari 3+ */
+    -moz-user-select: none;    /* Firefox */
+    -ms-user-select: none;     /* IE 10+ */
+    user-select: none;         /* Chrome 54+, Edge 79+ */
+}
+
+/* Fix for other map elements */
+.leaflet-control-container * {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* General user-select fix for non-selectable elements */
+.no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Fix for Internet Explorer and Edge flexbox bugs */
+.flex-ie-fix {
+    display: -ms-flexbox;
+    display: flex;
+    -ms-flex-direction: row;
+    flex-direction: row;
+}
+
+/* CSS Grid fallback for older browsers */
+@supports not (display: grid) {
+    .grid-fallback {
+        display: flex;
+        flex-wrap: wrap;
+    }
+    
+    .grid-fallback > * {
+        flex: 1 1 300px;
+        margin: 10px;
+    }
+}
+
+/* Touch action improvements for mobile */
+.leaflet-container {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    touch-action: pan-x pan-y;
+}
+
+/* Drag improvements */
+.leaflet-marker-draggable {
+    -webkit-user-drag: auto;
+    /* user-drag is not a standard property, only webkit supports it */
+}
+
+/* Fix for table headers that should not be selectable */
+th.sortable {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    cursor: pointer;
+}
+
+/* Button interaction improvements */
+button {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Input focus improvements for mobile */
+input, textarea, select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Smooth scrolling for all browsers */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Fix for iOS zoom on input focus */
+@media screen and (max-width: 768px) {
+    input, textarea, select {
+        font-size: 16px; /* Prevents iOS zoom */
+    }
+}
+
+/* Print styles */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    body {
+        background: white !important;
+        color: black !important;
+    }
+    
+    a[href]:after {
+        content: " (" attr(href) ")";
+    }
+}
+
+/* Vendor prefixes for transforms and transitions */
+.transform-vendor {
+    -webkit-transform: translateZ(0);
+    -moz-transform: translateZ(0);
+    -ms-transform: translateZ(0);
+    transform: translateZ(0);
+}
+
+.transition-vendor {
+    -webkit-transition: all 0.3s ease;
+    -moz-transition: all 0.3s ease;
+    -o-transition: all 0.3s ease;
+    transition: all 0.3s ease;
+}
+
+/* Fix for position: sticky in Safari */
+.sticky-fix {
+    position: -webkit-sticky;
+    position: sticky;
+}
+
+/* Backdrop filter fallback */
+.backdrop-blur {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    /* Fallback for browsers that don't support backdrop-filter */
+    background-color: rgba(255, 255, 255, 0.8);
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Firefox scrollbar */
+html {
+    scrollbar-width: thin;
+    scrollbar-color: #888 #f1f1f1;
+}
+
+/* Fix for Safari date input */
+input[type="date"], input[type="time"], input[type="datetime-local"] {
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+    appearance: none;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    button, .btn {
+        border: 2px solid currentColor;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
