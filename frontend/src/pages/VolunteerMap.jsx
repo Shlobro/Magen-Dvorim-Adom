@@ -487,7 +487,7 @@ export default function VolunteerMap() {
                       <Typography variant="body2" color="text.secondary">
                         {inquiry.assignedVolunteerName && inquiry.assignedVolunteerName !== "-"
                           ? `שם המתנדב: ${inquiry.assignedVolunteerName}`
-                          : "טרם שובץ"}
+                          : "שם המתנדב: טרם שובץ מתנדב"}
                       </Typography>
                     </Box>
                   </Popup>
