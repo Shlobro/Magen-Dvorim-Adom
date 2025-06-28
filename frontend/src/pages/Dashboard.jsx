@@ -82,6 +82,7 @@ export default function Dashboard() {
   const [filterStartDate, setFilterStartDate] = useState("")
   const [filterEndDate, setFilterEndDate] = useState("")
   const [filterStatus, setFilterStatus] = useState("נפתחה פנייה (טופס מולא)")
+  const [searchTerm, setSearchTerm] = useState("") // Free search across multiple fields
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1)
@@ -365,6 +366,30 @@ export default function Dashboard() {
     const filtered = calls.filter((call) => {
       let match = true
 
+      // Free search functionality
+      if (searchTerm && searchTerm.trim() !== "") {
+        const searchLower = searchTerm.toLowerCase().trim()
+        const searchableFields = [
+          call.fullName || "",
+          call.phoneNumber || "",
+          call.address || "",
+          call.city || "",
+          call.additionalDetails || "",
+          call.assignedVolunteerName || "",
+          call.coordinatorName || "",
+          call.status || "",
+          call.closureReason || ""
+        ]
+        
+        const matchesSearch = searchableFields.some(field => 
+          field.toString().toLowerCase().includes(searchLower)
+        )
+        
+        if (!matchesSearch) {
+          match = false
+        }
+      }
+
       if (filterVolunteer && call.assignedVolunteerName !== filterVolunteer) {
         match = false
       }
@@ -401,7 +426,7 @@ export default function Dashboard() {
 
     // Apply sorting to filtered results
     return getSortedCalls(filtered)
-  }, [calls, filterVolunteer, filterStartDate, filterEndDate, filterStatus, sortColumn, sortDirection])
+  }, [calls, filterVolunteer, filterStartDate, filterEndDate, filterStatus, searchTerm, sortColumn, sortDirection])
 
   // Paginated data
   const paginatedCalls = useMemo(() => {
@@ -416,7 +441,7 @@ export default function Dashboard() {
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [filterVolunteer, filterStartDate, filterEndDate, filterStatus])
+  }, [filterVolunteer, filterStartDate, filterEndDate, filterStatus, searchTerm])
   const handleVolunteerFilterChange = (e) => {
     setFilterVolunteer(e.target.value)
     setCurrentPage(1)
@@ -441,12 +466,18 @@ export default function Dashboard() {
     setCurrentPage(1)
   }
 
+  const handleSearchTermChange = (e) => {
+    setSearchTerm(e.target.value)
+    setCurrentPage(1)
+  }
+
   // Clear all filters function
   const handleClearAllFilters = () => {
     setFilterVolunteer("")
     setFilterStatus("נפתחה פנייה (טופס מולא)") // Reset to default
     setFilterStartDate("")
     setFilterEndDate("")
+    setSearchTerm("") // Clear search term
     setCurrentPage(1)
   }  // ───────────────────────────── status / closure handlers
   const handleStatusChange = async (callId, newStatus) => {
@@ -1213,6 +1244,39 @@ export default function Dashboard() {
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "8px",
+                        fontWeight: "600",
+                        color: "#495057",
+                        fontSize: "0.95em",
+                      }}
+                      className="no-select"
+                    >
+                      חיפוש חופשי:
+                    </label>
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={handleSearchTermChange}
+                      placeholder="חפש לפי שם, טלפון, כתובת, הערות..."
+                      style={{
+                        width: "85%",
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "2px solid #e9ecef",
+                        fontSize: "1em",
+                        background: "white",
+                        transition: "border-color 0.3s ease",
+                        direction: "rtl",
+                      }}
+                      onFocus={(e) => (e.currentTarget.style.borderColor = "#007bff")}
+                      onBlur={(e) => (e.currentTarget.style.borderColor = "#e9ecef")}
+                    />
                   </div>
 
                   <div>
