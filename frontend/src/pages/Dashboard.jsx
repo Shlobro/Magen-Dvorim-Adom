@@ -875,6 +875,13 @@ export default function Dashboard() {
     exportToCsv(dataToExport, filename)
   }
 
+  // ───────────────────────────── General Report Export (exports entire table)
+  const handleExportGeneralReport = () => {
+    // Export all calls without any filtering
+    const filename = `general_report_${new Date().toISOString().slice(0, 10)}.csv`
+    exportToCsv(calls, filename)
+  }
+
   // ───────────────────────────── ui
   if (authLoading || loading)
     return (
@@ -1420,6 +1427,35 @@ export default function Dashboard() {
                 }}
               >
                 דוח תאריכים
+              </button>
+
+              <button
+                onClick={handleExportGeneralReport}
+                disabled={loading}
+                style={{
+                  background: "linear-gradient(135deg, #9C27B0 0%, #673AB7 100%)",
+                  color: "white",
+                  padding: "12px 25px",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "1em",
+                  fontWeight: "600",
+                  boxShadow: "0 3px 10px rgba(156,39,176,0.2)",
+                  transition: "all 0.3s ease",
+                  flex: "1 1 auto",
+                  minWidth: "150px",
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)"
+                  e.currentTarget.style.boxShadow = "0 5px 15px rgba(156,39,176,0.3)"
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)"
+                  e.currentTarget.style.boxShadow = "0 3px 10px rgba(156,39,176,0.2)"
+                }}
+              >
+                דוח פניות כללי
               </button>
             </div>
 
