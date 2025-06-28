@@ -1,7 +1,9 @@
 // backend/routes/userRoutes.js
 import express from 'express';
-import db from '../services/firebaseAdmin.js';           // Firestore Admin SDK
+import db, { admin } from '../services/firebaseAdmin.js';           // Firestore Admin SDK
 import { geocodeAddress } from '../services/geocodeAddress.js';
+import upload from '../middlewares/multerUpload.js';
+import XLSX from 'xlsx';
 
 const router = express.Router();
 
@@ -221,5 +223,201 @@ router.delete('/:id', async (req, res) => {
     res.status(500).send('Error deleting user');
   }
 });
+
+// Delete all volunteers
+router.delete('/delete-all-volunteers', async (req, res) => {
+  try {
+    // Get all users that are volunteers (userType === 2)
+    const usersSnapshot = await db.collection('users').where('userType', '==', 2).get()
+    const batch = db.batch()
+
+    // Add delete operations to batch
+    usersSnapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref)
+    })
+
+    // Execute batch
+    await batch.commit()
+
+    // Delete the users from Firebase Authentication
+    for (const doc of usersSnapshot.docs) {
+      try {
+        await admin.auth().deleteUser(doc.id)
+      } catch (error) {
+        console.error(`Failed to delete auth user ${doc.id}:`, error)
+        // Continue with other deletions even if one fails
+      }
+    }
+
+    res.status(200).json({ message: 'כל המתנדבים נמחקו בהצלחה' })
+  } catch (error) {
+    console.error('Error deleting all volunteers:', error)
+    res.status(500).json({ error: 'שגיאה במחיקת המתנדבים' })
+  }
+})
+
+// Bulk create volunteers from Excel/CSV file
+router.post('/bulk-create', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'לא נבחר קובץ' })
+    }
+
+    let data = []
+    const fileExtension = req.file.originalname.split('.').pop().toLowerCase()
+
+    if (fileExtension === 'csv') {
+      // Parse CSV file
+      const csvData = req.file.buffer.toString('utf8')
+      const lines = csvData.split('\n')
+      
+      // Skip the first row (header) and parse each line
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
+      
+      for (let i = 1; i < lines.length; i++) {
+        if (lines[i].trim()) {
+          const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''))
+          const row = {}
+          headers.forEach((header, index) => {
+            row[header] = values[index] || ''
+          })
+          data.push(row)
+        }
+      }
+    } else {
+      // Parse Excel file
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' })
+      const sheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[sheetName]
+      data = XLSX.utils.sheet_to_json(worksheet)
+    }
+
+    console.log('Parsed data:', data)
+
+    const errors = []
+    const createdUsers = []
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i]
+      const rowNumber = i + 2 // Excel rows start from 2 (1 is header)
+
+      try {
+        // Map CSV columns to user fields based on the actual CSV structure
+        const userData = {
+          firstName: row['שם פרטי'] || '',
+          lastName: row['שם המשפחה'] || '',
+          email: row['דוא"ל'] || '',
+          phoneNumber: row['מספר נייד'] || '',
+          city: row['עיר / יישוב'] || '',
+          address: row['כתובת '] || '',
+          idNumber: row['מס זהות '] || '',
+          beeExperience: (row['ניסיון בפינוי '] === '1' || row['ניסיון בפינוי '] === 1),
+          beekeepingExperience: (row['ניסיון בגידול'] === '1' || row['ניסיון בגידול'] === 1),
+          hasTraining: (row['הדרכות'] === '1' || row['הדרכות'] === 1),
+          heightPermit: (row['היתר עבודה בגובה'] === '1' || row['היתר עבודה בגובה'] === 1),
+          userType: 2, // Volunteer
+          requirePasswordChange: true, // Force password change on first login
+          createdAt: new Date().toISOString()
+        }
+
+        // Validate required fields
+        if (!userData.firstName || !userData.lastName || !userData.email) {
+          errors.push({
+            row: rowNumber,
+            message: 'חסרים שדות חובה: שם פרטי, שם משפחה, או אימייל'
+          })
+          continue
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(userData.email)) {
+          errors.push({
+            row: rowNumber,
+            message: 'פורמט אימייל לא תקין'
+          })
+          continue
+        }
+
+        // Create user in Firebase Authentication
+        let firebaseUser
+        try {
+          firebaseUser = await admin.auth().createUser({
+            email: userData.email,
+            password: '123456789', // Default password
+            displayName: `${userData.firstName} ${userData.lastName}`,
+            disabled: false
+          })
+        } catch (authError) {
+          console.error('Firebase Auth error:', authError)
+          if (authError.code === 'auth/email-already-exists') {
+            errors.push({
+              row: rowNumber,
+              message: 'המשתמש כבר קיים במערכת'
+            })
+          } else {
+            errors.push({
+              row: rowNumber,
+              message: `שגיאה ביצירת המשתמש: ${authError.message}`
+            })
+          }
+          continue
+        }
+
+        // Geocode address if provided
+        if (userData.address) {
+          try {
+            const geocodeResult = await geocodeAddress(userData.address)
+            if (geocodeResult && geocodeResult.lat && geocodeResult.lng) {
+              userData.latitude = geocodeResult.lat
+              userData.longitude = geocodeResult.lng
+            }
+          } catch (geocodeError) {
+            console.warn(`Geocoding failed for ${userData.address}:`, geocodeError)
+          }
+        }
+
+        // Save user to Firestore with Firebase Auth UID
+        try {
+          await db.collection('users').doc(firebaseUser.uid).set(userData)
+          createdUsers.push(userData)
+        } catch (firestoreError) {
+          console.error('Firestore error:', firestoreError)
+          // Clean up Firebase Auth user if Firestore save fails
+          try {
+            await admin.auth().deleteUser(firebaseUser.uid)
+          } catch (cleanupError) {
+            console.error('Failed to cleanup auth user:', cleanupError)
+          }
+          errors.push({
+            row: rowNumber,
+            message: `שגיאה בשמירת המשתמש: ${firestoreError.message}`
+          })
+        }
+
+      } catch (error) {
+        console.error(`Error processing row ${rowNumber}:`, error)
+        errors.push({
+          row: rowNumber,
+          message: `שגיאה כללית: ${error.message}`
+        })
+      }
+    }
+
+    res.status(200).json({
+      message: `נוצרו ${createdUsers.length} מתנדבים בהצלחה`,
+      createdCount: createdUsers.length,
+      errorCount: errors.length,
+      errors: errors
+    })
+
+  } catch (error) {
+    console.error('Bulk create error:', error)
+    res.status(500).json({ 
+      error: 'שגיאה בעיבוד הקובץ',
+      details: error.message 
+    })
+  }
+})
 
 export default router;

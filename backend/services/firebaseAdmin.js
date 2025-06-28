@@ -32,4 +32,5 @@ admin.initializeApp({
 // ייצוא מופע ה-Firestore Admin SDK
 const db = admin.firestore();
 
-export default db;
+export { admin };  // Export the admin object
+export default db;  // Keep the existing default export

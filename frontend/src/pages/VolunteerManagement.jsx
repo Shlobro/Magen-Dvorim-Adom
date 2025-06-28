@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import axios from "axios"
 import {
   Container,
@@ -30,6 +30,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  LinearProgress,
 } from "@mui/material"
 import { 
   People, 
@@ -43,6 +44,8 @@ import {
   ExpandMore,
   ArrowUpward,
   ArrowDownward,
+  DeleteForever,
+  Upload,
 } from "@mui/icons-material"
 import { useNotification } from "../contexts/NotificationContext"
 
@@ -53,6 +56,11 @@ export default function VolunteerManagement() {
   const { showSuccess, showError, showConfirmDialog } = useNotification()
   const [loading, setLoading] = useState(true)
   const [removingId, setRemovingId] = useState(null)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadErrors, setUploadErrors] = useState([])
+  const fileInputRef = useRef(null)
   
   // Add state for volunteer details modal
   const [selectedVolunteerDetails, setSelectedVolunteerDetails] = useState(null)
@@ -68,10 +76,16 @@ export default function VolunteerManagement() {
   
   // Sorting states
   const [sortField, setSortField] = useState("")
-  const [sortDirection, setSortDirection] = useState("asc") // "asc" or "desc"
+  const [sortDirection, setSortDirection] = useState("asc")
 
   // Fetch all volunteers
-  useEffect(() => {    setLoading(true)
+  useEffect(() => {
+    fetchVolunteers()
+  }, [])
+
+  // Fetch all volunteers function
+  const fetchVolunteers = () => {
+    setLoading(true)
     axios
       .get(`${API_BASE}/api/users`)
       .then((res) => {
@@ -82,7 +96,8 @@ export default function VolunteerManagement() {
         showError("שגיאה בטעינת מתנדבים")
         setLoading(false)
       })
-  }, [])
+  }
+
   // Handle delete confirmation
   const handleDeleteClick = async (volunteer) => {
     const confirmed = await showConfirmDialog({
@@ -240,6 +255,72 @@ export default function VolunteerManagement() {
     return sortDirection === "asc" ? <ArrowUpward sx={{ fontSize: 16 }} /> : <ArrowDownward sx={{ fontSize: 16 }} />
   }
 
+  // Handle Excel file upload
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    const formData = new FormData()
+    formData.append('file', file)
+    setIsUploading(true)
+    setUploadProgress(0)
+    setUploadErrors([])
+
+    try {
+      const response = await axios.post(`${API_BASE}/api/users/bulk-create`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          const progress = (progressEvent.loaded / progressEvent.total) * 100
+          setUploadProgress(Math.round(progress))
+        }
+      })
+
+      if (response.data.errors && response.data.errors.length > 0) {
+        setUploadErrors(response.data.errors)
+        showError(`היו ${response.data.errors.length} שגיאות בטעינת הקובץ`)
+      } else {
+        showSuccess('המתנדבים נוספו בהצלחה!')
+        // Refresh volunteers list
+        fetchVolunteers()
+      }
+    } catch (error) {
+      showError('שגיאה בטעינת הקובץ')
+      console.error('Upload error:', error)
+      if (error.response?.data?.errors) {
+        setUploadErrors(error.response.data.errors)
+      }
+    } finally {
+      setIsUploading(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  // Handle delete all volunteers
+  const handleDeleteAllVolunteers = async () => {
+    const confirmed = await showConfirmDialog({
+      title: 'אישור מחיקת כל המתנדבים',
+      message: 'האם אתה בטוח שברצונך למחוק את כל המתנדבים מהמערכת? פעולה זו אינה ניתנת לביטול.',
+      confirmText: 'מחק הכל',
+      cancelText: 'ביטול',
+      severity: 'error',
+    })
+
+    if (!confirmed) return
+
+    try {
+      await axios.delete(`${API_BASE}/api/users/delete-all-volunteers`)
+      showSuccess('כל המתנדבים נמחקו בהצלחה')
+      setVolunteers([])
+    } catch (error) {
+      showError('שגיאה במחיקת המתנדבים')
+      console.error('Delete all error:', error)
+    }
+  }
+
   if (loading) {
     return (
       <Box
@@ -295,8 +376,86 @@ export default function VolunteerManagement() {
             </Box>
             <Typography variant="h6" sx={{ opacity: 0.9, maxWidth: 600, mx: "auto" }}>              ניהול וצפייה ברשימת המתנדבים הרשומים במערכת
             </Typography>
+            
+            {/* Action Buttons */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 3 }}>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                style={{ display: 'none' }}
+                onChange={handleFileUpload}
+                ref={fileInputRef}
+              />
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<Upload />}
+                onClick={() => fileInputRef.current?.click()}
+                sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.2)', 
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+                  color: 'white',
+                  fontWeight: 'bold'
+                }}
+              >
+                טען מקובץ Excel/CSV
+              </Button>
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={<DeleteForever />}
+                onClick={handleDeleteAllVolunteers}
+                sx={{ 
+                  bgcolor: 'rgba(244,67,54,0.8)', 
+                  '&:hover': { bgcolor: 'rgba(244,67,54,1)' },
+                  color: 'white',
+                  fontWeight: 'bold'
+                }}
+              >
+                מחק את כל המתנדבים
+              </Button>
+            </Box>
           </Paper>
         </Fade>
+
+        {/* Upload Progress */}
+        {isUploading && (
+          <Box sx={{ width: '100%', mb: 2 }}>
+            <LinearProgress variant="determinate" value={uploadProgress} />
+            <Typography variant="body2" sx={{ textAlign: 'center', mt: 1 }}>
+              מעלה קובץ... {uploadProgress}%
+            </Typography>
+          </Box>
+        )}
+
+        {/* Upload Errors */}
+        {uploadErrors.length > 0 && (
+          <Accordion sx={{ mb: 2 }}>
+            <AccordionSummary expandIcon={<ExpandMore />}>
+              <Typography color="error">
+                נמצאו {uploadErrors.length} שגיאות בטעינת הקובץ
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>שורה</TableCell>
+                    <TableCell>תיאור השגיאה</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {uploadErrors.map((error, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{error.row || 'לא ידוע'}</TableCell>
+                      <TableCell>{error.message}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </AccordionDetails>
+          </Accordion>
+        )}
 
         {/* Content */}
         {volunteers.length === 0 ? (
@@ -695,15 +854,16 @@ export default function VolunteerManagement() {
                       </TableRow>
                     ) : (
                       filteredAndSortedVolunteers.map((volunteer, index) => (
-                      <Fade in timeout={800 + index * 100} key={volunteer.id}>
-                        <TableRow
-                          sx={{
-                            "&:hover": {
-                              bgcolor: "grey.50",
-                            },
-                            transition: "background-color 0.2s ease",
-                          }}
-                        >                          <TableCell align="right" sx={{ width: "20%" }}>
+                        <Fade in timeout={800 + index * 100} key={volunteer.id}>
+                          <TableRow
+                            sx={{
+                              "&:hover": {
+                                bgcolor: "grey.50",
+                              },
+                              transition: "background-color 0.2s ease",
+                            }}
+                          >
+                            <TableCell align="right" sx={{ width: "20%" }}>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                               <Avatar
                                 sx={{
@@ -745,7 +905,8 @@ export default function VolunteerManagement() {
                             <Typography variant="body1" sx={{ fontFamily: "monospace" }} noWrap>
                               {volunteer.email}
                             </Typography>
-                          </TableCell>                          <TableCell align="right" sx={{ width: "15%" }}>
+                          </TableCell>
+                          <TableCell align="right" sx={{ width: "15%" }}>
                             <Typography variant="body1" sx={{ fontFamily: "monospace" }} noWrap>
                               {volunteer.phoneNumber || "-"}
                             </Typography>
@@ -801,8 +962,8 @@ export default function VolunteerManagement() {
                             </Button>
                           </TableCell>
                         </TableRow>
-                      </Fade>
-                    ))
+                        </Fade>
+                      ))
                     )}
                   </TableBody>
                 </Table>
