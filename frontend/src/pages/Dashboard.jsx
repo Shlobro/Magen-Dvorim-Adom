@@ -95,6 +95,69 @@ export default function Dashboard() {
   const [volunteers, setVolunteers] = useState([])
   const [loadingVolunteers, setLoadingVolunteers] = useState(false)
 
+  // ───────────────────────────── Sorting States
+  const [sortColumn, setSortColumn] = useState(null)
+  const [sortDirection, setSortDirection] = useState('asc')
+
+  // Sorting function
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  // Get sorted data
+  const getSortedCalls = (callsToSort) => {
+    if (!sortColumn) return callsToSort
+
+    return [...callsToSort].sort((a, b) => {
+      let aValue = a[sortColumn]
+      let bValue = b[sortColumn]
+
+      // Handle special cases for different column types
+      switch (sortColumn) {
+        case 'fullName':
+          aValue = (aValue || '').toString().toLowerCase()
+          bValue = (bValue || '').toString().toLowerCase()
+          break
+        case 'address':
+          aValue = `${a.city || ''} ${a.address || ''}`.trim().toLowerCase()
+          bValue = `${b.city || ''} ${b.address || ''}`.trim().toLowerCase()
+          break
+        case 'timestamp':
+          aValue = convertTimestamp(a.timestamp) || new Date(0)
+          bValue = convertTimestamp(b.timestamp) || new Date(0)
+          break
+        case 'status':
+          aValue = (aValue || '').toString().toLowerCase()
+          bValue = (bValue || '').toString().toLowerCase()
+          break
+        case 'assignedVolunteerName':
+          aValue = (aValue || '').toString().toLowerCase()
+          bValue = (bValue || '').toString().toLowerCase()
+          break
+        case 'coordinatorName':
+          aValue = (aValue || '').toString().toLowerCase()
+          bValue = (bValue || '').toString().toLowerCase()
+          break
+        case 'closureReason':
+          aValue = (aValue || '').toString().toLowerCase()
+          bValue = (bValue || '').toString().toLowerCase()
+          break
+        default:
+          aValue = (aValue || '').toString().toLowerCase()
+          bValue = (bValue || '').toString().toLowerCase()
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+  }
+
   const statusOptions = [
     "נשלח קישור אך לא מולא טופס",
     "נפתחה פנייה (טופס מולא)",
@@ -312,8 +375,9 @@ export default function Dashboard() {
       return match
     })
 
-    return filtered
-  }, [calls, filterVolunteer, filterStartDate, filterEndDate, filterStatus])
+    // Apply sorting to filtered results
+    return getSortedCalls(filtered)
+  }, [calls, filterVolunteer, filterStartDate, filterEndDate, filterStatus, sortColumn, sortDirection])
 
   // Paginated data
   const paginatedCalls = useMemo(() => {
@@ -1375,18 +1439,18 @@ export default function Dashboard() {
                 <thead>
                   <tr style={{ background: "#f0f4f7" }}>
                     {[
-                      "שם מלא",
-                      "כתובת מלאה",
-                      "פרטים מלאים",
-                      "תאריך דיווח",
-                      "סטטוס",
-                      "סיבת סגירה",
-                      "מתנדב משובץ",
-                      "רכז מטפל",
-                      "פעולות",
-                    ].map((h) => (
+                      { label: "שם מלא", key: "fullName" },
+                      { label: "כתובת מלאה", key: "address" },
+                      { label: "פרטים מלאים", key: null }, // Not sortable
+                      { label: "תאריך דיווח", key: "timestamp" },
+                      { label: "סטטוס", key: "status" },
+                      { label: "סיבת סגירה", key: "closureReason" },
+                      { label: "מתנדב משובץ", key: "assignedVolunteerName" },
+                      { label: "רכז מטפל", key: "coordinatorName" },
+                      { label: "פעולות", key: null }, // Not sortable
+                    ].map((column) => (
                       <th
-                        key={h}
+                        key={column.label}
                         style={{
                           padding: "15px 25px",
                           textAlign: "right",
@@ -1397,9 +1461,36 @@ export default function Dashboard() {
                           position: "sticky",
                           top: 0,
                           zIndex: 1,
+                          cursor: column.key ? "pointer" : "default",
+                          userSelect: "none",
+                          transition: "background-color 0.2s ease",
+                        }}
+                        onClick={() => column.key && handleSort(column.key)}
+                        onMouseOver={(e) => {
+                          if (column.key) {
+                            e.currentTarget.style.backgroundColor = "#ddeaf4"
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = "#eef4f9"
                         }}
                       >
-                        {h}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <span>{column.label}</span>
+                          {column.key && (
+                            <span style={{ 
+                              marginLeft: "8px", 
+                              fontSize: "12px",
+                              opacity: sortColumn === column.key ? 1 : 0.3,
+                              transition: "opacity 0.2s ease"
+                            }}>
+                              {sortColumn === column.key ? 
+                                (sortDirection === 'asc' ? '▲' : '▼') : 
+                                '⇅'
+                              }
+                            </span>
+                          )}
+                        </div>
                       </th>
                     ))}
                   </tr>
