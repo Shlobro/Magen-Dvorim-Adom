@@ -111,9 +111,24 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await login(email, password);
+      const user = await login(email, password);
       showSuccess('התחברת בהצלחה!');
       console.log('התחברות בוצעה בהצלחה!');
+
+      // Check if user needs to change password (for users created via Excel)
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE || "http://localhost:3001"}/api/users`);
+        const users = await response.json();
+        const currentUser = users.find(u => u.email === email);
+        
+        if (currentUser && currentUser.requirePasswordChange) {
+          // Redirect to password change page
+          navigate('/change-password');
+          return;
+        }
+      } catch (userCheckError) {
+        console.warn('Could not check password change requirement:', userCheckError);
+      }
 
       setTimeout(() => {
         if (userRole === 1) {

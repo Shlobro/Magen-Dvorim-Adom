@@ -1,7 +1,7 @@
 // frontend/src/contexts/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../firebaseConfig'; 
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'; // ייבוא signOut
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updatePassword as firebaseUpdatePassword } from 'firebase/auth'; // ייבוא signOut
 import { doc, getDoc } from 'firebase/firestore'; 
 
 const AuthContext = createContext();
@@ -37,6 +37,21 @@ export function AuthProvider({ children }) {
       // ה-onAuthStateChanged listener יטפל בעדכון currentUser ו-userRole
     } catch (error) {
       console.error("AuthContext: Logout error:", error);
+      throw error;
+    }
+  };
+
+  // פונקציית עדכון סיסמה
+  const updatePassword = async (newPassword) => {
+    if (!currentUser) {
+      throw new Error('משתמש לא מחובר');
+    }
+    
+    try {
+      await firebaseUpdatePassword(currentUser, newPassword);
+      console.log("Password updated successfully");
+    } catch (error) {
+      console.error("AuthContext: Update password error:", error);
       throw error;
     }
   };
@@ -80,6 +95,7 @@ export function AuthProvider({ children }) {
     loading,
     login, // הוספת פונקציית login ל-value
     logout, // הוספת פונקציית logout ל-value
+    updatePassword, // הוספת פונקציית updatePassword ל-value
   };
 
   return (
