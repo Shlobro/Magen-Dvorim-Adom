@@ -104,26 +104,45 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { login, userRole } = useAuth();
+  const { login, userRole, userData, requiresPasswordChange, loading: authLoading } = useAuth();
   const { showSuccess, showError } = useNotification();
+
+  // Effect to handle navigation after successful login and data load
+  React.useEffect(() => {
+    console.log('Login useEffect - userData:', userData);
+    console.log('Login useEffect - userRole:', userRole);
+    console.log('Login useEffect - authLoading:', authLoading);
+    console.log('Login useEffect - loading:', loading);
+    console.log('Login useEffect - requiresPasswordChange():', requiresPasswordChange());
+    
+    if (userData && userRole !== null && !authLoading && !loading) {
+      // Check if user needs to change password
+      if (requiresPasswordChange()) {
+        console.log('User requires password change, navigating to password-change');
+        navigate('/password-change');
+      } else if (userRole === 1) {
+        console.log('User is coordinator, navigating to dashboard');
+        navigate('/dashboard');
+      } else {
+        console.log('User is volunteer, navigating to home');
+        navigate('/');
+      }
+    }
+  }, [userData, userRole, authLoading, loading, requiresPasswordChange, navigate]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      await login(email, password);
+      const userCredential = await login(email, password);
       showSuccess('התחברת בהצלחה!');
       console.log('התחברות בוצעה בהצלחה!');
-
-      setTimeout(() => {
-        if (userRole === 1) {
-          navigate('/dashboard');
-        } else {
-          navigate('/');
-        }
-      }, 500);    } catch (err) {
-      console.error('Login error:', err.code, err.message);
-      switch (err.code) {
+      
+      // הnavigation יקרה ב-useEffect אחרי שהנתונים נטענו
+    } catch (error) {
+      console.error('Login error:', error.code, error.message);
+      switch (error.code) {
         case 'auth/invalid-email':
           showError('פורמט אימייל לא תקין.');
           break;

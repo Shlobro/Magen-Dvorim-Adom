@@ -4,7 +4,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext'; // ודא שאתה מייבא את ה-AuthContext
 
 const ProtectedRoute = ({ children, requiredRole }) => {
-  const { currentUser, userRole, loading } = useAuth();
+  const { currentUser, userRole, loading, requiresPasswordChange } = useAuth();
 
   if (loading) {
     // עדיין טוען את מצב ההתחברות, הצג טוען או null
@@ -14,6 +14,11 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   // אם אין משתמש מחובר, הפנה לדף ההתחברות
   if (!currentUser) {
     return <Navigate to="/login" replace />;
+  }
+
+  // אם המשתמש צריך להחליף סיסמה, הפנה לדף שינוי הסיסמה
+  if (requiresPasswordChange()) {
+    return <Navigate to="/password-change" replace />;
   }
 
   // אם יש משתמש אבל התפקיד שלו לא מתאים, הפנה לדף הבית או דף שגיאה

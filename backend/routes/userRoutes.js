@@ -213,6 +213,62 @@ router.post('/:id/update', async (req, res) => {
   }
 });
 
+// Delete all volunteers - IMPORTANT: This route must come BEFORE the /:id route
+router.delete('/delete-all-volunteers', async (req, res) => {
+  try {
+    console.log('Starting delete all volunteers process...')
+    
+    // Get all users that are volunteers (userType === 2) from 'user' collection
+    const usersSnapshot = await db.collection('user').where('userType', '==', 2).get()
+    console.log(`Found ${usersSnapshot.size} volunteers to delete`)
+    
+    if (usersSnapshot.empty) {
+      console.log('No volunteers found to delete')
+      return res.status(200).json({ message: 'לא נמצאו מתנדבים למחיקה' })
+    }
+
+    const batch = db.batch()
+
+    // Add delete operations to batch
+    usersSnapshot.docs.forEach((doc) => {
+      console.log(`Adding to batch delete: ${doc.id} - ${doc.data().email || 'no email'}`)
+      batch.delete(doc.ref)
+    })
+
+    // Execute batch
+    console.log('Executing Firestore batch delete...')
+    await batch.commit()
+    console.log('Firestore batch delete completed')
+
+    // Delete the users from Firebase Authentication
+    let authDeleteCount = 0
+    let authDeleteErrors = 0
+    
+    for (const doc of usersSnapshot.docs) {
+      try {
+        console.log(`Deleting auth user: ${doc.id}`)
+        await admin.auth().deleteUser(doc.id)
+        authDeleteCount++
+      } catch (error) {
+        console.error(`Failed to delete auth user ${doc.id}:`, error)
+        authDeleteErrors++
+        // Continue with other deletions even if one fails
+      }
+    }
+
+    console.log(`Deleted ${authDeleteCount} auth users, ${authDeleteErrors} errors`)
+    res.status(200).json({ 
+      message: `נמחקו ${usersSnapshot.size} מתנדבים מהמערכת (${authDeleteCount} מ-Auth, ${authDeleteErrors} שגיאות)`,
+      deletedCount: usersSnapshot.size,
+      authDeletedCount: authDeleteCount,
+      authErrors: authDeleteErrors
+    })
+  } catch (error) {
+    console.error('Error deleting all volunteers:', error)
+    res.status(500).json({ error: 'שגיאה במחיקת המתנדבים', details: error.message })
+  }
+})
+
 // DELETE /api/users/:id - Remove a volunteer (delete from Firestore)
 router.delete('/:id', async (req, res) => {
   try {
@@ -223,38 +279,6 @@ router.delete('/:id', async (req, res) => {
     res.status(500).send('Error deleting user');
   }
 });
-
-// Delete all volunteers
-router.delete('/delete-all-volunteers', async (req, res) => {
-  try {
-    // Get all users that are volunteers (userType === 2)
-    const usersSnapshot = await db.collection('users').where('userType', '==', 2).get()
-    const batch = db.batch()
-
-    // Add delete operations to batch
-    usersSnapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref)
-    })
-
-    // Execute batch
-    await batch.commit()
-
-    // Delete the users from Firebase Authentication
-    for (const doc of usersSnapshot.docs) {
-      try {
-        await admin.auth().deleteUser(doc.id)
-      } catch (error) {
-        console.error(`Failed to delete auth user ${doc.id}:`, error)
-        // Continue with other deletions even if one fails
-      }
-    }
-
-    res.status(200).json({ message: 'כל המתנדבים נמחקו בהצלחה' })
-  } catch (error) {
-    console.error('Error deleting all volunteers:', error)
-    res.status(500).json({ error: 'שגיאה במחיקת המתנדבים' })
-  }
-})
 
 // Bulk create volunteers from Excel/CSV file
 router.post('/bulk-create', upload.single('file'), async (req, res) => {
@@ -293,6 +317,16 @@ router.post('/bulk-create', upload.single('file'), async (req, res) => {
     }
 
     console.log('Parsed data:', data)
+    console.log('First row keys:', data.length > 0 ? Object.keys(data[0]) : 'No data')
+    console.log('First row data:', data.length > 0 ? data[0] : 'No data')
+    
+    // Debug: Print all available column names
+    if (data.length > 0) {
+      console.log('Available columns:')
+      Object.keys(data[0]).forEach((key, index) => {
+        console.log(`  ${index}: "${key}"`)
+      })
+    }
 
     const errors = []
     const createdUsers = []
@@ -302,23 +336,28 @@ router.post('/bulk-create', upload.single('file'), async (req, res) => {
       const rowNumber = i + 2 // Excel rows start from 2 (1 is header)
 
       try {
+        console.log(`Processing row ${rowNumber}:`, row)
+        
         // Map CSV columns to user fields based on the actual CSV structure
         const userData = {
           firstName: row['שם פרטי'] || '',
           lastName: row['שם המשפחה'] || '',
-          email: row['דוא"ל'] || '',
+          email: row['דואל'] || '', // Fixed: column name is 'דואל' not 'דוא"ל'
           phoneNumber: row['מספר נייד'] || '',
           city: row['עיר / יישוב'] || '',
-          address: row['כתובת '] || '',
-          idNumber: row['מס זהות '] || '',
-          beeExperience: (row['ניסיון בפינוי '] === '1' || row['ניסיון בפינוי '] === 1),
-          beekeepingExperience: (row['ניסיון בגידול'] === '1' || row['ניסיון בגידול'] === 1),
-          hasTraining: (row['הדרכות'] === '1' || row['הדרכות'] === 1),
-          heightPermit: (row['היתר עבודה בגובה'] === '1' || row['היתר עבודה בגובה'] === 1),
+          address: row['כתובת'] || '', // Fixed: removed space after 'כתובת'
+          idNumber: row['מס זהות'] || '', // Fixed: removed space after 'מס זהות'
+          // Convert 1/0 or "1"/"0" to boolean for experience fields  
+          beeExperience: (row['ניסיון בפינוי'] === '1' || row['ניסיון בפינוי'] === 1 || row['ניסיון בפינוי'] === true), // Fixed: removed space
+          beekeepingExperience: (row['ניסיון בגידול'] === '1' || row['ניסיון בגידול'] === 1 || row['ניסיון בגידול'] === true),
+          hasTraining: (row['הדרכות'] === '1' || row['הדרכות'] === 1 || row['הדרכות'] === true),
+          heightPermit: (row['היתר עבודה בגובה'] === '1' || row['היתר עבודה בגובה'] === 1 || row['היתר עבודה בגובה'] === true),
           userType: 2, // Volunteer
           requirePasswordChange: true, // Force password change on first login
           createdAt: new Date().toISOString()
         }
+        
+        console.log(`Mapped userData for row ${rowNumber}:`, userData)
 
         // Validate required fields
         if (!userData.firstName || !userData.lastName || !userData.email) {
@@ -339,9 +378,11 @@ router.post('/bulk-create', upload.single('file'), async (req, res) => {
           continue
         }
 
-        // Create user in Firebase Authentication
+        // Create user in Firebase Authentication or get existing user
         let firebaseUser
+        let userAlreadyExists = false
         try {
+          // Try to create the user
           firebaseUser = await admin.auth().createUser({
             email: userData.email,
             password: '123456789', // Default password
@@ -351,17 +392,26 @@ router.post('/bulk-create', upload.single('file'), async (req, res) => {
         } catch (authError) {
           console.error('Firebase Auth error:', authError)
           if (authError.code === 'auth/email-already-exists') {
-            errors.push({
-              row: rowNumber,
-              message: 'המשתמש כבר קיים במערכת'
-            })
+            // User already exists, get the existing user
+            try {
+              firebaseUser = await admin.auth().getUserByEmail(userData.email)
+              userAlreadyExists = true
+              console.log(`User already exists: ${userData.email}, updating Firestore data`)
+            } catch (getUserError) {
+              console.error('Error getting existing user:', getUserError)
+              errors.push({
+                row: rowNumber,
+                message: 'המשתמש כבר קיים אך לא ניתן לגשת אליו'
+              })
+              continue
+            }
           } else {
             errors.push({
               row: rowNumber,
               message: `שגיאה ביצירת המשתמש: ${authError.message}`
             })
+            continue
           }
-          continue
         }
 
         // Geocode address if provided
@@ -369,8 +419,8 @@ router.post('/bulk-create', upload.single('file'), async (req, res) => {
           try {
             const geocodeResult = await geocodeAddress(userData.address)
             if (geocodeResult && geocodeResult.lat && geocodeResult.lng) {
-              userData.latitude = geocodeResult.lat
-              userData.longitude = geocodeResult.lng
+              userData.lat = geocodeResult.lat
+              userData.lng = geocodeResult.lng
             }
           } catch (geocodeError) {
             console.warn(`Geocoding failed for ${userData.address}:`, geocodeError)
@@ -379,15 +429,24 @@ router.post('/bulk-create', upload.single('file'), async (req, res) => {
 
         // Save user to Firestore with Firebase Auth UID
         try {
-          await db.collection('users').doc(firebaseUser.uid).set(userData)
+          // Use 'user' collection (not 'users') to match existing system
+          await db.collection('user').doc(firebaseUser.uid).set(userData, { merge: true })
           createdUsers.push(userData)
+          
+          if (userAlreadyExists) {
+            console.log(`Updated existing user: ${userData.email}`)
+          } else {
+            console.log(`Created new user: ${userData.email}`)
+          }
         } catch (firestoreError) {
           console.error('Firestore error:', firestoreError)
-          // Clean up Firebase Auth user if Firestore save fails
-          try {
-            await admin.auth().deleteUser(firebaseUser.uid)
-          } catch (cleanupError) {
-            console.error('Failed to cleanup auth user:', cleanupError)
+          // Only clean up Firebase Auth user if we created it (not if it already existed)
+          if (!userAlreadyExists) {
+            try {
+              await admin.auth().deleteUser(firebaseUser.uid)
+            } catch (cleanupError) {
+              console.error('Failed to cleanup auth user:', cleanupError)
+            }
           }
           errors.push({
             row: rowNumber,

@@ -29,6 +29,9 @@ import VolunteerManagement from './pages/VolunteerManagement.jsx';
 // ייבוא לוח מחוונים למתנדבים
 import VolunteerDashboard from './pages/VolunteerDashboard.jsx';
 
+// ייבוא עמוד החלפת סיסמה
+import PasswordChange from './pages/PasswordChange.jsx';
+
 // ייבוא דף אישור רכזים
 import CoordinatorApproval from './pages/CoordinatorApproval.jsx';
 
@@ -45,6 +48,7 @@ function App() {
             <Route path="/signup" element={<SignUp />} />
             <Route path="/login" element={<Login />} />
             <Route path="/coordinator-register" element={<CoordinatorSignup />} />
+            <Route path="/password-change" element={<PasswordChange />} />
 
             {/* נתיבים לדפי כללי האתיקה */}
             <Route path="/ethics/coordinators" element={<EthicsCoordinators />} />
