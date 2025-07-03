@@ -1,6 +1,7 @@
 // backend/routes/userRoutes.js
 import express from 'express';
 import db from '../services/firebaseAdmin.js';           // Firestore Admin SDK
+import admin from 'firebase-admin';                      // Firebase Admin (for auth)
 import { geocodeAddress } from '../services/geocodeAddress.js';
 
 const router = express.Router();
@@ -147,11 +148,86 @@ router.post('/queryNear', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const doc = await db.collection('user').doc(req.params.id).get();
-    if (!doc.exists) return res.status(404).send('User not found');
+    if (!doc.exists) return res.status(404).json({ error: 'User not found' });
     res.json(doc.data());
   } catch (e) {
     console.error(e);
-    res.status(500).send('Error fetching user');
+    res.status(500).json({ error: 'Error fetching user' });
+  }
+});
+
+// GET /api/users/profile/:id - Get user profile data (enhanced with better error handling)
+router.get('/profile/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const doc = await db.collection('user').doc(userId).get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ error: 'משתמש לא נמצא' });
+    }
+    
+    const userData = doc.data();
+    
+    // Return user data without sensitive information
+    const profileData = {
+      firstName: userData.firstName || '',
+      lastName: userData.lastName || '',
+      phoneNumber: userData.phoneNumber || '',
+      email: userData.email || '',
+      city: userData.city || '',
+      streetName: userData.streetName || '',
+      houseNumber: userData.houseNumber || '',
+      idNumber: userData.idNumber || '',
+      beeExperience: userData.beeExperience || false,
+      beekeepingExperience: userData.beekeepingExperience || false,
+      hasTraining: userData.hasTraining || false,
+      heightPermit: userData.heightPermit || false,
+      additionalDetails: userData.additionalDetails || '',
+      organizationName: userData.organizationName || '',
+      position: userData.position || '',
+      userType: userData.userType || 2,
+      createdAt: userData.createdAt,
+      updatedAt: userData.updatedAt,
+    };
+    
+    res.json(profileData);
+  } catch (e) {
+    console.error('Error fetching user profile:', e);
+    res.status(500).json({ error: 'שגיאה בטעינת הפרופיל' });
+  }
+});
+
+// PUT /api/users/profile/:id - Update user profile
+router.put('/profile/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const updateData = { ...req.body };
+    
+    // Add coordinates if location fields are provided
+    if (updateData.city && updateData.streetName && updateData.houseNumber) {
+      const fullAddress = `${updateData.streetName} ${updateData.houseNumber}, ${updateData.city}`;
+      try {
+        const coords = await geocodeAddress(fullAddress);
+        if (coords) {
+          updateData.lat = coords.lat;
+          updateData.lng = coords.lng;
+          updateData.location = fullAddress;
+        }
+      } catch (geocodeError) {
+        console.warn('Geocoding failed, continuing without coordinates:', geocodeError.message);
+      }
+    }
+    
+    // Add update timestamp
+    updateData.updatedAt = new Date();
+    
+    // Update the user document
+    await db.collection('user').doc(userId).update(updateData);
+    
+    res.json({ message: 'הפרופיל עודכן בהצלחה' });
+  } catch (e) {
+    console.error('Error updating user profile:', e);
+    res.status(500).json({ error: 'שגיאה בעדכון הפרופיל' });
   }
 });
 
@@ -165,10 +241,10 @@ router.post('/', async (req, res) => {
     }
 
     await db.collection('user').doc(user.id).set(user);
-    res.send('User saved ✓');
+    res.json({ message: 'User saved successfully' });
   } catch (e) {
     console.error(e);
-    res.status(500).send('Error saving user');
+    res.status(500).json({ error: 'Error saving user' });
   }
 });
 
@@ -204,21 +280,36 @@ router.post('/:id/update', async (req, res) => {
 
   try {
     await db.collection('user').doc(req.params.id).update(updateData);
-    res.send('User updated ✓');
+    res.json({ message: 'User updated successfully' });
   } catch (e) {
     console.error(e);
-    res.status(500).send('Error updating user');
+    res.status(500).json({ error: 'Error updating user' });
   }
 });
 
-// DELETE /api/users/:id - Remove a volunteer (delete from Firestore)
+// DELETE /api/users/:id - Remove a volunteer (delete from Firestore and Firebase Auth)
 router.delete('/:id', async (req, res) => {
   try {
-    await db.collection('user').doc(req.params.id).delete();
-    res.send('User deleted');
+    const userId = req.params.id;
+    
+    // First, delete the user document from Firestore
+    await db.collection('user').doc(userId).delete();
+    
+    // Then, try to delete the user from Firebase Auth
+    // Note: This might fail if the user doesn't exist in Auth or was already deleted
+    try {
+      await admin.auth().deleteUser(userId);
+      console.log(`Successfully deleted Firebase Auth user: ${userId}`);
+    } catch (authError) {
+      // Log the error but don't fail the entire operation
+      // The user might have already been deleted from Auth or might not exist
+      console.warn(`Warning: Could not delete Firebase Auth user ${userId}:`, authError.message);
+    }
+    
+    res.json({ message: 'User deleted successfully' });
   } catch (e) {
-    console.error(e);
-    res.status(500).send('Error deleting user');
+    console.error('Error deleting user:', e);
+    res.status(500).json({ error: 'Error deleting user' });
   }
 });
 

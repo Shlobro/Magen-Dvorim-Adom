@@ -137,6 +137,7 @@ export function AuthProvider({ children }) {
     logout, // הוספת פונקציית logout ל-value
     updateUserPassword,
     updateUserData,
+
   };
 
   return (

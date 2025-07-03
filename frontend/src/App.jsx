@@ -1,4 +1,3 @@
-// frontend/src/App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.jsx';
@@ -7,9 +6,11 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 import Dashboard from './pages/Dashboard';
 import VolunteerMap from './pages/VolunteerMap';
 import HomeScreen from './pages/HomeScreen';
+import HomeRedirect from './components/HomeRedirect.jsx';
 import ReportPage from './pages/ReportPage';
 import SignUp from './pages/SignUp';
 import Login from './pages/Login';
+import ChangePassword from './pages/ChangePassword';
 import CoordinatorSignup from './pages/CoordinatorSignup.jsx';
 import Header from './components/Header';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
@@ -49,12 +50,11 @@ function App() {
             <div className="main-content">
               <ErrorBoundary>
                 <Routes>
-                  <Route path="/" element={<HomeScreen />} />
+                  <Route path="/" element={<HomeRedirect />} />
                   <Route path="/report" element={<ReportPage />} />
                   <Route path="/signup" element={<SignUp />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/coordinator-register" element={<CoordinatorSignup />} />
-
                   {/* נתיבים לדפי כללי האתיקה */}
                   <Route path="/ethics/coordinators" element={<EthicsCoordinators />} />
                   <Route path="/ethics/volunteers" element={<EthicsVolunteers />} />
@@ -149,6 +149,7 @@ function App() {
                       <ProtectedRoute requiredRole={2}>
                         <ErrorBoundary>
                           <VolunteerProfile />
+
                         </ErrorBoundary>
                       </ProtectedRoute>
                     }

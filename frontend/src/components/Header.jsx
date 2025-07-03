@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FaBars, FaTimes, FaHome, FaBell, FaUsers, FaSignInAlt, FaSignOutAlt, FaMapMarkedAlt, FaChartBar, FaUserCheck, FaUserCog } from 'react-icons/fa'; // הוסף FaMapMarkedAlt, FaChartBar, FaUserCheck ו-FaUserCog
+
 import mdaLogo from '../assets/mda_logo.png';
 import '../styles/Header.css';
 

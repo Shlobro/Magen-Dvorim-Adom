@@ -82,6 +82,7 @@ export default function Dashboard() {
   const [filterStartDate, setFilterStartDate] = useState("")
   const [filterEndDate, setFilterEndDate] = useState("")
   const [filterStatus, setFilterStatus] = useState("נפתחה פנייה (טופס מולא)")
+  const [searchTerm, setSearchTerm] = useState("") // Free search across multiple fields
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1)
@@ -365,6 +366,30 @@ export default function Dashboard() {
     const filtered = calls.filter((call) => {
       let match = true
 
+      // Free search functionality
+      if (searchTerm && searchTerm.trim() !== "") {
+        const searchLower = searchTerm.toLowerCase().trim()
+        const searchableFields = [
+          call.fullName || "",
+          call.phoneNumber || "",
+          call.address || "",
+          call.city || "",
+          call.additionalDetails || "",
+          call.assignedVolunteerName || "",
+          call.coordinatorName || "",
+          call.status || "",
+          call.closureReason || ""
+        ]
+        
+        const matchesSearch = searchableFields.some(field => 
+          field.toString().toLowerCase().includes(searchLower)
+        )
+        
+        if (!matchesSearch) {
+          match = false
+        }
+      }
+
       if (filterVolunteer && call.assignedVolunteerName !== filterVolunteer) {
         match = false
       }
@@ -401,7 +426,7 @@ export default function Dashboard() {
 
     // Apply sorting to filtered results
     return getSortedCalls(filtered)
-  }, [calls, filterVolunteer, filterStartDate, filterEndDate, filterStatus, sortColumn, sortDirection])
+  }, [calls, filterVolunteer, filterStartDate, filterEndDate, filterStatus, searchTerm, sortColumn, sortDirection])
 
   // Paginated data
   const paginatedCalls = useMemo(() => {
@@ -416,7 +441,7 @@ export default function Dashboard() {
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [filterVolunteer, filterStartDate, filterEndDate, filterStatus])
+  }, [filterVolunteer, filterStartDate, filterEndDate, filterStatus, searchTerm])
   const handleVolunteerFilterChange = (e) => {
     setFilterVolunteer(e.target.value)
     setCurrentPage(1)
@@ -441,12 +466,18 @@ export default function Dashboard() {
     setCurrentPage(1)
   }
 
+  const handleSearchTermChange = (e) => {
+    setSearchTerm(e.target.value)
+    setCurrentPage(1)
+  }
+
   // Clear all filters function
   const handleClearAllFilters = () => {
     setFilterVolunteer("")
     setFilterStatus("נפתחה פנייה (טופס מולא)") // Reset to default
     setFilterStartDate("")
     setFilterEndDate("")
+    setSearchTerm("") // Clear search term
     setCurrentPage(1)
   }  // ───────────────────────────── status / closure handlers
   const handleStatusChange = async (callId, newStatus) => {
@@ -466,6 +497,13 @@ export default function Dashboard() {
 
       // Find the current call to check if it has a volunteer assigned
       const currentCall = calls.find(c => c.id === callId)
+      
+      // Check if the coordinator has ownership of this inquiry (moved here to use the same currentCall)
+      if (!currentCall || currentCall.coordinatorId !== currentUser?.uid) {
+        showError("לא ניתן לשנות את הסטטוס ללא בעלות על הפנייה. יש לקחת בעלות על הפנייה תחילה.")
+        return
+      }
+      
       const hasVolunteerAssigned = currentCall && currentCall.assignedVolunteers && currentCall.assignedVolunteers !== "-" && currentCall.assignedVolunteers !== null
 
       // Check if trying to set a status that requires a volunteer when none is assigned
@@ -525,6 +563,15 @@ export default function Dashboard() {
 
   const handleClosureChange = async (callId, newClosureReason) => {
     try {
+      // Find the current call to check ownership
+      const currentCall = calls.find(c => c.id === callId)
+      
+      // Check if the coordinator has ownership of this inquiry
+      if (!currentCall || currentCall.coordinatorId !== currentUser?.uid) {
+        showError("לא ניתן לשנות את סיבת הסגירה ללא בעלות על הפנייה. יש לקחת בעלות על הפנייה תחילה.")
+        return
+      }
+
       await updateDoc(doc(db, "inquiry", callId), { closureReason: newClosureReason })
       setCalls((prev) => prev.map((c) => (c.id === callId ? { ...c, closureReason: newClosureReason } : c)))
       showSuccess("סיבת סגירה עודכנה בהצלחה!")
@@ -535,6 +582,15 @@ export default function Dashboard() {
   }
 
   const handleAssignVolunteerClick = (inquiryId) => {
+    // Find the current call to check ownership
+    const currentCall = calls.find(c => c.id === inquiryId)
+    
+    // Check if the coordinator has ownership of this inquiry
+    if (!currentCall || currentCall.coordinatorId !== currentUser?.uid) {
+      showError("לא ניתן לשבץ מתנדב ללא בעלות על הפנייה. יש לקחת בעלות על הפנייה תחילה.")
+      return
+    }
+    
     navigate(`/volunteer-map?inquiryId=${inquiryId}`)
   }
   // Handle taking ownership of an unassigned report
@@ -638,6 +694,15 @@ export default function Dashboard() {
   // Handle volunteer reassignment
   const handleReassignVolunteer = async (inquiryId, newVolunteerId) => {
     if (!newVolunteerId) return
+
+    // Find the current call to check ownership
+    const currentCall = calls.find(c => c.id === inquiryId)
+    
+    // Check if the coordinator has ownership of this inquiry
+    if (!currentCall || currentCall.coordinatorId !== currentUser?.uid) {
+      showError("לא ניתן לשנות שיבוץ מתנדב ללא בעלות על הפנייה. יש לקחת בעלות על הפנייה תחילה.")
+      return
+    }
 
     try {
       await reassignVolunteer(inquiryId, newVolunteerId)
@@ -1192,6 +1257,39 @@ export default function Dashboard() {
                       }}
                       className="no-select"
                     >
+                      חיפוש חופשי:
+                    </label>
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={handleSearchTermChange}
+                      placeholder="חפש לפי שם, טלפון, כתובת, הערות..."
+                      style={{
+                        width: "85%",
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "2px solid #e9ecef",
+                        fontSize: "1em",
+                        background: "white",
+                        transition: "border-color 0.3s ease",
+                        direction: "rtl",
+                      }}
+                      onFocus={(e) => (e.currentTarget.style.borderColor = "#007bff")}
+                      onBlur={(e) => (e.currentTarget.style.borderColor = "#e9ecef")}
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "8px",
+                        fontWeight: "600",
+                        color: "#495057",
+                        fontSize: "0.95em",
+                      }}
+                      className="no-select"
+                    >
                       פילטר סטטוס:
                     </label>
                     <select
@@ -1637,15 +1735,18 @@ export default function Dashboard() {
                           <select
                             value={call.status || ""}
                             onChange={(e) => handleStatusChange(call.id, e.target.value)}
+                            disabled={call.coordinatorId !== currentUser?.uid}
                             style={{
                               padding: "10px 15px",
                               borderRadius: "6px",
                               border: "1px solid #b0bec5",
                               minWidth: "180px",
-                              backgroundColor: "white",
+                              backgroundColor: call.coordinatorId !== currentUser?.uid ? "#f5f5f5" : "white",
                               fontSize: "0.95em",
-                              cursor: "pointer",
+                              cursor: call.coordinatorId !== currentUser?.uid ? "not-allowed" : "pointer",
+                              opacity: call.coordinatorId !== currentUser?.uid ? 0.6 : 1,
                             }}
+                            title={call.coordinatorId !== currentUser?.uid ? "יש לקחת בעלות על הפנייה כדי לשנות את הסטטוס" : ""}
                           >
                             {statusOptions.map((o) => (
                               <option key={o} value={o}>
@@ -1659,15 +1760,18 @@ export default function Dashboard() {
                             <select
                               value={call.closureReason || ""}
                               onChange={(e) => handleClosureChange(call.id, e.target.value)}
+                              disabled={call.coordinatorId !== currentUser?.uid}
                               style={{
                                 padding: "10px 15px",
                                 borderRadius: "6px",
                                 border: "1px solid #b0bec5",
                                 minWidth: "180px",
-                                backgroundColor: "white",
+                                backgroundColor: call.coordinatorId !== currentUser?.uid ? "#f5f5f5" : "white",
                                 fontSize: "0.95em",
-                                cursor: "pointer",
+                                cursor: call.coordinatorId !== currentUser?.uid ? "not-allowed" : "pointer",
+                                opacity: call.coordinatorId !== currentUser?.uid ? 0.6 : 1,
                               }}
+                              title={call.coordinatorId !== currentUser?.uid ? "יש לקחת בעלות על הפנייה כדי לשנות את סיבת הסגירה" : ""}
                             >
                               <option value="">בחר סיבה</option>
                               {closureOptions.map((o) => (
@@ -1693,16 +1797,18 @@ export default function Dashboard() {
                                   }
                                 }}
                                 onFocus={fetchVolunteers}
+                                disabled={loadingVolunteers || call.coordinatorId !== currentUser?.uid}
                                 style={{
                                   width: "100%",
                                   padding: "8px 12px",
                                   borderRadius: "6px",
                                   border: "1px solid #b0bec5",
                                   fontSize: "0.85em",
-                                  backgroundColor: "white",
-                                  cursor: "pointer",
+                                  backgroundColor: call.coordinatorId !== currentUser?.uid ? "#f5f5f5" : "white",
+                                  cursor: call.coordinatorId !== currentUser?.uid ? "not-allowed" : "pointer",
+                                  opacity: call.coordinatorId !== currentUser?.uid ? 0.6 : 1,
                                 }}
-                                disabled={loadingVolunteers}
+                                title={call.coordinatorId !== currentUser?.uid ? "יש לקחת בעלות על הפנייה כדי להחליף מתנדב" : ""}
                               >
                                 <option value="">החלף מתנדב...</option>
                                 {volunteers.map((volunteer) => (
@@ -1738,35 +1844,107 @@ export default function Dashboard() {
                             alignItems: "flex-end",
                           }}
                         >
-                          {call.status === "נפתחה פנייה (טופס מולא)" && (
-                            <button
-                              onClick={() => handleAssignVolunteerClick(call.id)}
-                              style={{
-                                background: "linear-gradient(135deg, #28a745 0%, #218838 100%)",
-                                color: "#fff",
-                                padding: "10px 18px",
-                                border: "none",
-                                borderRadius: "6px",
-                                cursor: "pointer",
-                                fontSize: "0.9em",
-                                fontWeight: "600",
-                                boxShadow: "0 2px 8px rgba(40,167,69,0.2)",
-                                transition: "all 0.2s ease",
-                                width: "fit-content",
-                              }}
-                              className="no-select"
-                              onMouseOver={(e) => {
-                                e.currentTarget.style.transform = "translateY(-1px)"
-                                e.currentTarget.style.boxShadow = "0 3px 10px rgba(40,167,69,0.3)"
-                              }}
-                              onMouseOut={(e) => {
-                                e.currentTarget.style.transform = "translateY(0)"
-                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(40,167,69,0.2)"
-                              }}
-                            >
-                              שבץ מתנדב
-                            </button>
-                          )}
+                          {/* Container for ownership and assign volunteer buttons - side by side */}
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                            {call.coordinatorId === null || call.coordinatorId === "" ? (
+                              <button
+                                onClick={() => handleTakeOwnership(call.id)}
+                                style={{
+                                  background: "linear-gradient(135deg, #ff9800 0%, #f57c00 100%)",
+                                  color: "#fff",
+                                  padding: "10px 18px",
+                                  border: "none",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  fontSize: "0.9em",
+                                  fontWeight: "600",
+                                  boxShadow: "0 2px 8px rgba(255,152,0,0.2)",
+                                  transition: "all 0.2s ease",
+                                  width: "fit-content",
+                                }}
+                                className="no-select"
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.transform = "translateY(-1px)"
+                                  e.currentTarget.style.boxShadow = "0 3px 10px rgba(255,152,0,0.3)"
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.transform = "translateY(0)"
+                                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(255,152,0,0.2)"
+                                }}
+                              >
+                                קח בעלות
+                              </button>
+                            ) : call.coordinatorId === currentUser?.uid ? (
+                              <button
+                                onClick={() => handleReleaseOwnership(call.id)}
+                                style={{
+                                  background: "linear-gradient(135deg, #dc3545 0%, #c82333 100%)",
+                                  color: "#fff",
+                                  padding: "10px 18px",
+                                  border: "none",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  fontSize: "0.9em",
+                                  fontWeight: "600",
+                                  boxShadow: "0 2px 8px rgba(220,53,69,0.2)",
+                                  transition: "all 0.2s ease",
+                                  width: "fit-content",
+                                }}
+                                className="no-select"
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.transform = "translateY(-1px)"
+                                  e.currentTarget.style.boxShadow = "0 3px 10px rgba(220,53,69,0.3)"
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.transform = "translateY(0)"
+                                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(220,53,69,0.2)"
+                                }}
+                              >
+                                שחרר בעלות
+                              </button>
+                            ) : null}
+
+                            {call.status === "נפתחה פנייה (טופס מולא)" && (
+                              <button
+                                onClick={() => handleAssignVolunteerClick(call.id)}
+                                disabled={call.coordinatorId !== currentUser?.uid}
+                                style={{
+                                  background: call.coordinatorId !== currentUser?.uid 
+                                    ? "linear-gradient(135deg, #6c757d 0%, #5a6268 100%)" 
+                                    : "linear-gradient(135deg, #28a745 0%, #218838 100%)",
+                                  color: "#fff",
+                                  padding: "10px 18px",
+                                  border: "none",
+                                  borderRadius: "6px",
+                                  cursor: call.coordinatorId !== currentUser?.uid ? "not-allowed" : "pointer",
+                                  fontSize: "0.9em",
+                                  fontWeight: "600",
+                                  boxShadow: call.coordinatorId !== currentUser?.uid 
+                                    ? "0 2px 8px rgba(108,117,125,0.2)" 
+                                    : "0 2px 8px rgba(40,167,69,0.2)",
+                                  transition: "all 0.2s ease",
+                                  width: "fit-content",
+                                  opacity: call.coordinatorId !== currentUser?.uid ? 0.6 : 1,
+                                }}
+                                className="no-select"
+                                title={call.coordinatorId !== currentUser?.uid ? "יש לקחת בעלות על הפנייה כדי לשבץ מתנדב" : ""}
+                                onMouseOver={(e) => {
+                                  if (call.coordinatorId === currentUser?.uid) {
+                                    e.currentTarget.style.transform = "translateY(-1px)"
+                                    e.currentTarget.style.boxShadow = "0 3px 10px rgba(40,167,69,0.3)"
+                                  }
+                                }}
+                                onMouseOut={(e) => {
+                                  if (call.coordinatorId === currentUser?.uid) {
+                                    e.currentTarget.style.transform = "translateY(0)"
+                                    e.currentTarget.style.boxShadow = "0 2px 8px rgba(40,167,69,0.2)"
+                                  }
+                                }}
+                              >
+                                שבץ מתנדב
+                              </button>
+                            )}
+                          </div>
 
                           {call.status === "הפנייה נסגרה" && (
                             <button
@@ -1797,66 +1975,6 @@ export default function Dashboard() {
                               צור קישור למשוב
                             </button>
                           )}
-
-                          {call.coordinatorId === null || call.coordinatorId === "" ? (
-                            <button
-                              onClick={() => handleTakeOwnership(call.id)}
-                              style={{
-                                background: "linear-gradient(135deg, #ff9800 0%, #f57c00 100%)",
-                                color: "#fff",
-                                padding: "10px 18px",
-                                border: "none",
-                                borderRadius: "6px",
-                                cursor: "pointer",
-                                fontSize: "0.9em",
-                                fontWeight: "600",
-                                boxShadow: "0 2px 8px rgba(255,152,0,0.2)",
-                                transition: "all 0.2s ease",
-                                width: "fit-content",
-                                marginBottom: "8px",
-                              }}
-                              className="no-select"
-                              onMouseOver={(e) => {
-                                e.currentTarget.style.transform = "translateY(-1px)"
-                                e.currentTarget.style.boxShadow = "0 3px 10px rgba(255,152,0,0.3)"
-                              }}
-                              onMouseOut={(e) => {
-                                e.currentTarget.style.transform = "translateY(0)"
-                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(255,152,0,0.2)"
-                              }}
-                            >
-                              קח בעלות
-                            </button>
-                          ) : call.coordinatorId === currentUser?.uid ? (
-                            <button
-                              onClick={() => handleReleaseOwnership(call.id)}
-                              style={{
-                                background: "linear-gradient(135deg, #dc3545 0%, #c82333 100%)",
-                                color: "#fff",
-                                padding: "10px 18px",
-                                border: "none",
-                                borderRadius: "6px",
-                                cursor: "pointer",
-                                fontSize: "0.9em",
-                                fontWeight: "600",
-                                boxShadow: "0 2px 8px rgba(220,53,69,0.2)",
-                                transition: "all 0.2s ease",
-                                width: "fit-content",
-                                marginBottom: "8px",
-                              }}
-                              className="no-select"
-                              onMouseOver={(e) => {
-                                e.currentTarget.style.transform = "translateY(-1px)"
-                                e.currentTarget.style.boxShadow = "0 3px 10px rgba(220,53,69,0.3)"
-                              }}
-                              onMouseOut={(e) => {
-                                e.currentTarget.style.transform = "translateY(0)"
-                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(220,53,69,0.2)"
-                              }}
-                            >
-                              שחרר בעלות
-                            </button>
-                          ) : null}
 
                           {call.status !== "נפתחה פנייה (טופס מולא)" && call.status !== "הפנייה נסגרה" && (
                             <span

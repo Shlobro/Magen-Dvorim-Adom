@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useNotification } from '../contexts/NotificationContext';
@@ -104,24 +104,55 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { login, userRole } = useAuth();
+  const { login, userRole, currentUser } = useAuth();
   const { showSuccess, showError } = useNotification();
+
+  // Effect to handle navigation after login when userRole is available
+  useEffect(() => {
+    if (currentUser && userRole !== null) {
+      // Navigate based on user role
+      setTimeout(() => {
+        if (userRole === 1) {
+          // Coordinator - go to reports dashboard
+          navigate('/dashboard');
+        } else if (userRole === 2) {
+          // Volunteer - go to volunteer dashboard
+          navigate('/volunteer-dashboard');
+        } else {
+          // Fallback to home
+          navigate('/');
+        }
+      }, 500);
+    }
+  }, [currentUser, userRole, navigate]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      await login(email, password);
+      const user = await login(email, password);
       showSuccess('התחברת בהצלחה!');
       console.log('התחברות בוצעה בהצלחה!');
 
-      setTimeout(() => {
-        if (userRole === 1) {
-          navigate('/dashboard');
-        } else {
-          navigate('/');
+      // Check if user needs to change password (for users created via Excel)
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE || "http://localhost:3001"}/api/users`);
+        const users = await response.json();
+        const currentUser = users.find(u => u.email === email);
+        
+        if (currentUser && currentUser.requirePasswordChange) {
+          // Redirect to password change page
+          navigate('/change-password');
+          setLoading(false);
+          return;
         }
-      }, 500);    } catch (err) {
+      } catch (userCheckError) {
+        console.warn('Could not check password change requirement:', userCheckError);
+      }
+
+      // Navigation will be handled by the useEffect above once userRole is loaded
+    } catch (err) {
       console.error('Login error:', err.code, err.message);
       switch (err.code) {
         case 'auth/invalid-email':
