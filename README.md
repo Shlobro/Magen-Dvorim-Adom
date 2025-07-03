@@ -144,10 +144,6 @@ npm start
 npm run dev
 ```
 
-The application will be available at:
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3001
-
 ## Project Structure
 
 ```
@@ -248,9 +244,7 @@ The system uses a weighted scoring algorithm to match volunteers with inquiries:
 - Firebase Authentication for secure user management
 - Role-based access control (Coordinators vs Volunteers)
 - Input validation and sanitization
-- CORS protection
 - Secure file upload handling
-- Rate limiting on API endpoints
 
 ## Performance Optimizations
 
@@ -277,19 +271,11 @@ The system uses a weighted scoring algorithm to match volunteers with inquiries:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-For support or questions, please contact the development team at [email].
-
 ## Acknowledgments
 
 - Azrieli College for providing the educational framework
 - Magen Dvorim Adom organization for the project requirements
-- Firebase and Cloudinary for their excellent services
+- Firebase and Cloudinary for their services
 - The open-source community for the tools and libraries used
 
 ---
