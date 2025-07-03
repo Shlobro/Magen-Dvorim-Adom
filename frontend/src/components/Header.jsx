@@ -1,7 +1,7 @@
 // frontend/src/components/Header.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaBars, FaTimes, FaHome, FaBell, FaUsers, FaSignInAlt, FaSignOutAlt, FaMapMarkedAlt, FaChartBar, FaUserCheck } from 'react-icons/fa'; // הוסף FaMapMarkedAlt, FaChartBar ו-FaUserCheck
+import { FaBars, FaTimes, FaHome, FaBell, FaUsers, FaSignInAlt, FaSignOutAlt, FaMapMarkedAlt, FaChartBar, FaUserCheck, FaUserCog } from 'react-icons/fa'; // הוסף FaMapMarkedAlt, FaChartBar, FaUserCheck ו-FaUserCog
 import mdaLogo from '../assets/mda_logo.png';
 import '../styles/Header.css';
 
@@ -46,6 +46,9 @@ export default function Header() {
     // מתנדבים (userType === 2) יראו את לוח המחוונים שלהם
     ...(userRole === 2 ? [{ label: 'הפניות שלי', icon: <FaBell />, to: '/volunteer-dashboard', isButton: false }] : []),
     
+    // פרופיל מתנדב
+    ...(userRole === 2 ? [{ label: 'הפרופיל שלי', icon: <FaUserCog />, to: '/volunteer-profile', isButton: false }] : []),
+    
     // הוסף את הקישור למפת המתנדבים כאן
     // נציג אותו רק אם המשתמש הוא רכז (userType === 1)
     ...(userRole === 1 ? [{ label: 'מפת מתנדבים', icon: <FaMapMarkedAlt />, to: '/volunteer-map', isButton: false }] : []),
@@ -56,6 +59,8 @@ export default function Header() {
     ...(userRole === 1 ? [{ label: 'ניהול מתנדבים', icon: <FaUsers />, to: '/volunteer-management', isButton: false }] : []),
     // קישור חדש: אישור רכזים
     ...(userRole === 1 ? [{ label: 'אישור רכזים', icon: <FaUserCheck />, to: '/coordinator-approval', isButton: false }] : []),
+    // קישור חדש: פרופיל רכז
+    ...(userRole === 1 ? [{ label: 'הפרופיל שלי', icon: <FaUserCog />, to: '/coordinator-profile', isButton: false }] : []),
     { label: 'התנתק', icon: <FaSignOutAlt />, onClick: handleLogout, isButton: true },
   ];
 

@@ -1,8 +1,15 @@
 // frontend/src/contexts/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../firebaseConfig'; 
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'; // ייבוא signOut
-import { doc, getDoc } from 'firebase/firestore'; 
+import { 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  updatePassword, 
+  reauthenticateWithCredential,
+  EmailAuthProvider 
+} from 'firebase/auth'; 
+import { doc, getDoc, updateDoc } from 'firebase/firestore'; 
 
 const AuthContext = createContext();
 
@@ -13,6 +20,7 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null); 
+  const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // פונקציית התחברות
@@ -41,6 +49,47 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // פונקציית עדכון סיסמה
+  const updateUserPassword = async (currentPassword, newPassword) => {
+    if (!currentUser) {
+      throw new Error('אין משתמש מחובר');
+    }
+
+    try {
+      // יצירת credential עבור הסיסמה הנוכחית
+      const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
+      
+      // re-authenticate המשתמש עם הסיסמה הנוכחית
+      await reauthenticateWithCredential(currentUser, credential);
+      
+      // עדכון הסיסמה החדשה
+      await updatePassword(currentUser, newPassword);
+      
+      console.log("Password updated successfully");
+    } catch (error) {
+      console.error("AuthContext: Password update error:", error);
+      throw error;
+    }
+  };
+
+  // פונקציית עדכון נתוני משתמש ב-Firestore
+  const updateUserData = async (uid, updates) => {
+    try {
+      const userDocRef = doc(db, 'user', uid);
+      await updateDoc(userDocRef, updates);
+      
+      // עדכון הנתונים המקומיים
+      if (uid === currentUser?.uid) {
+        setUserData(prev => ({ ...prev, ...updates }));
+      }
+      
+      console.log("User data updated successfully");
+    } catch (error) {
+      console.error("AuthContext: User data update error:", error);
+      throw error;
+    }
+  };
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -52,21 +101,25 @@ export function AuthProvider({ children }) {
           const userDocSnap = await getDoc(userDocRef);
 
           if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            setUserRole(userData.userType); 
-            console.log("AuthContext: User data loaded:", userData);
-            console.log("AuthContext: User Type:", userData.userType);
+            const userDataFromFirestore = userDocSnap.data();
+            setUserRole(userDataFromFirestore.userType);
+            setUserData(userDataFromFirestore);
+            console.log("AuthContext: User data loaded:", userDataFromFirestore);
+            console.log("AuthContext: User Type:", userDataFromFirestore.userType);
           } else {
             console.log("AuthContext: No user data found in 'user' collection for UID:", user.uid);
-            setUserRole(null); 
+            setUserRole(null);
+            setUserData(null);
           }
         } catch (error) {
           console.error("AuthContext: Error fetching user role from Firestore:", error);
-          setUserRole(null); 
+          setUserRole(null);
+          setUserData(null);
         }
       } else {
-        // אם אין משתמש, אפס את התפקיד
+        // אם אין משתמש, אפס את התפקיד והנתונים
         setUserRole(null);
+        setUserData(null);
       }
       setLoading(false);
     });
@@ -77,9 +130,13 @@ export function AuthProvider({ children }) {
   const value = {
     currentUser,
     userRole,
+    userData,
+    setUserData,
     loading,
     login, // הוספת פונקציית login ל-value
     logout, // הוספת פונקציית logout ל-value
+    updateUserPassword,
+    updateUserData,
   };
 
   return (

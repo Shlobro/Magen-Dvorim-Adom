@@ -33,6 +33,12 @@ import VolunteerDashboard from './pages/VolunteerDashboard.jsx';
 // ייבוא דף אישור רכזים
 import CoordinatorApproval from './pages/CoordinatorApproval.jsx';
 
+// ייבוא עמוד פרופיל רכז
+import CoordinatorProfile from './pages/CoordinatorProfile.jsx';
+
+// ייבוא עמוד פרופיל מתנדב
+import VolunteerProfile from './pages/VolunteerProfile.jsx';
+
 function App() {
   return (
     <ErrorBoundary>
@@ -112,6 +118,18 @@ function App() {
                     }
                   />
                   
+                  {/* Coordinator Profile page for coordinators */}
+                  <Route
+                    path="/coordinator-profile"
+                    element={
+                      <ProtectedRoute requiredRole={1}>
+                        <ErrorBoundary>
+                          <CoordinatorProfile />
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
                   {/* Volunteer Dashboard for volunteers */}
                   <Route
                     path="/volunteer-dashboard"
@@ -119,6 +137,18 @@ function App() {
                       <ProtectedRoute requiredRole={2}>
                         <ErrorBoundary>
                           <VolunteerDashboard />
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  {/* Volunteer Profile page for volunteers */}
+                  <Route
+                    path="/volunteer-profile"
+                    element={
+                      <ProtectedRoute requiredRole={2}>
+                        <ErrorBoundary>
+                          <VolunteerProfile />
                         </ErrorBoundary>
                       </ProtectedRoute>
                     }
