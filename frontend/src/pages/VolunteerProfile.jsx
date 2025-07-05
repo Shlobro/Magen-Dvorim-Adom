@@ -31,12 +31,13 @@ import {
   VisibilityOff,
   Work,
   Height,
-  School
+  School,
+  Delete
 } from '@mui/icons-material';
 
 export default function VolunteerProfile() {
   const { currentUser, userData, setUserData, updateUserPassword } = useAuth();
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, showConfirmDialog } = useNotification();
   
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -234,6 +235,68 @@ export default function VolunteerProfile() {
       ...prev,
       [field]: !prev[field]
     }));
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmed = await new Promise((resolve) => {
+      showConfirmDialog(
+        'מחיקת חשבון מתנדב',
+        'האם אתה בטוח שברצונך למחוק את חשבון המתנדב שלך? פעולה זו בלתי הפיכה ותמחק את כל הנתונים שלך מהמערכת.',
+        'מחק חשבון',
+        'ביטול',
+        resolve,
+        resolve.bind(null, false),
+        'error'
+      );
+    });
+
+    if (!confirmed) return;
+
+    // Ask for additional confirmation with current password
+    const currentPassword = prompt('אנא הזן את הסיסמה הנוכחית שלך לאישור מחיקת החשבון:');
+    if (!currentPassword) {
+      showError('נדרשת סיסמה לאישור מחיקת החשבון');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // First verify the current password by attempting to update it to itself
+      await updateUserPassword(currentPassword, currentPassword);
+      
+      // If password verification succeeds, proceed with deletion
+      const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
+      const response = await fetch(`${API_BASE}/api/users/self/${currentUser.uid}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        showSuccess('החשבון נמחק בהצלחה. תועבר לדף הבית.');
+        
+        // Sign out the user and redirect to home
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+      } else {
+        throw new Error(result.message || result.error || 'Failed to delete account');
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      if (error.code === 'auth/wrong-password') {
+        showError('הסיסמה שגויה');
+      } else if (error.message?.includes('active inquiries')) {
+        showError('לא ניתן למחוק את החשבון כאשר יש פניות פעילות המוקצות אליך. אנא השלם את הטיפול או פנה לרכז.');
+      } else {
+        showError('שגיאה במחיקת החשבון: ' + (error.message || 'שגיאה לא ידועה'));
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!userData) {
@@ -659,6 +722,23 @@ export default function VolunteerProfile() {
             </Typography>
           </Grid>
         </Grid>
+
+        {/* Delete Account Section */}
+        <Divider sx={{ my: 4 }} />
+        
+        <Typography variant="h6" sx={{ mb: 3, fontWeight: 'bold', color: 'primary.main' }}>
+          מחיקת חשבון
+        </Typography>
+        
+        <Button
+          variant="contained"
+          color="error"
+          onClick={handleDeleteAccount}
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={20} /> : <Delete />}
+        >
+          {loading ? 'מוחק חשבון...' : 'מחק חשבון מתנדב'}
+        </Button>
       </Card>
     </Container>
   );

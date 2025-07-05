@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaIdCard, FaEye, FaEyeSlash, FaLock, FaTrash, FaEdit, FaSave, FaTimes, FaBug, FaGraduationCap, FaShieldAlt } from 'react-icons/fa';
+import { FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaIdCard, FaEye, FaEyeSlash, FaLock, FaTrash, FaEdit, FaSave, FaTimes, FaBug, FaGraduationCap, FaShieldAlt, FaToggleOn, FaToggleOff, FaUserSlash } from 'react-icons/fa';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential, deleteUser } from 'firebase/auth';
 import { doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -33,6 +33,7 @@ export default function UserProfile() {
     additionalDetails: '',
     organizationName: '', // For coordinators
     position: '', // For coordinators
+    isActive: true, // Account status
   });
 
   // UI states
@@ -75,6 +76,7 @@ export default function UserProfile() {
             additionalDetails: userData.additionalDetails || '',
             organizationName: userData.organizationName || '',
             position: userData.position || '',
+            isActive: userData.isActive !== undefined ? userData.isActive : true,
           });
         }
       } catch (error) {
@@ -234,9 +236,107 @@ export default function UserProfile() {
   const handleDeleteAccount = () => {
     showConfirmDialog({
       title: 'מחיקת חשבון',
-      message: 'האם אתה בטוח שברצונך למחוק את החשבון? פעולה זו אינה הפיכה.',
+      message: 'האם אתה בטוח שברצונך למחוק את החשבון? פעולה זו אינה הפיכה ותמחק את כל הנתונים שלך מהמערכת.',
       severity: 'error',
       confirmText: 'מחק חשבון',
+      cancelText: 'ביטול',
+      onConfirm: async () => {
+        // Ask for password confirmation
+        const currentPasswordInput = prompt('אנא הזן את הסיסמה הנוכחית שלך לאישור מחיקת החשבון:');
+        if (!currentPasswordInput) {
+          showError('נדרשת סיסמה לאישור מחיקת החשבון');
+          return;
+        }
+
+        try {
+          setLoading(true);
+          
+          // First verify the current password
+          const credential = EmailAuthProvider.credential(currentUser.email, currentPasswordInput);
+          await reauthenticateWithCredential(currentUser, credential);
+          
+          // Use the appropriate API endpoint based on user role
+          const endpoint = userRole === 1 
+            ? `${API_BASE}/api/coordinators/self/${currentUser.uid}`
+            : `${API_BASE}/api/users/self/${currentUser.uid}`;
+          
+          const response = await fetch(endpoint, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          const result = await response.json();
+
+          if (response.ok) {
+            showSuccess('החשבון נמחק בהצלחה. תועבר לדף הבית.');
+            
+            // Sign out and redirect to home
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 2000);
+          } else {
+            throw new Error(result.message || result.error || 'Failed to delete account');
+          }
+        } catch (error) {
+          console.error('Error deleting account:', error);
+          if (error.code === 'auth/wrong-password') {
+            showError('הסיסמה שגויה');
+          } else if (error.message?.includes('active inquiries')) {
+            showError('לא ניתן למחוק את החשבון כאשר יש פניות פעילות. אנא השלם את הטיפול או פנה לרכז.');
+          } else {
+            showError('שגיאה במחיקת החשבון: ' + (error.message || 'שגיאה לא ידועה'));
+          }
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+  };
+
+  const handleToggleAccountStatus = async () => {
+    const newStatus = !profileData.isActive;
+    const action = newStatus ? 'הפעלת' : 'השבתת';
+    const statusText = newStatus ? 'פעיל' : 'לא פעיל';
+    
+    const confirmed = await showConfirmDialog({
+      title: `${action} החשבון`,
+      message: `האם אתה בטוח שברצונך לבצע ${action} החשבון? הסטטוס שלך יהפוך ל${statusText}.`,
+      severity: newStatus ? 'info' : 'warning',
+      confirmText: action,
+      cancelText: 'ביטול',
+    });
+
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      
+      // Update account status in Firestore
+      await updateDoc(doc(db, 'user', currentUser.uid), {
+        isActive: newStatus,
+        updatedAt: new Date(),
+      });
+      
+      // Update local state
+      setProfileData(prev => ({ ...prev, isActive: newStatus }));
+      
+      showSuccess(`החשבון ${newStatus ? 'הופעל' : 'הושבת'} בהצלחה`);
+    } catch (error) {
+      console.error('Error updating account status:', error);
+      showError(`שגיאה ב${action} החשבון`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelfDelete = () => {
+    showConfirmDialog({
+      title: 'מחיקת חשבון',
+      message: `האם אתה בטוח שברצונך למחוק את החשבון שלך מהמערכת?\n\nפעולה זו תסיר:\n• את כל הפרטים האישיים שלך\n• את כל ההיסטוריה שלך במערכת\n• את הגישה שלך למערכת\n\nפעולה זו אינה הפיכה!`,
+      severity: 'error',
+      confirmText: 'מחק את החשבון שלי',
       cancelText: 'ביטול',
       onConfirm: async () => {
         try {
@@ -665,21 +765,89 @@ export default function UserProfile() {
           )}
         </div>
 
-        {/* Danger Zone */}
-        <div className="danger-zone fade-in">
-          <h2 className="danger-title">אזור מסוכן</h2>
-          <p className="danger-description">
-            מחיקת החשבון תסיר את כל הנתונים שלך מהמערכת באופן סופי. פעולה זו אינה הפיכה.
-          </p>
-          <button
-            onClick={handleDeleteAccount}
-            disabled={loading}
-            className="btn btn-danger"
-          >
-            <FaTrash />
-            מחק חשבון
-          </button>
+        {/* Account Management Section */}
+        <div className="account-management-section fade-in">
+          <h2 className="section-title">ניהול חשבון</h2>
+          
+          {/* Account Status */}
+          <div className="account-status-card">
+            <div className="status-info">
+              <h3>סטטוס החשבון</h3>
+              <p className={`status-text ${profileData.isActive ? 'active' : 'inactive'}`}>
+                {profileData.isActive ? (
+                  <>
+                    <FaToggleOn className="status-icon active" />
+                    החשבון שלך פעיל
+                  </>
+                ) : (
+                  <>
+                    <FaToggleOff className="status-icon inactive" />
+                    החשבון שלך לא פעיל
+                  </>
+                )}
+              </p>
+              <p className="status-description">
+                {profileData.isActive 
+                  ? "החשבון שלך פעיל ותוכל לקבל התראות ולהשתתף בפעילויות המערכת."
+                  : "החשבון שלך לא פעיל. לא תקבל התראות ולא תוכל להשתתף בפעילויות המערכת."}
+              </p>
+            </div>
+            <button
+              onClick={handleToggleAccountStatus}
+              disabled={loading}
+              className={`btn ${profileData.isActive ? 'btn-warning' : 'btn-success'}`}
+            >
+              {profileData.isActive ? (
+                <>
+                  <FaToggleOff />
+                  השבת חשבון
+                </>
+              ) : (
+                <>
+                  <FaToggleOn />
+                  הפעל חשבון
+                </>
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Danger Zone - Only for Volunteers */}
+        {userRole === 2 && (
+          <div className="danger-zone fade-in">
+            <h2 className="danger-title">אזור מסוכן</h2>
+            <p className="danger-description">
+              הפעולות הבאות יבצעו שינויים קבועים בחשבון שלך. אנא שקול היטב לפני ביצוען.
+            </p>
+            
+            <div className="danger-actions">
+              <button
+                onClick={handleSelfDelete}
+                disabled={loading}
+                className="btn btn-danger"
+              >
+                <FaUserSlash />
+                מחק את החשבון שלי לצמיתות
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* Info for Coordinators */}
+        {userRole === 1 && (
+          <div className="account-management-section fade-in">
+            <h2 className="section-title">מידע חשוב</h2>
+            <div className="account-status-card">
+              <div className="status-info">
+                <h3>מחיקת חשבון רכז</h3>
+                <p className="status-description">
+                  כרכז במערכת, אינך יכול למחוק את החשבון שלך באופן עצמאי. 
+                  במידה ובכל זאת ברצונך למחוק את החשבון, אנא פנה למנהל המערכת.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

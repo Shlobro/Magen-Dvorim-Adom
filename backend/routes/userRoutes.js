@@ -313,4 +313,299 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// DELETE /api/users/self/:id - Allow volunteer to delete their own account
+router.delete('/self/:id', async (req, res) => {
+  try {
+    const volunteerId = req.params.id;
+    
+    if (!volunteerId) {
+      return res.status(400).json({ error: 'Volunteer ID is required' });
+    }
+    
+    // First get volunteer data for logging purposes
+    const volunteerDoc = await db.collection('user').doc(volunteerId).get();
+    if (!volunteerDoc.exists) {
+      return res.status(404).json({ error: 'Volunteer not found' });
+    }
+    
+    const volunteerData = volunteerDoc.data();
+    
+    // Verify this is actually a volunteer (role = 2)
+    if (volunteerData.role !== 2) {
+      return res.status(403).json({ error: 'Only volunteers can use this endpoint' });
+    }
+    
+    // Check if volunteer has any active assigned inquiries
+    const activeInquiriesSnapshot = await db.collection('inquiry')
+      .where('assignedVolunteers', 'array-contains', volunteerId)
+      .where('status', 'in', ['לפנייה שובץ מתנדב', 'המתנדב בדרך'])
+      .get();
+    
+    if (!activeInquiriesSnapshot.empty) {
+      return res.status(400).json({ 
+        error: 'Cannot delete account while assigned to active inquiries',
+        message: 'יש לך פניות פעילות שממתינות לטיפול. אנא השלם את הטיפול או פנה לרכז לביטול ההקצאה לפני מחיקת החשבון.'
+      });
+    }
+    
+    // Remove volunteer from any completed inquiries (for data consistency)
+    const completedInquiriesSnapshot = await db.collection('inquiry')
+      .where('assignedVolunteers', 'array-contains', volunteerId)
+      .get();
+    
+    const batch = db.batch();
+    
+    completedInquiriesSnapshot.forEach((doc) => {
+      const inquiry = doc.data();
+      const updatedVolunteers = inquiry.assignedVolunteers.filter(id => id !== volunteerId);
+      batch.update(doc.ref, { 
+        assignedVolunteers: updatedVolunteers,
+        lastModified: admin.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    
+    // Delete the volunteer document from Firestore
+    batch.delete(db.collection('user').doc(volunteerId));
+    
+    // Commit the batch operation
+    await batch.commit();
+    console.log(`Firestore volunteer document deleted: ${volunteerId}`);
+    
+    // Delete the volunteer from Firebase Auth
+    try {
+      await admin.auth().deleteUser(volunteerId);
+      console.log(`Firebase Auth volunteer deleted: ${volunteerId}`);
+    } catch (authError) {
+      // Log the error but don't fail the entire operation
+      console.warn(`Warning: Could not delete Firebase Auth volunteer ${volunteerId}:`, authError.message);
+    }
+    
+    console.log(`Volunteer self-deleted: ${volunteerData.email} (${volunteerData.firstName} ${volunteerData.lastName}) (UID: ${volunteerId})`);
+    res.json({ 
+      success: true, 
+      message: 'Volunteer account deleted successfully' 
+    });
+    
+  } catch (error) {
+    console.error('Error deleting volunteer account:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete volunteer account',
+      details: error.message 
+    });
+  }
+});
+
+// POST /api/users/bulk-create - Create multiple volunteers from Excel upload
+router.post('/bulk-create', async (req, res) => {
+  try {
+    const { volunteers } = req.body;
+    
+    if (!volunteers || !Array.isArray(volunteers)) {
+      return res.status(400).json({ error: 'Invalid volunteers data' });
+    }
+
+    const results = {
+      success: true,
+      created: 0,
+      errors: [],
+      duplicates: []
+    };
+
+    for (const volunteer of volunteers) {
+      try {
+        // Check if user already exists by email
+        const existingUserSnapshot = await db.collection('user')
+          .where('email', '==', volunteer.email)
+          .get();
+
+        if (!existingUserSnapshot.empty) {
+          results.duplicates.push(`${volunteer.firstName} ${volunteer.lastName} (${volunteer.email}) - משתמש קיים`);
+          continue;
+        }
+
+        // Create Firebase Auth user with default password
+        let firebaseUser;
+        try {
+          firebaseUser = await admin.auth().createUser({
+            email: volunteer.email,
+            password: volunteer.password || '123456', // Default password
+            displayName: `${volunteer.firstName} ${volunteer.lastName}`,
+          });
+        } catch (authError) {
+          if (authError.code === 'auth/email-already-exists') {
+            // Try to get the existing user
+            try {
+              firebaseUser = await admin.auth().getUserByEmail(volunteer.email);
+            } catch (getUserError) {
+              results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: שגיאה ביצירת משתמש - ${authError.message}`);
+              continue;
+            }
+          } else {
+            results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: שגיאה ביצירת משתמש - ${authError.message}`);
+            continue;
+          }
+        }
+
+        // Geocode address if provided - STRICT validation
+        let coordinates = {};
+        if (volunteer.city && volunteer.address) {
+          try {
+            const fullAddress = `${volunteer.address}, ${volunteer.city}`;
+            const coords = await geocodeAddress(fullAddress);
+            if (coords) {
+              coordinates = {
+                lat: coords.lat,
+                lng: coords.lng,
+                location: fullAddress
+              };
+            } else {
+              // Geocoding failed - reject this volunteer
+              results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: לא ניתן לזהות את הכתובת "${fullAddress}" - המתנדב לא נוסף למערכת`);
+              continue;
+            }
+          } catch (geocodeError) {
+            // Geocoding error - reject this volunteer
+            results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: שגיאה בזיהוי כתובת "${volunteer.address}, ${volunteer.city}" - ${geocodeError.message}`);
+            continue;
+          }
+        } else if (volunteer.city && !volunteer.address) {
+          // Only city provided - try to geocode just the city
+          try {
+            const coords = await geocodeAddress(volunteer.city);
+            if (coords) {
+              coordinates = {
+                lat: coords.lat,
+                lng: coords.lng,
+                location: volunteer.city
+              };
+            } else {
+              // City geocoding failed - reject this volunteer
+              results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: לא ניתן לזהות את העיר "${volunteer.city}" - המתנדב לא נוסף למערכת`);
+              continue;
+            }
+          } catch (geocodeError) {
+            // City geocoding error - reject this volunteer
+            results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: שגיאה בזיהוי עיר "${volunteer.city}" - ${geocodeError.message}`);
+            continue;
+          }
+        }
+        // If no city and no address provided, allow the volunteer (coordinates will remain empty)
+
+        // Create user document in Firestore
+        const userData = {
+          firstName: volunteer.firstName,
+          lastName: volunteer.lastName,
+          email: volunteer.email,
+          phoneNumber: volunteer.phoneNumber || '',
+          idNumber: volunteer.idNumber || '',
+          city: volunteer.city || '',
+          streetName: volunteer.address || '',
+          houseNumber: '', // We'll put the full address in streetName for now
+          beeExperience: volunteer.beeExperience || false,
+          beekeepingExperience: volunteer.beekeepingExperience || false,
+          hasTraining: volunteer.hasTraining || false,
+          heightPermit: volunteer.heightPermit || false,
+          previousEvacuation: volunteer.previousEvacuation || false, // New field
+          additionalDetails: volunteer.additionalDetails || '',
+          userType: 2, // Volunteer
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          requirePasswordChange: true, // Force password change on first login
+          isExcelImported: true, // Flag to track Excel imports
+          ...coordinates
+        };
+
+        await db.collection('user').doc(firebaseUser.uid).set(userData);
+        
+        results.created++;
+        console.log(`Successfully created volunteer: ${volunteer.firstName} ${volunteer.lastName}`);
+
+      } catch (error) {
+        console.error(`Error creating volunteer ${volunteer.firstName} ${volunteer.lastName}:`, error);
+        results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: ${error.message}`);
+      }
+    }
+
+    // Return results
+    if (results.created === 0 && results.errors.length > 0) {
+      results.success = false;
+      results.message = 'לא הצלחנו להוסיף אף מתנדב';
+    } else if (results.errors.length > 0) {
+      results.message = `${results.created} מתנדבים נוספו בהצלחה, ${results.errors.length} שגיאות`;
+    } else {
+      results.message = `${results.created} מתנדבים נוספו בהצלחה!`;
+    }
+
+    res.json(results);
+
+  } catch (error) {
+    console.error('Bulk create error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'שגיאה בשרת', 
+      message: error.message 
+    });
+  }
+});
+
+// PUT /api/users/:id/password-changed - Update password change requirement
+router.put('/:id/password-changed', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    
+    // Update user document to remove password change requirement
+    await db.collection('user').doc(userId).update({
+      requirePasswordChange: false,
+      passwordLastChanged: new Date(),
+      updatedAt: new Date()
+    });
+    
+    console.log(`Password change requirement removed for user: ${userId}`);
+    res.json({ 
+      success: true, 
+      message: 'Password change requirement updated successfully' 
+    });
+    
+  } catch (error) {
+    console.error('Error updating password change requirement:', error);
+    res.status(500).json({ 
+      error: 'Failed to update password change requirement',
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/users/:id/password-status - Check if user still has default password
+router.get('/:id/password-status', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    
+    // Get user document from Firestore
+    const userDoc = await db.collection('user').doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const userData = userDoc.data();
+    
+    // Check if user still requires password change
+    const stillRequiresChange = userData.requirePasswordChange === true;
+    const hasDefaultPassword = !userData.passwordLastChanged;
+    
+    res.json({
+      requiresPasswordChange: stillRequiresChange,
+      hasDefaultPassword: hasDefaultPassword,
+      isExcelImported: userData.isExcelImported || false,
+      passwordLastChanged: userData.passwordLastChanged || null
+    });
+    
+  } catch (error) {
+    console.error('Error checking password status:', error);
+    res.status(500).json({ 
+      error: 'Failed to check password status',
+      details: error.message 
+    });
+  }
+});
+
 export default router;

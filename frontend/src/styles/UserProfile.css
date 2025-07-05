@@ -379,6 +379,110 @@
   animation: fadeIn 0.3s ease-in-out;
 }
 
+/* Account Management Section */
+.account-management-section {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.account-status-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  transition: border-color 0.3s ease;
+}
+
+.account-status-card:hover {
+  border-color: #3b82f6;
+}
+
+.status-info h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.status-text {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.status-text.active {
+  color: #16a34a;
+}
+
+.status-text.inactive {
+  color: #dc2626;
+}
+
+.status-icon {
+  font-size: 1.25rem;
+}
+
+.status-icon.active {
+  color: #16a34a;
+}
+
+.status-icon.inactive {
+  color: #dc2626;
+}
+
+.status-description {
+  color: #6b7280;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.danger-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.btn-warning {
+  background-color: #f59e0b;
+  color: white;
+  border: none;
+}
+
+.btn-warning:hover {
+  background-color: #d97706;
+}
+
+.btn-success {
+  background-color: #16a34a;
+  color: white;
+  border: none;
+}
+
+.btn-success:hover {
+  background-color: #15803d;
+}
+
+/* Responsive design for account management */
+@media (max-width: 768px) {
+  .account-status-card {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+  
+  .danger-actions {
+    align-items: center;
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

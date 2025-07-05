@@ -1,0 +1,55 @@
+Excel Template for Volunteer Upload - UPDATED STRUCTURE
+
+INSTRUCTIONS:
+1. Columns A, B, C can contain any data - the system will search for Hebrew headers dynamically
+2. Rows 1-3 can contain headers - the system will automatically detect which row contains the Hebrew headers
+3. The system will detect the Hebrew column names and map them automatically
+4. Data should start from the row immediately after the detected header row
+
+IMPORTANT: The system will search for Hebrew column names in the first 3 rows to understand the structure.
+
+Required Hebrew Column Names (must appear exactly in one of the first 3 rows):
+- שם פרטי (REQUIRED)
+- שם משפחה (REQUIRED)  
+- דוא"ל (REQUIRED)
+- מספר נייד (optional)
+- מס זהות (optional)
+- כתובת (optional but must be geocodable if provided)
+- עיר/יישוב (optional but must be geocodable if provided) - can also be just "עיר" or "יישוב"
+- חותמת זמן (optional) - can also be "תאריך" or "תאריך הרשמה"
+- ניסיון בפינוי (optional - 1 or 0)
+- ניסיון בגידול (optional - 1 or 0)
+- הדרכות (optional - 1 or 0)
+- היתר עבודה בגובה (optional - 1 or 0)
+- קבלת פינוי בעבר (optional - 1 or 0)
+
+⚠️ IMPORTANT ADDRESS VALIDATION:
+The system performs STRICT geocoding validation. Volunteers with addresses that cannot be converted to geographic coordinates will be REJECTED and not added to the system. Ensure all addresses and city names are accurate and recognizable.
+
+Date Formats Supported:
+- "1/6/22 0:26" (M/D/YY H:MM)
+- "1/6/2022 0:26" (M/D/YYYY H:MM)
+- Excel date serial numbers
+- Standard ISO date formats
+
+Excel Structure (example - column order doesn't matter):
+A - ריק/לא רלוונטי (can be any data)
+B - סודר (index numbers - can be any data)  
+C - חותמת זמן (timestamp - will be processed if header found)
+D+ - Hebrew column headers (system will detect automatically)
+
+The system will automatically detect which column contains which data by searching for the Hebrew names in the first 3 rows.
+
+Example Header Row (can be in any of rows 1-3):
+Empty | סודר | חותמת זמן | שם פרטי | שם משפחה | מספר נייד | דוא"ל | מס זהות | כתובת | עיר/יישוב | קרבה לפינוי | ניסיון בפינוי | ניסיון בגידול | הדרכות | היתר עבודה בגובה | קבלת פינוי בעבר | ניקוד/משקל
+
+Example data:
+Empty | 1 | 1/6/22 0:26 | יוסי | כהן | 0501234567 | yossi.cohen@example.com | 123456789 | הרצל 123 | תל אביב | empty | 1 | 0 | 1 | 0 | 1 | empty
+Empty | 2 | 2/6/22 1:15 | שרה | לוי | 0507654321 | sara.levi@example.com | 987654321 | רוטשילד 45 | תל אביב | empty | 0 | 1 | 1 | 1 | 0 | empty
+
+Boolean Fields:
+- Use 1 for TRUE/כן
+- Use 0 for FALSE/לא
+- Can also use: true/false, כן/לא, yes/no
+
+The system is now flexible and will work regardless of column order, as long as Row 3 contains the proper Hebrew column names.
