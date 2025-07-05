@@ -313,6 +313,88 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// DELETE /api/users/self/:id - Allow volunteer to delete their own account
+router.delete('/self/:id', async (req, res) => {
+  try {
+    const volunteerId = req.params.id;
+    
+    if (!volunteerId) {
+      return res.status(400).json({ error: 'Volunteer ID is required' });
+    }
+    
+    // First get volunteer data for logging purposes
+    const volunteerDoc = await db.collection('user').doc(volunteerId).get();
+    if (!volunteerDoc.exists) {
+      return res.status(404).json({ error: 'Volunteer not found' });
+    }
+    
+    const volunteerData = volunteerDoc.data();
+    
+    // Verify this is actually a volunteer (role = 2)
+    if (volunteerData.role !== 2) {
+      return res.status(403).json({ error: 'Only volunteers can use this endpoint' });
+    }
+    
+    // Check if volunteer has any active assigned inquiries
+    const activeInquiriesSnapshot = await db.collection('inquiry')
+      .where('assignedVolunteers', 'array-contains', volunteerId)
+      .where('status', 'in', ['לפנייה שובץ מתנדב', 'המתנדב בדרך'])
+      .get();
+    
+    if (!activeInquiriesSnapshot.empty) {
+      return res.status(400).json({ 
+        error: 'Cannot delete account while assigned to active inquiries',
+        message: 'יש לך פניות פעילות שממתינות לטיפול. אנא השלם את הטיפול או פנה לרכז לביטול ההקצאה לפני מחיקת החשבון.'
+      });
+    }
+    
+    // Remove volunteer from any completed inquiries (for data consistency)
+    const completedInquiriesSnapshot = await db.collection('inquiry')
+      .where('assignedVolunteers', 'array-contains', volunteerId)
+      .get();
+    
+    const batch = db.batch();
+    
+    completedInquiriesSnapshot.forEach((doc) => {
+      const inquiry = doc.data();
+      const updatedVolunteers = inquiry.assignedVolunteers.filter(id => id !== volunteerId);
+      batch.update(doc.ref, { 
+        assignedVolunteers: updatedVolunteers,
+        lastModified: admin.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    
+    // Delete the volunteer document from Firestore
+    batch.delete(db.collection('user').doc(volunteerId));
+    
+    // Commit the batch operation
+    await batch.commit();
+    console.log(`Firestore volunteer document deleted: ${volunteerId}`);
+    
+    // Delete the volunteer from Firebase Auth
+    try {
+      await admin.auth().deleteUser(volunteerId);
+      console.log(`Firebase Auth volunteer deleted: ${volunteerId}`);
+    } catch (authError) {
+      // Log the error but don't fail the entire operation
+      console.warn(`Warning: Could not delete Firebase Auth volunteer ${volunteerId}:`, authError.message);
+    }
+    
+    console.log(`Volunteer self-deleted: ${volunteerData.email} (${volunteerData.firstName} ${volunteerData.lastName}) (UID: ${volunteerId})`);
+    res.json({ 
+      success: true, 
+      message: 'Volunteer account deleted successfully' 
+    });
+    
+  } catch (error) {
+    console.error('Error deleting volunteer account:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete volunteer account',
+      details: error.message 
+    });
+  }
+});
+
 // POST /api/users/bulk-create - Create multiple volunteers from Excel upload
 router.post('/bulk-create', async (req, res) => {
   try {

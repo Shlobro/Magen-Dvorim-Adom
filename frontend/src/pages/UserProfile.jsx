@@ -236,25 +236,58 @@ export default function UserProfile() {
   const handleDeleteAccount = () => {
     showConfirmDialog({
       title: 'מחיקת חשבון',
-      message: 'האם אתה בטוח שברצונך למחוק את החשבון? פעולה זו אינה הפיכה.',
+      message: 'האם אתה בטוח שברצונך למחוק את החשבון? פעולה זו אינה הפיכה ותמחק את כל הנתונים שלך מהמערכת.',
       severity: 'error',
       confirmText: 'מחק חשבון',
       cancelText: 'ביטול',
       onConfirm: async () => {
+        // Ask for password confirmation
+        const currentPasswordInput = prompt('אנא הזן את הסיסמה הנוכחית שלך לאישור מחיקת החשבון:');
+        if (!currentPasswordInput) {
+          showError('נדרשת סיסמה לאישור מחיקת החשבון');
+          return;
+        }
+
         try {
           setLoading(true);
           
-          // Delete user document from Firestore
-          await deleteDoc(doc(db, 'user', currentUser.uid));
+          // First verify the current password
+          const credential = EmailAuthProvider.credential(currentUser.email, currentPasswordInput);
+          await reauthenticateWithCredential(currentUser, credential);
           
-          // Delete Firebase Auth user
-          await deleteUser(currentUser);
+          // Use the appropriate API endpoint based on user role
+          const endpoint = userRole === 1 
+            ? `${API_BASE}/api/coordinators/self/${currentUser.uid}`
+            : `${API_BASE}/api/users/self/${currentUser.uid}`;
           
-          showSuccess('החשבון נמחק בהצלחה');
-          navigate('/');
+          const response = await fetch(endpoint, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          const result = await response.json();
+
+          if (response.ok) {
+            showSuccess('החשבון נמחק בהצלחה. תועבר לדף הבית.');
+            
+            // Sign out and redirect to home
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 2000);
+          } else {
+            throw new Error(result.message || result.error || 'Failed to delete account');
+          }
         } catch (error) {
           console.error('Error deleting account:', error);
-          showError('שגיאה במחיקת החשבון. אנא נסה שוב.');
+          if (error.code === 'auth/wrong-password') {
+            showError('הסיסמה שגויה');
+          } else if (error.message?.includes('active inquiries')) {
+            showError('לא ניתן למחוק את החשבון כאשר יש פניות פעילות. אנא השלם את הטיפול או פנה לרכז.');
+          } else {
+            showError('שגיאה במחיקת החשבון: ' + (error.message || 'שגיאה לא ידועה'));
+          }
         } finally {
           setLoading(false);
         }

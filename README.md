@@ -278,6 +278,36 @@ The system uses a weighted scoring algorithm to match volunteers with inquiries:
 - Firebase and Cloudinary for their services
 - The open-source community for the tools and libraries used
 
+## Account Management Features
+
+### Self-Deletion for Users
+Both volunteers and coordinators can delete their own accounts through their profile pages:
+
+#### Volunteers
+- **Route**: `DELETE /api/users/self/:id`
+- **Access**: Available in Volunteer Profile page
+- **Security**: Requires password confirmation
+- **Validation**: 
+  - Prevents deletion if volunteer has active assigned inquiries
+  - Automatically removes volunteer from completed inquiries
+  - Requires current password verification
+
+#### Coordinators
+- **Route**: `DELETE /api/coordinators/self/:id`
+- **Access**: Available in Coordinator Profile page
+- **Security**: Requires password confirmation
+- **Process**: 
+  - Deletes Firestore user document
+  - Removes Firebase Authentication user
+  - Logs deletion for audit purposes
+
+#### Safety Features
+- Password verification required
+- Active inquiry checking for volunteers
+- Confirmation dialog with warning message
+- Automatic logout and redirect after deletion
+- Error handling for various failure scenarios
+
 ---
 
 *This project was developed as part of academic coursework at Azrieli College.*
