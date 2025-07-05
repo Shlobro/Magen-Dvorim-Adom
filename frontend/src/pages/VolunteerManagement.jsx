@@ -179,91 +179,139 @@ export default function VolunteerManagement() {
         const workbook = XLSX.read(data, { type: 'array' })
         const sheetName = workbook.SheetNames[0]
         const worksheet = workbook.Sheets[sheetName]
-        const jsonData = XLSX.utils.sheet_to_json(worksheet)
+        
+        // Convert to JSON without headers to get raw data
+        const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
         
         setUploadProgress(20)
 
-        if (jsonData.length === 0) {
-          showError("הקובץ ריק או שאין בו נתונים תקינים")
+        if (rawData.length < 4) {
+          showError("הקובץ לא מכיל מספיק שורות. נדרשות לפחות 4 שורות (3 שורות כותרת + נתונים)")
           setUploadLoading(false)
           setUploadStatus('')
           return
         }
 
-        setTotalCount(jsonData.length)
-        setUploadStatus(`נמצאו ${jsonData.length} שורות בקובץ. מתחיל עיבוד...`)
-        setUploadProgress(30)
-
-        // Show sample of first row to user for debugging
-        if (jsonData.length > 0) {
-          const sampleKeys = Object.keys(jsonData[0]).slice(0, 10);
-          const sampleValues = sampleKeys.map(key => jsonData[0][key]);
-          setUploadStatus(`מעבד ${jsonData.length} שורות. דוגמה מהשורה הראשונה: ${sampleValues.slice(0, 5).join(', ')}...`)
+        // Find column headers - search in multiple rows since they might not be in row 3
+        // Hebrew column names to search for
+        const columnMappings = {
+          'שם פרטי': 'firstName',
+          'שם משפחה': 'lastName',
+          'שם המשפחה': 'lastName', // Alternative last name header
+          'משפחה': 'lastName', // Alternative last name header
+          'מספר נייד': 'phoneNumber',
+          'דוא"ל': 'email',
+          'מס זהות': 'idNumber',
+          'כתובת': 'address',
+          'עיר/יישוב': 'city',
+          'עיר / יישוב': 'city', // Alternative with spaces
+          'עיר': 'city', // Alternative city header
+          'יישוב': 'city', // Alternative city header
+          'ניסיון בפינוי': 'beeExperience',
+          'ניסיון בגידול': 'beekeepingExperience',
+          'הדרכות': 'hasTraining',
+          'היתר עבודה בגובה': 'heightPermit',
+          'קבלת פינוי בעבר': 'previousEvacuation'
         }
-
-        // Helper functions for extracting data from Excel columns
-        function getColumnValue(row, index, headerName) {
-          // Try different patterns for accessing columns
-          const patterns = [
-            `__EMPTY_${index}`,       // Empty header at exact index
-            `__EMPTY_${index - 1}`,   // Sometimes off by one (0-based vs 1-based)
-            Object.keys(row)[index],  // By position in keys array
-            headerName,               // Direct header name
-            // Try some common variations
-            `Column${index + 1}`,
-            `Col${index}`,
-            `F${index + 1}`,          // F1, F2, etc.
-          ];
+        
+        console.log('=== SEARCHING FOR HEADERS IN ALL ROWS ===')
+        
+        let headerRow = []
+        let headerRowIndex = -1
+        let columnPositions = {}
+        
+        // Search for headers in rows 0, 1, 2 (Excel rows 1, 2, 3)
+        for (let rowIndex = 0; rowIndex < Math.min(3, rawData.length); rowIndex++) {
+          const currentRow = rawData[rowIndex] || []
+          console.log(`\n--- Checking Row ${rowIndex + 1} for headers ---`)
+          console.log('Row content:', currentRow)
           
-          for (const pattern of patterns) {
-            if (pattern && row.hasOwnProperty(pattern)) {
-              const value = row[pattern];
-              if (value !== undefined && value !== null && value !== '') {
-                return value;
+          let matchCount = 0
+          const tempPositions = {}
+          
+          for (let colIndex = 0; colIndex < currentRow.length; colIndex++) {
+            const headerValue = currentRow[colIndex] ? currentRow[colIndex].toString().trim() : ''
+            
+            // Check if this header matches any of our mappings
+            for (const [hebrewName, fieldName] of Object.entries(columnMappings)) {
+              if (headerValue.includes(hebrewName)) {
+                tempPositions[fieldName] = colIndex
+                matchCount++
+                console.log(`✓ Found "${hebrewName}" at column ${colIndex}`)
+                break
               }
             }
           }
           
-          return '';
-        }
-
-        // Helper function to convert 0/1 to boolean
-        function getBooleanValue(row, index, headerName) {
-          const value = getColumnValue(row, index, headerName);
-          return value === 1 || value === '1' || value === true || value === 'true';
-        }
-
-        // Debug: Log first row to see column structure
-        if (jsonData.length > 0) {
-          console.log('First row structure (headers):', jsonData[0]);
-          console.log('Available keys:', Object.keys(jsonData[0]));
+          console.log(`Row ${rowIndex + 1} match count: ${matchCount}`)
+          
+          // If this row has more matches than previous rows, use it as header row
+          if (matchCount > Object.keys(columnPositions).length) {
+            headerRowIndex = rowIndex
+            headerRow = currentRow
+            columnPositions = tempPositions
+            console.log(`*** Best header row so far: Row ${rowIndex + 1} with ${matchCount} matches ***`)
+          }
         }
         
-        // Debug: Show sample values from the first data row (index 1)
-        if (jsonData.length > 1) {
-          console.log('First data row structure:', jsonData[1]);
-          console.log('Sample data values:', {
-            key0: jsonData[1][Object.keys(jsonData[1])[0]],
-            key1: jsonData[1][Object.keys(jsonData[1])[1]],
-            key2: jsonData[1][Object.keys(jsonData[1])[2]],
-            key3: jsonData[1][Object.keys(jsonData[1])[3]], // Should be first name
-            key4: jsonData[1][Object.keys(jsonData[1])[4]], // Should be last name
-            key5: jsonData[1][Object.keys(jsonData[1])[5]], // Should be phone
-            key6: jsonData[1][Object.keys(jsonData[1])[6]], // Should be email
-          });
+        console.log('\n=== FINAL HEADER DETECTION RESULTS ===')
+        console.log(`Using Row ${headerRowIndex + 1} as header row`)
+        console.log('Header row content:', headerRow)
+        console.log('Column positions found:', columnPositions)
+        
+        // Validate that we found the required columns
+        const missingColumns = ['firstName', 'lastName', 'email'].filter(col => !(col in columnPositions))
+        
+        if (missingColumns.length > 0) {
+          // If no headers found, fall back to position-based detection
+          if (headerRowIndex === -1) {
+            console.log('No Hebrew headers found, falling back to position-based detection...')
+            showError(`לא נמצאו כותרות עברית בשורות 1-3. אנא ודא שיש שורת כותרות עם הטקסט: שם פרטי, שם משפחה, דוא"ל`)
+          } else {
+            showError(`לא נמצאו עמודות חובה בשורה ${headerRowIndex + 1}: ${missingColumns.map(col => {
+              const hebrewName = Object.keys(columnMappings).find(key => columnMappings[key] === col)
+              return hebrewName
+            }).join(', ')}`)
+          }
+          setUploadLoading(false)
+          setUploadStatus('')
+          return
         }
+
+        // Get data rows starting from the row after the header row
+        const dataStartRow = headerRowIndex + 1
+        const dataRows = rawData.slice(dataStartRow)
+        
+        console.log('Excel processing debug:', {
+          totalRawRows: rawData.length,
+          headerRowIndex: headerRowIndex,
+          headerRow: headerRow,
+          columnPositions: columnPositions,
+          dataStartRow: dataStartRow,
+          dataRowsLength: dataRows.length,
+          sampleDataRow: dataRows[0]
+        })
+        
+        if (dataRows.length === 0) {
+          showError("לא נמצאו נתוני מתנדבים בשורות הנתונים")
+          setUploadLoading(false)
+          setUploadStatus('')
+          return
+        }
+
+        setTotalCount(dataRows.length)
+        setUploadStatus(`נמצאו ${dataRows.length} שורות נתונים בקובץ. מתחיל עיבוד...`)
+        setUploadProgress(30)
 
         setUploadStatus('מעבד נתוני מתנדבים...')
         setUploadProgress(40)
 
-        // Process volunteers data according to the updated Excel format
         const volunteersToAdd = []
         const processingErrors = []
         
-        // Skip header row (index 0) and process data rows starting from index 1
-        for (let index = 1; index < jsonData.length; index++) {
-          const row = jsonData[index]
-          setProcessedCount(index)
+        for (let index = 0; index < dataRows.length; index++) {
+          const row = dataRows[index]
+          setProcessedCount(index + 1)
           
           // Check if upload was cancelled
           if (uploadCancelled) {
@@ -273,109 +321,128 @@ export default function VolunteerManagement() {
           }
           
           try {
-            // Column mapping based on actual Excel structure:
-            // __EMPTY (0) = סודר, __EMPTY_1 (1) = חותמת זמן, __EMPTY_2 (2) = שם פרטי
-            // __EMPTY_3 (3) = שם המשפחה, __EMPTY_4 (4) = מספר נייד, __EMPTY_5 (5) = דוא"ל
-            // __EMPTY_6 (6) = מס זהות, __EMPTY_7 (7) = כתובת, __EMPTY_8 (8) = עיר, etc.
-            
-            // Extract data by the correct column index
-            let firstName = getColumnValue(row, 2, 'שם פרטי'); // __EMPTY_2
-            let lastName = getColumnValue(row, 3, 'שם המשפחה'); // __EMPTY_3  
-            let phoneNumber = getColumnValue(row, 4, 'מספר נייד'); // __EMPTY_4
-            let email = getColumnValue(row, 5, 'דוא"ל'); // __EMPTY_5
-            
-            // If standard mapping didn't work, try auto-detection by examining values
-            if (!firstName && !lastName && !email) {
-              const keys = Object.keys(row);
-              // Look for values that might be names/emails in different positions
-              for (let i = 0; i < keys.length; i++) {
-                const value = row[keys[i]];
-                if (value && typeof value === 'string') {
-                  // Check if it looks like an email
-                  if (value.includes('@') && !email) {
-                    email = value;
-                    console.log(`Auto-detected email in column ${i} (${keys[i]}): ${value}`);
-                  }
-                  // Check if it looks like a name (Hebrew/English letters)
-                  else if (/^[א-תa-zA-Z\s]+$/.test(value) && value.length > 1) {
-                    if (!firstName) {
-                      firstName = value;
-                      console.log(`Auto-detected first name in column ${i} (${keys[i]}): ${value}`);
-                    } else if (!lastName) {
-                      lastName = value;
-                      console.log(`Auto-detected last name in column ${i} (${keys[i]}): ${value}`);
-                    }
-                  }
-                }
-              }
-            }
-            
-            const idNumber = getColumnValue(row, 6, 'מס זהות'); // __EMPTY_6
-            const address = getColumnValue(row, 7, 'כתובת'); // __EMPTY_7
-            const city = getColumnValue(row, 8, 'עיר'); // __EMPTY_8
-            // Skip the weird column at index 9
-            const evacuationExperience = getBooleanValue(row, 10, 'ניסיון פינוי'); // __EMPTY_10
-            const breedingExperience = getBooleanValue(row, 11, 'ניסיון גידול'); // __EMPTY_11
-            const training = getBooleanValue(row, 12, 'הדרכה'); // __EMPTY_12
-            const heightPermit = getBooleanValue(row, 13, 'היתר גובה'); // __EMPTY_13
-            const previousEvacuation = getBooleanValue(row, 14, 'פינוי קודם'); // __EMPTY_14
-            
-            // Debug log for first few rows
-            if (index < 3) {
-              console.log(`Row ${index + 2} data:`, {
-                rowKeys: Object.keys(row),
-                firstName: firstName,
-                lastName: lastName,
-                email: email,
-                phoneNumber: phoneNumber,
-                rawFirstName: row.__EMPTY_2,  // Correct index
-                rawLastName: row.__EMPTY_3,   // Correct index  
-                rawEmail: row.__EMPTY_5       // Correct index
-              });
-            }
-            
-            // Validate required fields
-            const missing = [];
-            if (!firstName || firstName.toString().trim() === '') missing.push('שם פרטי (עמודה D)');
-            if (!lastName || lastName.toString().trim() === '') missing.push('שם משפחה (עמודה E)');
-            if (!email || email.toString().trim() === '') missing.push('דוא"ל (עמודה G)');
-            
-            if (missing.length > 0) {
-              processingErrors.push(`שורה ${index + 2}: חסרים ${missing.join(', ')}`);
+            // Skip empty rows
+            if (!row || row.length === 0 || row.every(cell => !cell || cell.toString().trim() === '')) {
               continue;
             }
-            
-            // Fix phone number - add 0 at the beginning if missing
-            if (phoneNumber && !phoneNumber.toString().startsWith('0')) {
-              phoneNumber = '0' + phoneNumber.toString();
-            }
 
+            // Extract data using dynamic column positions
+            const firstName = columnPositions.firstName !== undefined ? 
+              (row[columnPositions.firstName] ? row[columnPositions.firstName].toString().trim() : '') : ''
+              
+            const lastName = columnPositions.lastName !== undefined ? 
+              (row[columnPositions.lastName] ? row[columnPositions.lastName].toString().trim() : '') : ''
+              
+            const email = columnPositions.email !== undefined ? 
+              (row[columnPositions.email] ? row[columnPositions.email].toString().trim() : '') : ''
+              
+            const phoneNumber = columnPositions.phoneNumber !== undefined ? 
+              (row[columnPositions.phoneNumber] ? row[columnPositions.phoneNumber].toString().trim() : '') : ''
+              
+            const idNumber = columnPositions.idNumber !== undefined ? 
+              (row[columnPositions.idNumber] ? row[columnPositions.idNumber].toString().trim() : '') : ''
+              
+            const address = columnPositions.address !== undefined ? 
+              (row[columnPositions.address] ? row[columnPositions.address].toString().trim() : '') : ''
+              
+            const city = columnPositions.city !== undefined ? 
+              (row[columnPositions.city] ? row[columnPositions.city].toString().trim() : '') : ''
+
+            // Boolean fields - convert various formats to boolean
+            const convertToBoolean = (value) => {
+              if (value === undefined || value === null || value === '') return false
+              const str = value.toString().toLowerCase().trim()
+              return str === '1' || str === 'true' || str === 'כן' || str === 'yes'
+            }
+            
+            const beeExperience = columnPositions.beeExperience !== undefined ? 
+              convertToBoolean(row[columnPositions.beeExperience]) : false
+              
+            const beekeepingExperience = columnPositions.beekeepingExperience !== undefined ? 
+              convertToBoolean(row[columnPositions.beekeepingExperience]) : false
+              
+            const hasTraining = columnPositions.hasTraining !== undefined ? 
+              convertToBoolean(row[columnPositions.hasTraining]) : false
+              
+            const heightPermit = columnPositions.heightPermit !== undefined ? 
+              convertToBoolean(row[columnPositions.heightPermit]) : false
+              
+            const previousEvacuation = columnPositions.previousEvacuation !== undefined ? 
+              convertToBoolean(row[columnPositions.previousEvacuation]) : false
+
+            // Debug log for first few rows
+            if (index < 3) {
+              console.log(`=== Row ${dataStartRow + index + 1} DATA EXTRACTION ===`)
+              console.log('Raw row:', row)
+              console.log('Extracted values:', {
+                firstName: `"${firstName}"`,
+                lastName: `"${lastName}"`,
+                phoneNumber: `"${phoneNumber}"`,
+                email: `"${email}"`,
+                idNumber: `"${idNumber}"`,
+                address: `"${address}"`,
+                city: `"${city}"`,
+                beeExperience,
+                beekeepingExperience,
+                hasTraining,
+                heightPermit,
+                previousEvacuation
+              })
+              console.log('==========================================')
+            }
+            
+            
+            // Validate required fields
+            const missing = []
+            if (!firstName) missing.push('שם פרטי')
+            if (!lastName) missing.push('שם משפחה')
+            
+            // Enhanced email validation
+            const emailValue = email ? email.toString().trim() : ''
+            const isValidEmail = emailValue && emailValue.includes('@') && emailValue.includes('.') && emailValue.length > 5
+            
+            if (!isValidEmail) {
+              missing.push(`דוא"ל תקין - קיבלנו: "${emailValue}"`)
+            }
+            
+            if (missing.length > 0) {
+              processingErrors.push(`שורה ${dataStartRow + index + 1}: חסרים או לא תקינים - ${missing.join(', ')}`)
+              console.log(`Validation failed for row ${dataStartRow + index + 1}:`, { missing, extractedData: {firstName, lastName, email} })
+              continue
+            }
+            
+            // Fix phone number - ensure it starts with 0
+            let finalPhoneNumber = phoneNumber
+            if (phoneNumber && !phoneNumber.startsWith('0')) {
+              finalPhoneNumber = '0' + phoneNumber
+            }
+            
             volunteersToAdd.push({
-              firstName: firstName.toString().trim(),
-              lastName: lastName.toString().trim(),
-              email: email.toString().trim(),
-              phoneNumber: phoneNumber.toString().trim(),
-              idNumber: idNumber.toString().trim(),
-              city: city.toString().trim(),
-              address: address.toString().trim(),
-              beeExperience: evacuationExperience, // Using evacuation experience as bee experience
-              beekeepingExperience: breedingExperience,
-              hasTraining: training,
-              heightPermit: heightPermit,
-              previousEvacuation: previousEvacuation, // New field
+              firstName,
+              lastName,
+              email: emailValue, // Use the validated email value
+              phoneNumber: finalPhoneNumber,
+              idNumber,
+              city,
+              address,
+              beeExperience,
+              beekeepingExperience,
+              hasTraining,
+              heightPermit,
+              previousEvacuation,
               userType: 2, // Volunteer type
               password: '123456', // Default password
               requirePasswordChange: true, // Force password change on first login
-              rowNumber: index + 2 // Excel row number (starting from row 2, assuming row 1 is headers)
+              rowNumber: dataStartRow + index + 1 // Excel row number (accounting for dynamic header detection)
             });
             
           } catch (rowError) {
-            console.error(`Error processing row ${index + 2}:`, rowError);
-            processingErrors.push(`שורה ${index + 2}: שגיאה בעיבוד הנתונים - ${rowError.message}`);
+            console.error(`Error processing row ${dataStartRow + index + 1}:`, rowError);
+            processingErrors.push(`שורה ${dataStartRow + index + 1}: שגיאה בעיבוד הנתונים - ${rowError.message}`);
           }
           
           // Update progress for processing (with small delay to show progress)
-          const processingProgress = 40 + ((index + 1) / jsonData.length) * 30;
+          const processingProgress = 40 + ((index + 1) / dataRows.length) * 30;
           setUploadProgress(Math.round(processingProgress));
           
           // Small delay every 10 rows to allow UI to update
@@ -428,7 +495,7 @@ export default function VolunteerManagement() {
           
           // Show detailed success info
           console.log('Upload completed:', {
-            totalRows: jsonData.length,
+            totalRows: dataRows.length,
             successfullyAdded: response.data.created,
             errors: processingErrors.length,
             errorDetails: processingErrors
@@ -1439,15 +1506,17 @@ export default function VolunteerManagement() {
               <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
                 העלה קובץ Excel המכיל רשימת מתנדבים. המערכת תוסיף אוטומטית את כל המתנדבים עם הסיסמה הדיפולטיבית.
               </Typography>
-                  <Alert severity="info" sx={{ mb: 3, textAlign: "right" }}>
+              <Alert severity="info" sx={{ mb: 3, textAlign: "right" }}>
               <Typography variant="body2">
                 <strong>מבנה הקובץ הנדרש:</strong><br/>
-                A - סודר, B - חותמת זמן, <strong>C - שם פרטי*</strong><br/>
-                <strong>D - שם משפחה*</strong>, E - מספר נייד, <strong>F - דוא"ל*</strong><br/>
-                G - מס זהות, H - כתובת, I - עיר<br/>
-                J - עמודה מיוחדת, K - ניסיון פינוי (0/1), L - ניסיון גידול (0/1)<br/>
-                M - הדרכות (0/1), N - היתר גובה (0/1), O - פינוי קודם (0/1)<br/>
-                <small>* שדות חובה</small>
+                A - ריק, B - סודר, C - חותמת זמן (עמודות A-C מתעלמים)<br/>
+                <strong>D - שם פרטי*</strong>, <strong>E - שם משפחה*</strong>, F - מספר נייד<br/>
+                <strong>G - דוא"ל*</strong>, H - מס זהות, I - כתובת, J - עיר/יישוב<br/>
+                K - קרבה לפינוי (ריק), L - ניסיון בפינוי (0/1)<br/>
+                M - ניסיון בגידול (0/1), N - הדרכות (0/1)<br/>
+                O - היתר עבודה בגובה (0/1), P - קבלת פינוי בעבר (0/1)<br/>
+                Q - ניקוד/משקל (ריק)<br/>
+                <small>* שדות חובה | שורות 1-3 מתעלמים, נתונים מתחילים משורה 4</small>
               </Typography>
             </Alert>
 

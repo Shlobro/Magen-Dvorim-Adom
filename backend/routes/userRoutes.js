@@ -313,4 +313,130 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST /api/users/bulk-create - Create multiple volunteers from Excel upload
+router.post('/bulk-create', async (req, res) => {
+  try {
+    const { volunteers } = req.body;
+    
+    if (!volunteers || !Array.isArray(volunteers)) {
+      return res.status(400).json({ error: 'Invalid volunteers data' });
+    }
+
+    const results = {
+      success: true,
+      created: 0,
+      errors: [],
+      duplicates: []
+    };
+
+    for (const volunteer of volunteers) {
+      try {
+        // Check if user already exists by email
+        const existingUserSnapshot = await db.collection('user')
+          .where('email', '==', volunteer.email)
+          .get();
+
+        if (!existingUserSnapshot.empty) {
+          results.duplicates.push(`${volunteer.firstName} ${volunteer.lastName} (${volunteer.email}) - משתמש קיים`);
+          continue;
+        }
+
+        // Create Firebase Auth user with default password
+        let firebaseUser;
+        try {
+          firebaseUser = await admin.auth().createUser({
+            email: volunteer.email,
+            password: volunteer.password || '123456', // Default password
+            displayName: `${volunteer.firstName} ${volunteer.lastName}`,
+          });
+        } catch (authError) {
+          if (authError.code === 'auth/email-already-exists') {
+            // Try to get the existing user
+            try {
+              firebaseUser = await admin.auth().getUserByEmail(volunteer.email);
+            } catch (getUserError) {
+              results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: שגיאה ביצירת משתמש - ${authError.message}`);
+              continue;
+            }
+          } else {
+            results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: שגיאה ביצירת משתמש - ${authError.message}`);
+            continue;
+          }
+        }
+
+        // Geocode address if provided
+        let coordinates = {};
+        if (volunteer.city && volunteer.address) {
+          try {
+            const fullAddress = `${volunteer.address}, ${volunteer.city}`;
+            const coords = await geocodeAddress(fullAddress);
+            if (coords) {
+              coordinates = {
+                lat: coords.lat,
+                lng: coords.lng,
+                location: fullAddress
+              };
+            }
+          } catch (geocodeError) {
+            console.warn(`Geocoding failed for ${volunteer.firstName} ${volunteer.lastName}:`, geocodeError.message);
+          }
+        }
+
+        // Create user document in Firestore
+        const userData = {
+          firstName: volunteer.firstName,
+          lastName: volunteer.lastName,
+          email: volunteer.email,
+          phoneNumber: volunteer.phoneNumber || '',
+          idNumber: volunteer.idNumber || '',
+          city: volunteer.city || '',
+          streetName: volunteer.address || '',
+          houseNumber: '', // We'll put the full address in streetName for now
+          beeExperience: volunteer.beeExperience || false,
+          beekeepingExperience: volunteer.beekeepingExperience || false,
+          hasTraining: volunteer.hasTraining || false,
+          heightPermit: volunteer.heightPermit || false,
+          previousEvacuation: volunteer.previousEvacuation || false, // New field
+          additionalDetails: volunteer.additionalDetails || '',
+          userType: 2, // Volunteer
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          requirePasswordChange: true, // Force password change on first login
+          isExcelImported: true, // Flag to track Excel imports
+          ...coordinates
+        };
+
+        await db.collection('user').doc(firebaseUser.uid).set(userData);
+        
+        results.created++;
+        console.log(`Successfully created volunteer: ${volunteer.firstName} ${volunteer.lastName}`);
+
+      } catch (error) {
+        console.error(`Error creating volunteer ${volunteer.firstName} ${volunteer.lastName}:`, error);
+        results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: ${error.message}`);
+      }
+    }
+
+    // Return results
+    if (results.created === 0 && results.errors.length > 0) {
+      results.success = false;
+      results.message = 'לא הצלחנו להוסיף אף מתנדב';
+    } else if (results.errors.length > 0) {
+      results.message = `${results.created} מתנדבים נוספו בהצלחה, ${results.errors.length} שגיאות`;
+    } else {
+      results.message = `${results.created} מתנדבים נוספו בהצלחה!`;
+    }
+
+    res.json(results);
+
+  } catch (error) {
+    console.error('Bulk create error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'שגיאה בשרת', 
+      message: error.message 
+    });
+  }
+});
+
 export default router;

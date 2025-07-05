@@ -1,10 +1,11 @@
 // frontend/src/components/ProtectedRoute.jsx
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext'; // ודא שאתה מייבא את ה-AuthContext
+import { useAuth } from '../contexts/AuthContext';
+import ForcePasswordChange from './ForcePasswordChange';
 
 const ProtectedRoute = ({ children, requiredRole }) => {
-  const { currentUser, userRole, loading } = useAuth();
+  const { currentUser, userRole, userData, loading } = useAuth();
 
   if (loading) {
     // עדיין טוען את מצב ההתחברות, הצג טוען או null
@@ -17,11 +18,13 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   }
 
   // אם יש משתמש אבל התפקיד שלו לא מתאים, הפנה לדף הבית או דף שגיאה
-  // (ניתן גם להפנות לדף ייעודי "אין לך הרשאה")
   if (requiredRole !== undefined && userRole !== requiredRole) {
-    // כאן היתה הבעיה - סביר להניח שהיה Navigate ל- /report
-    // נשנה את זה ל- /login או ל- / (לדף הבית)
-    return <Navigate to="/" replace />; // או /login אם אתה רוצה שיחזור ללוגין
+    return <Navigate to="/" replace />;
+  }
+
+  // Check if user needs to change password (for Excel imported users)
+  if (userData && userData.requirePasswordChange === true) {
+    return <ForcePasswordChange />;
   }
 
   // אם הכל תקין, הצג את הקומפוננטות הילדות

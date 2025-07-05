@@ -14,6 +14,7 @@ import ChangePassword from './pages/ChangePassword';
 import CoordinatorSignup from './pages/CoordinatorSignup.jsx';
 import Header from './components/Header';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import ForcePasswordChange from './components/ForcePasswordChange.jsx';
 
 // ייבוא קומפוננטות כללי האתיקה
 import EthicsCoordinators from './pages/EthicsCoordinators.jsx';

@@ -1,0 +1,48 @@
+Excel Template for Volunteer Upload - UPDATED STRUCTURE
+
+INSTRUCTIONS:
+1. Columns A, B, C will be IGNORED (put any data here)
+2. Rows 1, 2 will be IGNORED (put headers here if needed)
+3. Row 3 MUST contain the Hebrew column names (see list below)
+4. Data should start from Row 4
+
+IMPORTANT: The system will search for Hebrew column names in Row 3 to understand the structure.
+
+Required Hebrew Column Names (must appear exactly in Row 3):
+- שם פרטי (REQUIRED)
+- שם משפחה (REQUIRED)  
+- דוא"ל (REQUIRED)
+- מספר נייד (optional)
+- מס זהות (optional)
+- כתובת (optional)
+- עיר/יישוב (optional) - can also be just "עיר" or "יישוב"
+- ניסיון בפינוי (optional - 1 or 0)
+- ניסיון בגידול (optional - 1 or 0)
+- הדרכות (optional - 1 or 0)
+- היתר עבודה בגובה (optional - 1 or 0)
+- קבלת פינוי בעבר (optional - 1 or 0)
+
+Excel Structure:
+A - ריק/לא רלוונטי (IGNORED)
+B - סודר (index numbers - IGNORED)  
+C - חותמת זמן (timestamp - IGNORED)
+Row 1 - Any headers (IGNORED)
+Row 2 - Any headers (IGNORED)
+Row 3 - Hebrew column names (REQUIRED - system searches here)
+Row 4+ - Data rows
+
+The system will automatically detect which column contains which data by searching for the Hebrew names in Row 3.
+
+Example Row 3 (headers):
+Empty | סודר | חותמת זמן | שם פרטי | שם משפחה | מספר נייד | דוא"ל | מס זהות | כתובת | עיר/יישוב | קרבה לפינוי | ניסיון בפינוי | ניסיון בגידול | הדרכות | היתר עבודה בגובה | קבלת פינוי בעבר | ניקוד/משקל
+
+Example data (this would be row 4 in Excel):
+Empty | 1 | 2023-01-01 | יוסי | כהן | 0501234567 | yossi.cohen@example.com | 123456789 | הרצל 123 | תל אביב | empty | 1 | 0 | 1 | 0 | 1 | empty
+Empty | 2 | 2023-01-02 | שרה | לוי | 0507654321 | sara.levi@example.com | 987654321 | רוטשילד 45 | תל אביב | empty | 0 | 1 | 1 | 1 | 0 | empty
+
+Boolean Fields:
+- Use 1 for TRUE/כן
+- Use 0 for FALSE/לא
+- Can also use: true/false, כן/לא, yes/no
+
+The system is now flexible and will work regardless of column order, as long as Row 3 contains the proper Hebrew column names.
