@@ -211,7 +211,10 @@ export default function VolunteerManagement() {
           'ניסיון בגידול': 'beekeepingExperience',
           'הדרכות': 'hasTraining',
           'היתר עבודה בגובה': 'heightPermit',
-          'קבלת פינוי בעבר': 'previousEvacuation'
+          'קבלת פינוי בעבר': 'previousEvacuation',
+          'חותמת זמן': 'signupDate',
+          'תאריך': 'signupDate', // Alternative date header
+          'תאריך הרשמה': 'signupDate' // Alternative signup date header
         }
         
         console.log('=== SEARCHING FOR HEADERS IN ALL ROWS ===')
@@ -370,6 +373,56 @@ export default function VolunteerManagement() {
             const previousEvacuation = columnPositions.previousEvacuation !== undefined ? 
               convertToBoolean(row[columnPositions.previousEvacuation]) : false
 
+            // Date field processing - handle Excel date formats
+            let signupDate = null
+            if (columnPositions.signupDate !== undefined && row[columnPositions.signupDate]) {
+              const dateValue = row[columnPositions.signupDate]
+              
+              try {
+                // Handle different date formats
+                if (typeof dateValue === 'number') {
+                  // Excel serial date number - convert to JS date
+                  const excelEpoch = new Date(1900, 0, 1)
+                  const jsDate = new Date(excelEpoch.getTime() + (dateValue - 2) * 24 * 60 * 60 * 1000)
+                  signupDate = jsDate.toISOString()
+                } else if (typeof dateValue === 'string') {
+                  // String date formats like "1/6/22 0:26"
+                  const dateStr = dateValue.toString().trim()
+                  
+                  // Handle formats like "1/6/22 0:26" or "1/6/2022 0:26"
+                  if (dateStr.includes('/')) {
+                    const parts = dateStr.split(' ')
+                    const datePart = parts[0] // "1/6/22"
+                    const timePart = parts[1] || '00:00' // "0:26" or default to "00:00"
+                    
+                    const [month, day, year] = datePart.split('/')
+                    
+                    // Convert 2-digit year to 4-digit year
+                    let fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year
+                    
+                    // Create date string in format that JS can parse
+                    const isoDateStr = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${timePart.includes(':') ? timePart : timePart + ':00'}:00`
+                    const parsedDate = new Date(isoDateStr)
+                    
+                    if (!isNaN(parsedDate.getTime())) {
+                      signupDate = parsedDate.toISOString()
+                    }
+                  } else {
+                    // Try direct parsing for other formats
+                    const parsedDate = new Date(dateStr)
+                    if (!isNaN(parsedDate.getTime())) {
+                      signupDate = parsedDate.toISOString()
+                    }
+                  }
+                } else if (dateValue instanceof Date) {
+                  // Already a Date object
+                  signupDate = dateValue.toISOString()
+                }
+              } catch (dateError) {
+                console.warn(`Failed to parse date "${dateValue}" in row ${dataStartRow + index + 1}:`, dateError)
+              }
+            }
+
             // Debug log for first few rows
             if (index < 3) {
               console.log(`=== Row ${dataStartRow + index + 1} DATA EXTRACTION ===`)
@@ -386,7 +439,8 @@ export default function VolunteerManagement() {
                 beekeepingExperience,
                 hasTraining,
                 heightPermit,
-                previousEvacuation
+                previousEvacuation,
+                signupDate: signupDate || 'No date found'
               })
               console.log('==========================================')
             }
@@ -430,6 +484,7 @@ export default function VolunteerManagement() {
               hasTraining,
               heightPermit,
               previousEvacuation,
+              signupDate, // Add the parsed signup date
               userType: 2, // Volunteer type
               password: '123456', // Default password
               requirePasswordChange: true, // Force password change on first login
@@ -749,8 +804,30 @@ export default function VolunteerManagement() {
               <Typography variant="h5" fontWeight="bold" gutterBottom>
                 אין מתנדבים רשומים
               </Typography>
-              <Typography variant="body1" color="text.secondary">
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
                 עדיין לא נרשמו מתנדבים במערכת
+              </Typography>
+              
+              {/* Upload Excel Button for empty state */}
+              <Button
+                variant="contained"
+                startIcon={<CloudUpload />}
+                onClick={openUploadDialog}
+                size="large"
+                sx={{
+                  bgcolor: "#4caf50",
+                  "&:hover": { bgcolor: "#45a049" },
+                  borderRadius: 2,
+                  fontWeight: "bold",
+                  px: 4,
+                  py: 1.5,
+                }}
+              >
+                העלאת קובץ Excel
+              </Button>
+              
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                התחל על ידי העלאת קובץ Excel עם רשימת המתנדבים
               </Typography>
             </Card>
           </Fade>
@@ -1415,6 +1492,19 @@ export default function VolunteerManagement() {
                 </Paper>
               </Box>
 
+              {/* Previous Evacuation Information */}
+              <Paper sx={{ p: 2, background: "#e3f2fd", borderRadius: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#1565c0", mb: 1 }}>
+                  קבלת פינוי בעבר:
+                </Typography>
+                <Chip 
+                  label={selectedVolunteerDetails.previousEvacuation === true ? "כן" : 
+                         selectedVolunteerDetails.previousEvacuation === false ? "לא" : "לא צוין"}
+                  color={selectedVolunteerDetails.previousEvacuation === true ? "primary" : "default"}
+                  sx={{ fontWeight: 500 }}
+                />
+              </Paper>
+
               <Paper sx={{ p: 2, background: "#f8f9fa", borderRadius: 2 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#495057", mb: 1 }}>
                   פרטים נוספים:
@@ -1525,6 +1615,15 @@ export default function VolunteerManagement() {
                   <strong>הערה חשובה:</strong><br/>
                   כל המתנדבים יקבלו סיסמה דיפולטיבית: <strong>123456</strong><br/>
                   בכניסה הראשונה הם יתבקשו לשנות את הסיסמה.
+                </Typography>
+              </Alert>
+
+              <Alert severity="error" sx={{ mb: 3, textAlign: "right" }}>
+                <Typography variant="body2">
+                  <strong>בדיקת כתובות:</strong><br/>
+                  המערכת מבצעת בדיקה קפדנית של הכתובות.<br/>
+                  מתנדבים שהכתובת שלהם לא ניתנת לזיהוי גיאוגרפי <strong>לא יתווספו למערכת</strong>.<br/>
+                  ודא שהכתובות ושמות הערים נכונים ומדויקים.
                 </Typography>
               </Alert>
 

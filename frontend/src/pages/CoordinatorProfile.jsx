@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import {
@@ -14,7 +15,8 @@ import {
   InputAdornment,
   CircularProgress,
   Grid,
-  Paper
+  Paper,
+  Alert
 } from '@mui/material';
 import {
   Person,
@@ -25,14 +27,16 @@ import {
   Save,
   Cancel,
   Visibility,
-  VisibilityOff
+  VisibilityOff,
+  DeleteForever
 } from '@mui/icons-material';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
 
 export default function CoordinatorProfile() {
   const { currentUser, userData, setUserData, updateUserData, updateUserPassword } = useAuth();
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, showConfirmDialog } = useNotification();
+  const navigate = useNavigate();
   
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -205,6 +209,47 @@ export default function CoordinatorProfile() {
       ...prev,
       [field]: !prev[field]
     }));
+  };
+
+  const handleSelfDelete = () => {
+    showConfirmDialog({
+      title: 'מחיקת חשבון רכז',
+      message: `האם אתה בטוח שברצונך למחוק את החשבון שלך מהמערכת?\n\nפעולה זו תסיר:\n• את כל הפרטים האישיים שלך\n• את כל פעילותך כרכז במערכת\n• את הגישה שלך למערכת\n• את כל ההיסטוריה שלך\n\nפעולה זו אינה הפיכה ותשפיע על ניהול המערכת!`,
+      severity: 'error',
+      confirmText: 'מחק את החשבון שלי',
+      cancelText: 'ביטול',
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          
+          // Call the backend to delete coordinator account
+          const response = await fetch(`${API_BASE}/api/coordinators/self/${currentUser.uid}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to delete account');
+          }
+          
+          showSuccess('החשבון נמחק בהצלחה');
+          
+          // Sign out and redirect to home
+          setTimeout(() => {
+            navigate('/');
+          }, 2000);
+          
+        } catch (error) {
+          console.error('Error deleting coordinator account:', error);
+          showError('שגיאה במחיקת החשבון. אנא נסה שוב.');
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
   };
 
   if (!userData) {
@@ -508,6 +553,85 @@ export default function CoordinatorProfile() {
             </Typography>
           </Grid>
         </Grid>
+
+        {/* Account Deletion Section */}
+        <Divider sx={{ my: 4 }} />
+        
+        <Typography variant="h6" sx={{ mb: 3, fontWeight: 'bold', color: 'error.main' }}>
+          מחיקת חשבון
+        </Typography>
+        
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            <strong>אזהרה:</strong> מחיקת חשבון הרכז היא פעולה בלתי הפיכה שתסיר את כל הנתונים שלך מהמערכת.
+            פעולה זו תשפיע על יכולת ניהול המערכת אם אתה הרכז היחיד.
+          </Typography>
+        </Alert>
+
+        <Paper sx={{ p: 3, bgcolor: 'error.light', color: 'error.contrastText' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <DeleteForever sx={{ mr: 1, fontSize: 24 }} />
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+              מחיקת חשבון רכז
+            </Typography>
+          </Box>
+          
+          <Typography variant="body2" sx={{ mb: 3, opacity: 0.9 }}>
+            פעולה זו תמחק לצמיתות:
+          </Typography>
+          
+          <Box component="ul" sx={{ mb: 3, pl: 2 }}>
+            <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+              את כל הפרטים האישיים שלך
+            </Typography>
+            <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+              את כל פעילותך כרכז במערכת
+            </Typography>
+            <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+              את הגישה שלך למערכת
+            </Typography>
+            <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+              את כל ההיסטוריה והנתונים שלך
+            </Typography>
+          </Box>
+
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleSelfDelete}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} /> : <DeleteForever />}
+            sx={{
+              fontWeight: 'bold',
+              '&:hover': {
+                bgcolor: 'error.dark',
+              }
+            }}
+          >
+            {loading ? 'מוחק חשבון...' : 'מחק את החשבון שלי לצמיתות'}
+          </Button>
+        </Paper>
+
+        {/* Delete Account Section */}
+        <Divider sx={{ my: 4 }} />
+        
+        <Box sx={{ textAlign: 'center', py: 3 }}>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: 'primary.main' }}>
+            מחיקת חשבון
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            אם ברצונך למחוק את החשבון שלך, לחץ על הכפתור למטה. שים לב שפעולה זו אינה הפיכה.
+          </Typography>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleSelfDelete}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} /> : <DeleteForever />}
+          >
+            {loading ? 'מוחק חשבון...' : 'מחק את החשבון שלי'}
+          </Button>
+        </Box>
       </Card>
     </Container>
   );

@@ -228,4 +228,48 @@ router.get('/', async (req, res) => {
   }
 });
 
+// DELETE /api/coordinators/self/:id - Allow coordinator to delete their own account
+router.delete('/self/:id', async (req, res) => {
+  try {
+    const coordinatorId = req.params.id;
+    
+    // First, verify the user is a coordinator
+    const userDoc = await db.collection('user').doc(coordinatorId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'Coordinator not found' });
+    }
+    
+    const userData = userDoc.data();
+    if (userData.userType !== 1) {
+      return res.status(403).json({ error: 'Only coordinators can use this endpoint' });
+    }
+    
+    // Delete the coordinator document from Firestore
+    await db.collection('user').doc(coordinatorId).delete();
+    console.log(`Firestore coordinator document deleted: ${coordinatorId}`);
+    
+    // Delete the coordinator from Firebase Auth
+    try {
+      await admin.auth().deleteUser(coordinatorId);
+      console.log(`Firebase Auth coordinator deleted: ${coordinatorId}`);
+    } catch (authError) {
+      // Log the error but don't fail the entire operation
+      console.warn(`Warning: Could not delete Firebase Auth coordinator ${coordinatorId}:`, authError.message);
+    }
+    
+    console.log(`Coordinator self-deleted: ${userData.email} (UID: ${coordinatorId})`);
+    res.json({ 
+      success: true, 
+      message: 'Coordinator account deleted successfully' 
+    });
+    
+  } catch (error) {
+    console.error('Error deleting coordinator account:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete coordinator account',
+      details: error.message 
+    });
+  }
+});
+
 export default router;

@@ -60,14 +60,18 @@ export function AuthProvider({ children }) {
       const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
       
       // re-authenticate המשתמש עם הסיסמה הנוכחית
+      console.log('Attempting to reauthenticate user with email:', currentUser.email);
       await reauthenticateWithCredential(currentUser, credential);
+      console.log('Reauthentication successful');
       
       // עדכון הסיסמה החדשה
       await updatePassword(currentUser, newPassword);
-      
       console.log("Password updated successfully");
+      
     } catch (error) {
       console.error("AuthContext: Password update error:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
       throw error;
     }
   };
@@ -90,6 +94,26 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // פונקציה לרענון נתוני המשתמש מ-Firestore
+  const refreshUserData = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const userDocRef = doc(db, 'user', currentUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      
+      if (userDocSnap.exists()) {
+        const freshUserData = userDocSnap.data();
+        setUserData(freshUserData);
+        setUserRole(freshUserData.userType);
+        console.log("User data refreshed successfully");
+        return freshUserData;
+      }
+    } catch (error) {
+      console.error("Error refreshing user data:", error);
+      throw error;
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -137,6 +161,7 @@ export function AuthProvider({ children }) {
     logout, // הוספת פונקציית logout ל-value
     updateUserPassword,
     updateUserData,
+    refreshUserData, // הוספת פונקציית refreshUserData ל-value
 
   };
 

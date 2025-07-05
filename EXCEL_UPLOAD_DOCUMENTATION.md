@@ -24,17 +24,40 @@ The system searches Row 3 for these Hebrew column names:
 | דוא"ל | email | Email | ✓ |
 | מספר נייד | phoneNumber | Phone Number | Optional |
 | מס זהות | idNumber | ID Number | Optional |
-| כתובת | address | Address | Optional |
-| עיר/יישוב | city | City | Optional |
-| עיר | city | City (alternative) | Optional |
-| יישוב | city | Settlement (alternative) | Optional |
+| כתובת | address | Address | Optional* |
+| עיר/יישוב | city | City | Optional* |
+| עיר | city | City (alternative) | Optional* |
+| יישוב | city | Settlement (alternative) | Optional* |
 | ניסיון בפינוי | beeExperience | Bee Removal Experience | Optional |
 | ניסיון בגידול | beekeepingExperience | Beekeeping Experience | Optional |
 | הדרכות | hasTraining | Training | Optional |
 | היתר עבודה בגובה | heightPermit | Height Work Permit | Optional |
 | קבלת פינוי בעבר | previousEvacuation | Previous Evacuation | Optional |
+| חותמת זמן | signupDate | Signup Date/Timestamp | Optional |
+| תאריך | signupDate | Date (alternative) | Optional |
+| תאריך הרשמה | signupDate | Signup Date (alternative) | Optional |
 
 **Note**: Columns with names like "קרבה לפינוי" and "ניקוד/משקל" are automatically ignored as they are calculated fields.
+
+### ⚠️ Address Geocoding Validation
+**CRITICAL**: The system now performs STRICT geocoding validation on all addresses:
+- If an address and/or city is provided, it MUST be geocodable (convertible to latitude/longitude coordinates)
+- Volunteers with addresses that cannot be geocoded will be **REJECTED** and not added to the system
+- The system uses OpenStreetMap Nominatim service with Israeli address recognition
+- Common street prefixes like "רחוב", "רח'", "רח״" are automatically handled
+- Ensure all addresses and city names are accurate, complete, and recognizable
+
+*Optional* fields with asterisk (*) are optional but must be geocodable if provided.
+
+### Date/Timestamp Field
+The system now processes timestamp/date fields with the following supported formats:
+- **"1/6/22 0:26"** - M/D/YY H:MM format
+- **"1/6/2022 0:26"** - M/D/YYYY H:MM format
+- **Excel serial date numbers** - Automatic conversion
+- **ISO date strings** - Standard format support
+- **Date objects** - Direct Date object handling
+
+The date field is optional and will be stored as the volunteer's signup date.
 
 ### Boolean Field Values
 For boolean fields, the system accepts:

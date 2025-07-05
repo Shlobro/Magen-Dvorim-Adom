@@ -364,7 +364,7 @@ router.post('/bulk-create', async (req, res) => {
           }
         }
 
-        // Geocode address if provided
+        // Geocode address if provided - STRICT validation
         let coordinates = {};
         if (volunteer.city && volunteer.address) {
           try {
@@ -376,11 +376,38 @@ router.post('/bulk-create', async (req, res) => {
                 lng: coords.lng,
                 location: fullAddress
               };
+            } else {
+              // Geocoding failed - reject this volunteer
+              results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: לא ניתן לזהות את הכתובת "${fullAddress}" - המתנדב לא נוסף למערכת`);
+              continue;
             }
           } catch (geocodeError) {
-            console.warn(`Geocoding failed for ${volunteer.firstName} ${volunteer.lastName}:`, geocodeError.message);
+            // Geocoding error - reject this volunteer
+            results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: שגיאה בזיהוי כתובת "${volunteer.address}, ${volunteer.city}" - ${geocodeError.message}`);
+            continue;
+          }
+        } else if (volunteer.city && !volunteer.address) {
+          // Only city provided - try to geocode just the city
+          try {
+            const coords = await geocodeAddress(volunteer.city);
+            if (coords) {
+              coordinates = {
+                lat: coords.lat,
+                lng: coords.lng,
+                location: volunteer.city
+              };
+            } else {
+              // City geocoding failed - reject this volunteer
+              results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: לא ניתן לזהות את העיר "${volunteer.city}" - המתנדב לא נוסף למערכת`);
+              continue;
+            }
+          } catch (geocodeError) {
+            // City geocoding error - reject this volunteer
+            results.errors.push(`${volunteer.firstName} ${volunteer.lastName}: שגיאה בזיהוי עיר "${volunteer.city}" - ${geocodeError.message}`);
+            continue;
           }
         }
+        // If no city and no address provided, allow the volunteer (coordinates will remain empty)
 
         // Create user document in Firestore
         const userData = {
@@ -435,6 +462,66 @@ router.post('/bulk-create', async (req, res) => {
       success: false, 
       error: 'שגיאה בשרת', 
       message: error.message 
+    });
+  }
+});
+
+// PUT /api/users/:id/password-changed - Update password change requirement
+router.put('/:id/password-changed', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    
+    // Update user document to remove password change requirement
+    await db.collection('user').doc(userId).update({
+      requirePasswordChange: false,
+      passwordLastChanged: new Date(),
+      updatedAt: new Date()
+    });
+    
+    console.log(`Password change requirement removed for user: ${userId}`);
+    res.json({ 
+      success: true, 
+      message: 'Password change requirement updated successfully' 
+    });
+    
+  } catch (error) {
+    console.error('Error updating password change requirement:', error);
+    res.status(500).json({ 
+      error: 'Failed to update password change requirement',
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/users/:id/password-status - Check if user still has default password
+router.get('/:id/password-status', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    
+    // Get user document from Firestore
+    const userDoc = await db.collection('user').doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const userData = userDoc.data();
+    
+    // Check if user still requires password change
+    const stillRequiresChange = userData.requirePasswordChange === true;
+    const hasDefaultPassword = !userData.passwordLastChanged;
+    
+    res.json({
+      requiresPasswordChange: stillRequiresChange,
+      hasDefaultPassword: hasDefaultPassword,
+      isExcelImported: userData.isExcelImported || false,
+      passwordLastChanged: userData.passwordLastChanged || null
+    });
+    
+  } catch (error) {
+    console.error('Error checking password status:', error);
+    res.status(500).json({ 
+      error: 'Failed to check password status',
+      details: error.message 
     });
   }
 });
