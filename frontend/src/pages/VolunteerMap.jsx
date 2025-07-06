@@ -1,9 +1,8 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import axios from "axios"
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
-import L from "leaflet"
+import * as L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import beeIconUrl from "../assets/cuteBeeInquiry.png"
 import { collection, getDocs, getDoc, doc, updateDoc, query, where, GeoPoint, Timestamp } from "firebase/firestore"
@@ -52,16 +51,63 @@ import {
   Search,
 } from "@mui/icons-material"
 
-// Custom Bee Icon
-const beeIcon = new L.Icon({
-  iconUrl: beeIconUrl,
-  iconSize: [48, 48],
-  iconAnchor: [16, 32],
-  popupAnchor: [0, -32],
-})
+// Helper function to create bee icon safely
+const createBeeIcon = () => {
+  try {
+    console.log('Creating bee icon, L object:', L)
+    if (L && L.Icon) {
+      const icon = new L.Icon({
+        iconUrl: beeIconUrl,
+        iconSize: [48, 48],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32],
+      })
+      console.log('✅ Bee icon created successfully')
+      return icon
+    } else {
+      console.error('❌ L or L.Icon not available:', { L: !!L, LIcon: !!(L && L.Icon) })
+    }
+  } catch (error) {
+    console.error('❌ Error creating bee icon:', error)
+  }
+  return null
+}
+
+// Add global error handler for constructor errors
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (event) => {
+    if (event.message && event.message.includes('is not a constructor')) {
+      console.error('Constructor error caught:', {
+        message: event.message,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        stack: event.error?.stack
+      });
+      // You can add specific handling here if needed
+    }
+  });
+}
 
 const NAVBAR_HEIGHT = 65
 const isMobile = window.innerWidth <= 768
+
+// Calculate distance between two coordinates in kilometers
+const calculateDistance = (lat1, lng1, lat2, lng2) => {
+  const R = 6371 // Earth's radius in km
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+const toRad = (deg) => {
+  return deg * (Math.PI / 180)
+}
 
 export default function VolunteerMap() {
   const [inquiries, setInquiries] = useState([])
@@ -74,6 +120,7 @@ export default function VolunteerMap() {
   const [statusFilter, setStatusFilter] = useState("unassigned") // Default to unassigned
   const [volunteerSearchTerm, setVolunteerSearchTerm] = useState("") // Search filter for volunteers
   const [loadingVolunteers, setLoadingVolunteers] = useState(false) // Loading state for volunteers
+  const [beeIcon, setBeeIcon] = useState(null) // State for bee icon
 
   const mapRef = useRef()
   const location = useLocation()
@@ -81,18 +128,17 @@ export default function VolunteerMap() {
   const { showSuccess, showError, showWarning, showConfirmDialog } = useNotification()
   const { currentUser, userRole, loading: authLoading } = useAuth()
 
+  // Initialize bee icon when component mounts
+  useEffect(() => {
+    const icon = createBeeIcon();
+    setBeeIcon(icon);
+  }, []);
+
   const extractCoordinates = (data) => {
     let lat = null
     let lng = null
-    if (data.location instanceof GeoPoint) {
-      lat = data.location.latitude
-      lng = data.location.longitude
-    } else if (
-      data.location &&
-      typeof data.location === "object" &&
-      data.location.latitude != null &&
-      data.location.longitude != null
-    ) {
+    if (data.location && typeof data.location === "object" && data.location.latitude != null && data.location.longitude != null) {
+      // Handle both GeoPoint and regular objects with latitude/longitude
       lat = data.location.latitude
       lng = data.location.longitude
     } else if (data.lat != null && data.lng != null) {
@@ -241,12 +287,38 @@ export default function VolunteerMap() {
       
       setLoadingVolunteers(true)
       try {
-        const response = await axios.post("/api/users/queryNear", {
-          lat: selectedInquiry.lat,
-          lng: selectedInquiry.lng,
-          radius: 200, // Large radius to get all volunteers, sorted by score
+        // Use Firebase to fetch all volunteers
+        const q = query(collection(db, "user"), where("userType", "==", 2))
+        const querySnapshot = await getDocs(q)
+        const volunteers = []
+        
+        querySnapshot.forEach((doc) => {
+          const data = doc.data()
+          const { lat, lng } = extractCoordinates(data)
+          
+          if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+            // Calculate distance from selected inquiry
+            const distance = calculateDistance(
+              selectedInquiry.lat,
+              selectedInquiry.lng,
+              lat,
+              lng
+            )
+            
+            volunteers.push({
+              id: doc.id,
+              ...data,
+              lat,
+              lng,
+              distance,
+            })
+          }
         })
-        setAvailableVolunteers(response.data)
+        
+        // Sort by distance
+        volunteers.sort((a, b) => a.distance - b.distance)
+        
+        setAvailableVolunteers(volunteers)
       } catch (error) {
         console.error("Error fetching available volunteers:", error)
         setAvailableVolunteers([])
@@ -583,8 +655,8 @@ export default function VolunteerMap() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             />
             <MapSetter />
-            {inquiries.map((inquiry) =>
-              inquiry.lat != null && inquiry.lng != null && !isNaN(inquiry.lat) && !isNaN(inquiry.lng) ? (
+            {Array.isArray(inquiries) && inquiries.map((inquiry) =>
+              inquiry.lat != null && inquiry.lng != null && !isNaN(inquiry.lat) && !isNaN(inquiry.lng) && beeIcon ? (
                 <Marker
                   key={inquiry.id}
                   position={[inquiry.lat, inquiry.lng]}
@@ -621,7 +693,7 @@ export default function VolunteerMap() {
                 </Marker>
               ) : null
             )}
-            {availableVolunteers.map((volunteer) =>
+            {Array.isArray(availableVolunteers) && availableVolunteers.map((volunteer) =>
               volunteer.lat != null && volunteer.lng != null && !isNaN(volunteer.lat) && !isNaN(volunteer.lng) ? (
                 <Marker key={volunteer.id} position={[volunteer.lat, volunteer.lng]}>
                   <Popup>
@@ -948,10 +1020,11 @@ export default function VolunteerMap() {
                                 sx={{ mb: 2 }}
                               />
                               {(() => {
-                                const filteredVolunteers = availableVolunteers.filter((volunteer) =>
-                                  volunteerSearchTerm === "" ||
-                                  volunteer.name.toLowerCase().includes(volunteerSearchTerm.toLowerCase())
-                                );
+                                const filteredVolunteers = Array.isArray(availableVolunteers) ? 
+                                  availableVolunteers.filter((volunteer) =>
+                                    volunteerSearchTerm === "" ||
+                                    (volunteer.name && volunteer.name.toLowerCase().includes(volunteerSearchTerm.toLowerCase()))
+                                  ) : [];
 
                                 return filteredVolunteers.length > 0 ? (
                                   <FormControl component="fieldset" fullWidth>

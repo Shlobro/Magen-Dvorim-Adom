@@ -17,6 +17,11 @@ export default function Header() {
 
   const { currentUser, loading, userRole } = useAuth(); // הוסף userRole כדי לבדוק תפקיד
 
+  // Debug logging to see what's happening with userRole
+  console.log('Header v2 - currentUser:', currentUser ? 'logged in' : 'not logged in');
+  console.log('Header v2 - userRole:', userRole);
+  console.log('Header v2 - loading:', loading);
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
@@ -72,6 +77,10 @@ export default function Header() {
   ];
 
   const currentNavItems = currentUser ? navItemsLoggedIn : navItemsLoggedOut;
+  
+  // Debug navigation items
+  console.log('Header - currentNavItems:', currentNavItems);
+  console.log('Header - navItemsLoggedIn length:', navItemsLoggedIn.length);
 
   return (
     <>
@@ -86,15 +95,29 @@ export default function Header() {
             <FaBars size={28} />
           </button>
         ) : (
-          <div className="nav-links">
+          <div className="nav-links" style={{ position: 'relative', zIndex: 1000 }}>
             {currentNavItems.map((item, index) => (
               item.isButton ? (
-                <button key={index} onClick={item.onClick} className="nav-link">
+                <button 
+                  key={index} 
+                  onClick={() => {
+                    console.log('Button clicked v2:', item.label);
+                    item.onClick();
+                  }} 
+                  className="nav-link"
+                  style={{ position: 'relative', zIndex: 1001, pointerEvents: 'auto' }}
+                >
                   {item.icon}
                   <span>{item.label}</span>
                 </button>
               ) : (
-                <Link key={index} to={item.to} className="nav-link">
+                <Link 
+                  key={index} 
+                  to={item.to} 
+                  className="nav-link"
+                  style={{ position: 'relative', zIndex: 1001, pointerEvents: 'auto' }}
+                  onClick={() => console.log('Link clicked v2:', item.label, 'to:', item.to)}
+                >
                   {item.icon}
                   <span>{item.label}</span>
                 </Link>
@@ -113,12 +136,27 @@ export default function Header() {
             </button>
             {currentNavItems.map((item, index) => (
               item.isButton ? (
-                <button key={index} onClick={item.onClick} className="menu-item">
+                <button 
+                  key={index} 
+                  onClick={() => {
+                    console.log('Mobile Button clicked:', item.label);
+                    item.onClick();
+                  }} 
+                  className="menu-item"
+                >
                   {item.icon}
                   <span>{item.label}</span>
                 </button>
               ) : (
-                <Link key={index} to={item.to} className="menu-item" onClick={() => setMenuOpen(false)}>
+                <Link 
+                  key={index} 
+                  to={item.to} 
+                  className="menu-item" 
+                  onClick={() => {
+                    console.log('Mobile Link clicked:', item.label, 'to:', item.to);
+                    setMenuOpen(false);
+                  }}
+                >
                   {item.icon}
                   <span>{item.label}</span>
                 </Link>

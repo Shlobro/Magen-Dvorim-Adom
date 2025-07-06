@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
+import { userService } from '../services/firebaseService';
+import { collection, query, where, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 export default function CoordinatorApproval() {
   const [pendingCoordinators, setPendingCoordinators] = useState([]);
@@ -12,7 +13,21 @@ export default function CoordinatorApproval() {
   const [processingId, setProcessingId] = useState(null);
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'existing'
   const { currentUser, userRole, loading: authLoading } = useAuth();
-  const { showSuccess, showError, showInfo } = useNotification();
+  
+  // Safe notification hook usage with error handling
+  let notificationContext;
+  try {
+    notificationContext = useNotification();
+  } catch (error) {
+    console.warn('Notification context not available:', error);
+    notificationContext = {
+      showSuccess: (msg) => console.log('Success:', msg),
+      showError: (msg) => console.error('Error:', msg),
+      showInfo: (msg) => console.log('Info:', msg)
+    };
+  }
+  
+  const { showSuccess, showError, showInfo } = notificationContext;
 
   // Generate coordinator signup link
   const coordinatorSignupLink = `${window.location.origin}/coordinator-register`;
@@ -37,21 +52,31 @@ export default function CoordinatorApproval() {
   const fetchPendingCoordinators = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/api/coordinators/pending`);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // Get pending coordinators from Firebase (userType = 3 and status = 'pending')
+      const q = query(
+        collection(db, 'user'),
+        where('userType', '==', 3),
+        where('status', '==', 'pending')
+      );
       
-      const pending = await response.json();
+      const querySnapshot = await getDocs(q);
+      const pending = [];
       
-      // Convert createdAt timestamps and sort
-      const processedPending = pending.map(coord => ({
-        ...coord,
-        createdAt: convertFirestoreDate(coord.createdAt)
-      })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        pending.push({
+          id: doc.id,
+          ...data,
+          createdAt: convertFirestoreDate(data.createdAt)
+        });
+      });
       
-      setPendingCoordinators(processedPending);    } catch (err) {
+      // Sort by creation date (newest first)
+      const processedPending = pending.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      setPendingCoordinators(processedPending);
+    } catch (err) {
       console.error('Error fetching pending coordinators:', err);
       showError('שגיאה בטעינת רשימת הרכזים הממתינים');
     } finally {
@@ -62,20 +87,28 @@ export default function CoordinatorApproval() {
   const fetchExistingCoordinators = async () => {
     try {
       setLoadingExisting(true);
-      const response = await fetch(`${API_BASE}/api/coordinators`);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // Get approved coordinators from Firebase (userType = 1)
+      const q = query(
+        collection(db, 'user'),
+        where('userType', '==', 1)
+      );
       
-      const existing = await response.json();
+      const querySnapshot = await getDocs(q);
+      const existing = [];
       
-      // Convert timestamps and sort by creation date
-      const processedExisting = existing.map(coord => ({
-        ...coord,
-        createdAt: convertFirestoreDate(coord.createdAt),
-        approvedAt: convertFirestoreDate(coord.approvedAt)
-      })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        existing.push({
+          id: doc.id,
+          ...data,
+          createdAt: convertFirestoreDate(data.createdAt),
+          approvedAt: convertFirestoreDate(data.approvedAt || data.createdAt)
+        });
+      });
+      
+      // Sort by creation date (newest first)
+      const processedExisting = existing.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       
       setExistingCoordinators(processedExisting);
     } catch (err) {
@@ -89,21 +122,15 @@ export default function CoordinatorApproval() {
   const handleApprove = async (pendingCoordinator) => {
     setProcessingId(pendingCoordinator.id);
     try {
-      // Create the coordinator user
-      const response = await fetch(`${API_BASE}/api/coordinators/approve`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          pendingId: pendingCoordinator.id,
-          coordinatorData: pendingCoordinator
-        }),
+      // Update the user's userType to 1 (coordinator) and set status to approved
+      await updateDoc(doc(db, 'user', pendingCoordinator.id), {
+        userType: 1, // Change from 3 (pending) to 1 (coordinator)
+        status: 'approved',
+        approvedAt: new Date(),
+        approvedBy: currentUser.uid
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to approve coordinator');
-      }      // Remove from pending list and refresh existing coordinators
+      // Remove from pending list and refresh existing coordinators
       setPendingCoordinators(prev => prev.filter(p => p.id !== pendingCoordinator.id));
       fetchExistingCoordinators(); // Refresh the existing coordinators list
       showSuccess('הרכז אושר בהצלחה!');
@@ -114,16 +141,13 @@ export default function CoordinatorApproval() {
       setProcessingId(null);
     }
   };
+
   const handleReject = async (pendingId) => {
     setProcessingId(pendingId);
     try {
-      const response = await fetch(`${API_BASE}/api/coordinators/pending/${pendingId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to reject coordinator');
-      }      
+      // Delete the pending coordinator from Firebase
+      await deleteDoc(doc(db, 'user', pendingId));
+      
       // Remove from local state
       setPendingCoordinators(prev => prev.filter(p => p.id !== pendingId));
       showSuccess('הבקשה נדחתה והוסרה מהמערכת');

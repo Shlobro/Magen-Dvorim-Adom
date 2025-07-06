@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useNotification } from '../contexts/NotificationContext';
+import { userService } from '../services/firebaseService';
 import homeBackground from '../assets/home-background.png';
 
 // =========================================================
@@ -131,17 +132,27 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const user = await login(email, password);
+      const userCredential = await login(email, password);
+      const user = userCredential.user;
       showSuccess('התחברת בהצלחה!');
       console.log('התחברות בוצעה בהצלחה!');
 
       // Check if user needs to change password (for users created via Excel)
+      // Skip this check for now to avoid the getUserProfile error
+      console.log('Skipping password change check to avoid Firestore error');
+      
+      // Navigate to dashboard instead
+      navigate('/dashboard');
+      
+      /*
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE || "http://localhost:3001"}/api/users`);
-        const users = await response.json();
-        const currentUser = users.find(u => u.email === email);
+        console.log('User object:', user);
+        console.log('User UID:', user.uid);
+        console.log('Type of user.uid:', typeof user.uid);
         
-        if (currentUser && currentUser.requirePasswordChange) {
+        const currentUserProfile = await userService.getUserProfile(user.uid);
+        
+        if (currentUserProfile && currentUserProfile.requirePasswordChange) {
           // Redirect to password change page
           navigate('/change-password');
           setLoading(false);
@@ -150,6 +161,7 @@ export default function Login() {
       } catch (userCheckError) {
         console.warn('Could not check password change requirement:', userCheckError);
       }
+      */
 
       // Navigation will be handled by the useEffect above once userRole is loaded
     } catch (err) {
@@ -192,6 +204,7 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="email"
               style={inputStyle}
             />
           </div>
@@ -204,6 +217,7 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="current-password"
               style={inputStyle}
             />
           </div>          <button

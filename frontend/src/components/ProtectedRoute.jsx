@@ -51,8 +51,20 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   }
 
   // אם יש משתמש אבל התפקיד שלו לא מתאים, הפנה לדף הבית או דף שגיאה
-  if (requiredRole !== undefined && userRole !== requiredRole) {
-    return <Navigate to="/" replace />;
+  if (requiredRole !== undefined) {
+    // Map userRole numbers to role names
+    const roleMap = {
+      1: 'coordinator',
+      2: 'volunteer'
+    };
+    
+    const userRoleName = roleMap[userRole];
+    console.log('ProtectedRoute - userRole:', userRole, 'userRoleName:', userRoleName, 'requiredRole:', requiredRole);
+    
+    if (userRoleName !== requiredRole) {
+      console.log('ProtectedRoute - Access denied, redirecting to home');
+      return <Navigate to="/" replace />;
+    }
   }
 
   // Check if user needs to change password (for Excel imported users)

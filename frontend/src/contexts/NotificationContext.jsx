@@ -1,5 +1,5 @@
 // frontend/src/contexts/NotificationContext.jsx
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -7,8 +7,6 @@ import {
   DialogActions,
   DialogContentText,
   Button,
-  Snackbar,
-  Alert,
   Box,
   Typography,
   Avatar,
@@ -27,8 +25,38 @@ import {
 
 const NotificationContext = createContext();
 
-function SlideTransition(props) {
-  return <Slide {...props} direction="down" />;
+// Safer transition components that handle all Material-UI edge cases
+const SlideTransition = React.forwardRef(function SlideTransition(props, ref) {
+  // Ensure all required props are defined with safe defaults
+  const safeProps = {
+    direction: "down",
+    ...props,
+    style: props.style || {},
+    children: props.children,
+  };
+  
+  return <Slide ref={ref} {...safeProps} />;
+});
+
+// Simple no-transition fallback for problematic cases
+const NoTransition = React.forwardRef(function NoTransition(props, ref) {
+  return <div ref={ref} {...props} />;
+});
+
+// Improved fade transition for dialogs
+const FadeTransition = React.forwardRef(function FadeTransition(props, ref) {
+  const safeProps = {
+    ...props,
+    style: props.style || {},
+    children: props.children,
+  };
+  
+  return <Fade ref={ref} {...safeProps} />;
+});
+
+// Simplified safe wrapper
+function SafeNotificationWrapper({ children }) {
+  return <>{children}</>;
 }
 
 export function useNotification() {
@@ -47,6 +75,17 @@ export function NotificationProvider({ children }) {
     severity: 'info', // 'success', 'error', 'warning', 'info'
     duration: 4000,
   });
+
+  // Auto-hide snackbar after duration
+  useEffect(() => {
+    if (snackbar.open && snackbar.duration > 0) {
+      const timer = setTimeout(() => {
+        setSnackbar(prev => ({ ...prev, open: false }));
+      }, snackbar.duration);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [snackbar.open, snackbar.duration]);
 
   // Dialog confirmation state
   const [dialog, setDialog] = useState({
@@ -219,155 +258,138 @@ export function NotificationProvider({ children }) {
     <NotificationContext.Provider value={value}>
       {children}
 
-      {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={snackbar.duration}
-        onClose={closeSnackbar}
-        TransitionComponent={SlideTransition}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        sx={{ 
-          mt: 8, // Account for header height
-          '& .MuiSnackbarContent-root': {
-            minWidth: '300px',
-          }
-        }}
-      >        <Alert
-          onClose={closeSnackbar}
-          severity={snackbar.severity}
-          variant="filled"
-          sx={{
-            width: '100%',
-            fontSize: '1rem',
-            '& .MuiAlert-message': {
-              fontWeight: 500,
-              paddingRight: 6, // Increased space between text and close button (X)
-              paddingLeft: 1, // Reduced space between icon (checkmark) and text
+      <SafeNotificationWrapper>
+        {/* Custom notification instead of Material-UI Snackbar */}
+        {snackbar.open && (
+          <div
+            style={{
+              position: 'fixed',
+              top: '80px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              backgroundColor: 
+                snackbar.severity === 'success' ? '#4caf50' :
+                snackbar.severity === 'error' ? '#f44336' :
+                snackbar.severity === 'warning' ? '#ff9800' :
+                '#2196f3',
+              color: 'white',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              fontSize: '16px',
+              fontWeight: '500',
+              zIndex: 9999,
+              maxWidth: '500px',
+              textAlign: 'center',
+              fontFamily: 'Arial, sans-serif',
+            }}
+          >
+            {snackbar.message}
+          </div>
+        )}
+
+        {/* Dialog for confirmations and alerts - simplified transition */}
+        <Dialog
+          open={dialog.open}
+          onClose={dialog.showCancel ? closeDialog : undefined}
+          maxWidth="sm"
+          fullWidth
+          TransitionComponent={undefined}
+          PaperProps={{
+            sx: {
+              borderRadius: 4,
+              padding: 2,
+              textAlign: 'center',
+              boxShadow: '0 24px 48px rgba(0,0,0,0.2)',
             },
-            '& .MuiAlert-action': {
-              paddingLeft: 6, // Much more space on the left side of close button
-              marginRight: 2, // Increased margin to separate X from edge
-              '& .MuiIconButton-root': {
-                backgroundColor: 'rgba(255, 255, 255, 0.25)', // More visible background
-                '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.4)', // Lighter on hover
-                },
-                borderRadius: '50%',
-                padding: '6px', // Slightly larger clickable area
-                border: '1px solid rgba(255, 255, 255, 0.3)', // Subtle border
-              }
-            },
-            '& .MuiAlert-icon': {
-              marginRight: 1, // Bring checkmark closer to text
-            },
-            boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
           }}
         >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-
-      {/* Dialog for confirmations and alerts */}
-      <Dialog
-        open={dialog.open}
-        onClose={dialog.showCancel ? closeDialog : undefined}
-        maxWidth="sm"
-        fullWidth
-        TransitionComponent={Fade}
-        PaperProps={{
-          sx: {
-            borderRadius: 4,
-            padding: 2,
-            textAlign: 'center',
-            boxShadow: '0 24px 48px rgba(0,0,0,0.2)',
-          },
-        }}
-      >
-        <Box sx={{ pt: 2, pb: 1 }}>
-          <Avatar
-            sx={{
-              width: 80,
-              height: 80,
-              mx: 'auto',
-              mb: 2,
-              backgroundColor: `${getDialogColor(dialog.severity)}15`,
-              border: `2px solid ${getDialogColor(dialog.severity)}`,
-            }}
-          >
-            {getDialogIcon(dialog.severity)}
-          </Avatar>
-
-          {dialog.title && (
-            <DialogTitle
+          <Box sx={{ pt: 2, pb: 1 }}>
+            <Avatar
               sx={{
-                fontSize: '1.5rem',
-                fontWeight: 'bold',
-                color: 'text.primary',
+                width: 80,
+                height: 80,
+                mx: 'auto',
+                mb: 2,
+                backgroundColor: `${getDialogColor(dialog.severity)}15`,
+                border: `2px solid ${getDialogColor(dialog.severity)}`,
+              }}
+            >
+              {getDialogIcon(dialog.severity)}
+            </Avatar>
+
+            {dialog.title && (
+              <DialogTitle
+                sx={{
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                  color: 'text.primary',
+                  pb: 1,
+                  textAlign: 'center',
+                }}
+              >
+                {dialog.title}
+              </DialogTitle>
+            )}
+
+            <DialogContent sx={{ pt: 0 }}>
+              <DialogContentText
+                sx={{
+                  fontSize: '1.1rem',
+                  color: 'text.primary',
+                  textAlign: 'center',
+                  lineHeight: 1.6,
+                }}
+              >
+                {dialog.message}
+              </DialogContentText>
+            </DialogContent>
+
+            <DialogActions
+              sx={{
+                justifyContent: 'center',
+                gap: 2,
+                pt: 2,
                 pb: 1,
-                textAlign: 'center',
               }}
             >
-              {dialog.title}
-            </DialogTitle>
-          )}
-
-          <DialogContent sx={{ pt: 0 }}>
-            <DialogContentText
-              sx={{
-                fontSize: '1.1rem',
-                color: 'text.primary',
-                textAlign: 'center',
-                lineHeight: 1.6,
-              }}
-            >
-              {dialog.message}
-            </DialogContentText>
-          </DialogContent>
-
-          <DialogActions
-            sx={{
-              justifyContent: 'center',
-              gap: 2,
-              pt: 2,
-              pb: 1,
-            }}
-          >
-            {dialog.showCancel && (
+              {dialog.showCancel && (
+                <Button
+                  onClick={dialog.onCancel}
+                  variant="outlined"
+                  size="large"
+                  sx={{
+                    minWidth: 120,
+                    fontWeight: 600,
+                    borderRadius: 3,
+                    px: 4,
+                  }}
+                >
+                  {dialog.cancelText}
+                </Button>
+              )}
               <Button
-                onClick={dialog.onCancel}
-                variant="outlined"
+                onClick={dialog.onConfirm}
+                variant="contained"
                 size="large"
                 sx={{
                   minWidth: 120,
                   fontWeight: 600,
                   borderRadius: 3,
                   px: 4,
+                  backgroundColor: getDialogColor(dialog.severity),
+                  '&:hover': {
+                    backgroundColor: getDialogColor(dialog.severity),
+                    filter: 'brightness(0.9)',
+                  },
                 }}
               >
-                {dialog.cancelText}
+                {dialog.confirmText}
               </Button>
-            )}
-            <Button
-              onClick={dialog.onConfirm}
-              variant="contained"
-              size="large"
-              sx={{
-                minWidth: 120,
-                fontWeight: 600,
-                borderRadius: 3,
-                px: 4,
-                backgroundColor: getDialogColor(dialog.severity),
-                '&:hover': {
-                  backgroundColor: getDialogColor(dialog.severity),
-                  filter: 'brightness(0.9)',
-                },
-              }}
-            >
-              {dialog.confirmText}
-            </Button>
-          </DialogActions>
-        </Box>
-      </Dialog>
+            </DialogActions>
+          </Box>
+        </Dialog>
+      </SafeNotificationWrapper>
     </NotificationContext.Provider>
   );
 }

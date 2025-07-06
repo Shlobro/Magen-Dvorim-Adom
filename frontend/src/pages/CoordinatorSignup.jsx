@@ -3,9 +3,17 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useNotification } from '../contexts/NotificationContext';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
-console.log('CoordinatorSignup - API_BASE:', API_BASE);
-console.log('CoordinatorSignup - VITE_API_BASE:', import.meta.env.VITE_API_BASE);
+// Use Firebase Functions URL or disable backend calls for now
+const API_BASE = import.meta.env.VITE_API_BASE || '';
+
+// Only log in development
+if (import.meta.env.DEV) {
+  console.log('CoordinatorSignup - API_BASE:', API_BASE);
+  console.log('CoordinatorSignup - VITE_API_BASE:', import.meta.env.VITE_API_BASE);
+  if (!API_BASE) {
+    console.log('CoordinatorSignup - No API_BASE configured, coordinator signup will be disabled');
+  }
+}
 
 // =========================================================
 // סגנונות - נשארים זמנית עד שתספק את ה-CSS של SignUp.jsx
@@ -145,7 +153,16 @@ export default function CoordinatorSignup() {
       showError('חובה לאשר את כללי האתיקה כדי להירשם.');
       setLoading(false);
       return;
-    }try {
+    }
+
+    // Check if API_BASE is configured
+    if (!API_BASE) {
+      showError('הרשמת רכזים חדשים זמנית לא זמינה. אנא פנה למערכת בדרך אחרת.');
+      setLoading(false);
+      return;
+    }
+
+    try {
       // Submit coordinator signup request via backend API
       const apiUrl = `${API_BASE}/api/coordinators/signup`;
       console.log('Submitting to:', apiUrl);
@@ -268,6 +285,7 @@ export default function CoordinatorSignup() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength="6"
+              autoComplete="new-password"
               style={inputStyle}
               placeholder="לפחות 6 תווים"
             />
@@ -281,6 +299,7 @@ export default function CoordinatorSignup() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
+              autoComplete="new-password"
               style={inputStyle}
               placeholder="הכנס שוב את הסיסמה"
             />

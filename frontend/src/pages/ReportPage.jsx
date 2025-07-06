@@ -85,10 +85,10 @@ export default function ReportPage() {
       };
 
       // Save inquiry to Firestore via your backend API
-      // Assume saveInquiry returns the document ID (or inquiryId) which is needed for image upload
+      // saveInquiry returns { id: docRef.id, message: 'success message' }
       const response = await saveInquiry(inquiryData);
-      // Adjust according to your backend's response structure for the inquiry ID
-      const inquiryId = response.data.inquiryId || response.data.id; 
+      // Get the inquiry ID from the response
+      const inquiryId = response.id; 
 
       if (imageFile && inquiryId) {
         await uploadPhoto(inquiryId, imageFile);

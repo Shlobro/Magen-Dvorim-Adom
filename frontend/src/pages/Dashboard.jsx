@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import "../styles/HomeScreen.css"
 import { fetchCoordinatorInquiries, takeOwnership, releaseOwnership, reassignVolunteer } from "../services/inquiryApi"
+import { userService } from "../services/firebaseService"
 import { useNotification } from "../contexts/NotificationContext"
 
 export default function Dashboard() {
@@ -679,9 +680,7 @@ export default function Dashboard() {
 
     setLoadingVolunteers(true)
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE || "http://localhost:3001"}/api/users`)
-      const allUsers = await response.json()
-      const volunteerList = allUsers.filter((user) => user.userType === 2)
+      const volunteerList = await userService.getVolunteers()
       setVolunteers(volunteerList)
     } catch (error) {
       console.error("Error fetching volunteers:", error)

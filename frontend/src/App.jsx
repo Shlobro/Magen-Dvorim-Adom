@@ -1,168 +1,108 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { auth, db } from './firebaseConfig';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { NotificationProvider } from './contexts/NotificationContext.jsx';
-import ErrorBoundary from './components/ErrorBoundary.jsx';
-import Dashboard from './pages/Dashboard';
-import VolunteerMap from './pages/VolunteerMap';
-import HomeScreen from './pages/HomeScreen';
-import HomeRedirect from './components/HomeRedirect.jsx';
-import ReportPage from './pages/ReportPage';
-import SignUp from './pages/SignUp';
-import Login from './pages/Login';
-import ChangePassword from './pages/ChangePassword';
-import CoordinatorSignup from './pages/CoordinatorSignup.jsx';
 import Header from './components/Header';
-import ProtectedRoute from './components/ProtectedRoute.jsx';
-import ForcePasswordChange from './components/ForcePasswordChange.jsx';
+import HomeScreen from './pages/HomeScreen';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import VolunteerMap from './pages/VolunteerMap'; // ✅ Fixed: Changed from 'import L from "leaflet"' to 'import * as L from "leaflet"'
+import VolunteerDashboard from './pages/VolunteerDashboard';
+import ChangePassword from './pages/ChangePassword';
+import SignUp from './pages/SignUp';
+import UserProfile from './pages/UserProfile';
+import FeedbackForm from './pages/FeedbackForm';
+import CoordinatorSignup from './pages/CoordinatorSignup';
+import ReportPage from './pages/ReportPage';
+import ProtectedRoute from './components/ProtectedRoute';
+import VolunteerProfile from './pages/VolunteerProfile';
+import VolunteerManagement from './pages/VolunteerManagement';
+import CoordinatorApproval from './pages/CoordinatorApproval';
+import CoordinatorProfile from './pages/CoordinatorProfile';
+import InsightsPage from './pages/InsightsPage';
 
-// ייבוא קומפוננטות כללי האתיקה
-import EthicsCoordinators from './pages/EthicsCoordinators.jsx';
-import EthicsVolunteers from './pages/EthicsVolunteers.jsx';
+// Component to conditionally render Header
+function AppWithHeader() {
+  const location = useLocation();
+  
+  // Show header on all pages
+  const showHeader = true;
 
-// ייבוא קומפוננטת טופס המשוב החדשה
-import FeedbackForm from './pages/FeedbackForm.jsx';
-
-// ייבוא קומפוננטת התובנות החדשה
-import InsightsPage from './pages/InsightsPage.jsx';
-
-// ייבוא קומפוננטת ניהול המתנדבים החדשה
-import VolunteerManagement from './pages/VolunteerManagement.jsx';
-
-// ייבוא לוח מחוונים למתנדבים
-import VolunteerDashboard from './pages/VolunteerDashboard.jsx';
-
-// ייבוא דף אישור רכזים
-import CoordinatorApproval from './pages/CoordinatorApproval.jsx';
-
-// ייבוא עמוד פרופיל רכז
-import CoordinatorProfile from './pages/CoordinatorProfile.jsx';
-
-// ייבוא עמוד פרופיל מתנדב
-import VolunteerProfile from './pages/VolunteerProfile.jsx';
+  return (
+    <>
+      {showHeader && <Header />}
+      <Routes>
+        <Route path="/" element={<HomeScreen />} />
+        <Route path="/report" element={<ReportPage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<SignUp />} />
+        <Route path="/coordinator-signup" element={<CoordinatorSignup />} />
+        <Route path="/change-password" element={<ChangePassword />} />
+        <Route path="/feedback" element={<FeedbackForm />} />
+        
+        {/* Protected Routes */}
+        <Route path="/dashboard" element={
+          <ProtectedRoute requiredRole="coordinator">
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/volunteer-dashboard" element={
+          <ProtectedRoute requiredRole="volunteer">
+            <VolunteerDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/volunteer-map" element={
+          <ProtectedRoute requiredRole="coordinator">
+            <VolunteerMap />
+          </ProtectedRoute>
+        } />
+        <Route path="/volunteer-management" element={
+          <ProtectedRoute requiredRole="coordinator">
+            <VolunteerManagement />
+          </ProtectedRoute>
+        } />
+        <Route path="/coordinator-approval" element={
+          <ProtectedRoute requiredRole="coordinator">
+            <CoordinatorApproval />
+          </ProtectedRoute>
+        } />
+        <Route path="/coordinator-profile" element={
+          <ProtectedRoute requiredRole="coordinator">
+            <CoordinatorProfile />
+          </ProtectedRoute>
+        } />
+        <Route path="/volunteer-profile" element={
+          <ProtectedRoute requiredRole="volunteer">
+            <VolunteerProfile />
+          </ProtectedRoute>
+        } />
+        <Route path="/insights" element={
+          <ProtectedRoute requiredRole="coordinator">
+            <InsightsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <UserProfile />
+          </ProtectedRoute>
+        } />
+      </Routes>
+    </>
+  );
+}
 
 function App() {
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <NotificationProvider>
+    <div className="App">
+      <NotificationProvider>
+        <AuthProvider>
           <Router>
-            <Header />
-            <div className="main-content">
-              <ErrorBoundary>
-                <Routes>
-                  <Route path="/" element={<HomeRedirect />} />
-                  <Route path="/report" element={<ReportPage />} />
-                  <Route path="/signup" element={<SignUp />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/coordinator-register" element={<CoordinatorSignup />} />
-                  {/* נתיבים לדפי כללי האתיקה */}
-                  <Route path="/ethics/coordinators" element={<EthicsCoordinators />} />
-                  <Route path="/ethics/volunteers" element={<EthicsVolunteers />} />
-
-                  {/* נתיב לטופס המשוב */}
-                  <Route path="/feedback" element={<FeedbackForm />} />
-
-                  {/* נתיבים מוגנים - רק לרכזים (userType: 1) */}
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <ProtectedRoute requiredRole={1}>
-                        <ErrorBoundary>
-                          <Dashboard />
-                        </ErrorBoundary>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/volunteer-map"
-                    element={
-                      <ProtectedRoute requiredRole={1}>
-                        <ErrorBoundary>
-                          <VolunteerMap />
-                        </ErrorBoundary>
-                      </ProtectedRoute>
-                    }
-                  />
-                  {/* New route for Insights page */}
-                  <Route
-                    path="/insights"
-                    element={
-                      <ProtectedRoute requiredRole={1}>
-                        <ErrorBoundary>
-                          <InsightsPage />
-                        </ErrorBoundary>
-                      </ProtectedRoute>
-                    }
-                  />
-                  {/* Volunteer Management page for coordinators */}
-                  <Route
-                    path="/volunteer-management"
-                    element={
-                      <ProtectedRoute requiredRole={1}>
-                        <ErrorBoundary>
-                          <VolunteerManagement />
-                        </ErrorBoundary>
-                      </ProtectedRoute>
-                    }
-                  />
-                  
-                  {/* Coordinator Approval page for coordinators */}
-                  <Route
-                    path="/coordinator-approval"
-                    element={
-                      <ProtectedRoute requiredRole={1}>
-                        <ErrorBoundary>
-                          <CoordinatorApproval />
-                        </ErrorBoundary>
-                      </ProtectedRoute>
-                    }
-                  />
-                  
-                  {/* Coordinator Profile page for coordinators */}
-                  <Route
-                    path="/coordinator-profile"
-                    element={
-                      <ProtectedRoute requiredRole={1}>
-                        <ErrorBoundary>
-                          <CoordinatorProfile />
-                        </ErrorBoundary>
-                      </ProtectedRoute>
-                    }
-                  />
-                  
-                  {/* Volunteer Dashboard for volunteers */}
-                  <Route
-                    path="/volunteer-dashboard"
-                    element={
-                      <ProtectedRoute requiredRole={2}>
-                        <ErrorBoundary>
-                          <VolunteerDashboard />
-                        </ErrorBoundary>
-                      </ProtectedRoute>
-                    }
-                  />
-                  
-                  {/* Volunteer Profile page for volunteers */}
-                  <Route
-                    path="/volunteer-profile"
-                    element={
-                      <ProtectedRoute requiredRole={2}>
-                        <ErrorBoundary>
-                          <VolunteerProfile />
-
-                        </ErrorBoundary>
-                      </ProtectedRoute>
-                    }
-                  />
-                  {/* הוסף כאן נתיבים נוספים שצריכים הגנה לתפקיד "coordinator" */}
-                </Routes>
-              </ErrorBoundary>
-            </div>
+            <AppWithHeader />
           </Router>
-        </NotificationProvider>
-      </AuthProvider>
-    </ErrorBoundary>
+        </AuthProvider>
+      </NotificationProvider>
+    </div>
   );
 }
 

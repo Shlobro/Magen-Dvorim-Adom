@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useNotification } from '../contexts/NotificationContext';
+import { userService } from '../services/firebaseService';
 import homeBackground from '../assets/home-background.png';
 
 // =========================================================
@@ -117,24 +118,19 @@ export default function ChangePassword() {
       await updatePassword(newPassword);
 
       // Update the requirePasswordChange flag in the database
-      const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
-      
-      // Get current user data
-      const response = await fetch(`${API_BASE}/api/users`);
-      const users = await response.json();
-      const currentUserData = users.find(u => u.email === currentUser.email);
-      
-      if (currentUserData) {
-        // Update user to remove password change requirement
-        await fetch(`${API_BASE}/api/users/${currentUserData.id}/update`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+      // Get current user data and update to remove password change requirement
+      try {
+        const currentUserData = await userService.getUserProfile(currentUser.uid);
+        
+        if (currentUserData && currentUserData.requirePasswordChange) {
+          // Update user to remove password change requirement
+          await userService.updateUserProfile(currentUser.uid, {
             requirePasswordChange: false
-          })
-        });
+          });
+        }
+      } catch (error) {
+        console.error('Error updating password change requirement:', error);
+        // Don't fail the whole operation if this update fails
       }
 
       showSuccess('הסיסמה שונתה בהצלחה!');
@@ -173,6 +169,7 @@ export default function ChangePassword() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
+              autoComplete="new-password"
               style={inputStyle}
               placeholder="הזן סיסמה חדשה (לפחות 6 תווים)"
               minLength="6"
@@ -186,6 +183,7 @@ export default function ChangePassword() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
+              autoComplete="new-password"
               style={inputStyle}
               placeholder="הזן שוב את הסיסמה החדשה"
               minLength="6"

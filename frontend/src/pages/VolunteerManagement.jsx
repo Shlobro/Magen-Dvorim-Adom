@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import axios from "axios"
 import * as XLSX from "xlsx"
+import { userService } from "../services/firebaseService"
 import {
   Container,
   Card,
@@ -49,8 +49,6 @@ import {
 } from "@mui/icons-material"
 import { useNotification } from "../contexts/NotificationContext"
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001"
-
 export default function VolunteerManagement() {
   const [volunteers, setVolunteers] = useState([])
   const { showSuccess, showError, showConfirmDialog } = useNotification()
@@ -84,17 +82,20 @@ export default function VolunteerManagement() {
   const [uploadCancelled, setUploadCancelled] = useState(false)
 
   // Fetch all volunteers
-  useEffect(() => {    setLoading(true)
-    axios
-      .get(`${API_BASE}/api/users`)
-      .then((res) => {
-        setVolunteers(res.data.filter((u) => u.userType === 2))
-        setLoading(false)
-      })
-      .catch((err) => {
+  useEffect(() => {
+    const loadVolunteers = async () => {
+      setLoading(true)
+      try {
+        const allUsers = await userService.getAllUsers()
+        setVolunteers(allUsers.filter((u) => u.userType === 2))
+      } catch (err) {
         showError("שגיאה בטעינת מתנדבים")
+      } finally {
         setLoading(false)
-      })
+      }
+    }
+    
+    loadVolunteers()
   }, [])
   // Handle delete confirmation
   const handleDeleteClick = async (volunteer) => {
@@ -111,7 +112,7 @@ export default function VolunteerManagement() {
     setRemovingId(volunteer.id);
     
     try {
-      await axios.delete(`${API_BASE}/api/users/${volunteer.id}`)
+      await userService.deleteUser(volunteer.id)
       setVolunteers(volunteers.filter((v) => v.id !== volunteer.id))
       showSuccess("המתנדב הוסר בהצלחה מהמערכת")
     } catch (e) {
@@ -525,24 +526,32 @@ export default function VolunteerManagement() {
         setUploadStatus(`שולח ${volunteersToAdd.length} מתנדבים לשרת...`)
         setUploadProgress(80)
 
-        // Send to server
-        const response = await axios.post(`${API_BASE}/api/users/bulk-create`, {
-          volunteers: volunteersToAdd
-        })
+        // Send to Firebase using batch creation
+        setUploadStatus('יוצר משתמשים ב-Firebase...')
+        let createdCount = 0;
+        
+        for (const volunteer of volunteersToAdd) {
+          try {
+            await userService.createUser(volunteer);
+            createdCount++;
+          } catch (error) {
+            console.error('Error creating volunteer:', volunteer.email, error);
+          }
+        }
 
         setUploadProgress(90)
 
-        if (response.data.success) {
+        if (createdCount > 0) {
           setUploadStatus('מעדכן רשימת מתנדבים...')
           
           // Refresh volunteers list
-          const res = await axios.get(`${API_BASE}/api/users`)
-          setVolunteers(res.data.filter((u) => u.userType === 2))
+          const allUsers = await userService.getAllUsers()
+          setVolunteers(allUsers.filter((u) => u.userType === 2))
           
           setUploadProgress(100)
           setUploadStatus('הושלם בהצלחה!')
           
-          const successMessage = `${response.data.created} מתנדבים נוספו בהצלחה למערכת!`;
+          const successMessage = `${createdCount} מתנדבים נוספו בהצלחה למערכת!`;
           const warningMessage = processingErrors.length > 0 ? 
             `\n\nהתקבלו ${processingErrors.length} שגיאות בעיבוד (ראה פרטים למעלה)` : '';
           

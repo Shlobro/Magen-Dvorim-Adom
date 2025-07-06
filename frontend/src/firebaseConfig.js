@@ -1,7 +1,8 @@
 // frontend/src/firebaseConfig.js
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth"; // *** חשוב: הוסף את השורה הזו לייבוא getAuth ***
+import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -14,14 +15,20 @@ const firebaseConfig = {
   measurementId: "G-ZJYS7780XG"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase with error handling
+let app, auth, db, storage;
 
-// Initialize Firebase Authentication and get a reference to the service
-const auth = getAuth(app); // *** חשוב: הוסף את השורה הזו לאתחול auth ***
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  storage = getStorage(app);
+} catch (error) {
+  console.error('Firebase initialization error:', error);
+  // Create fallback objects to prevent constructor errors
+  auth = null;
+  db = null;
+  storage = null;
+}
 
-// Initialize Cloud Firestore and get a reference to the service
-const db = getFirestore(app);
-
-// *** חשוב: ודא ששורה זו מייצאת גם את auth וגם את db ***
-export { auth, db };
+export { auth, db, storage };

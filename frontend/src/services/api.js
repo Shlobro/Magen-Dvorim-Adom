@@ -1,16 +1,53 @@
 // frontend/src/services/api.js
-import axios from 'axios';
+import { userService, inquiryService } from './firebaseService';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { updateDoc, doc, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { storage, db } from '../firebaseConfig';
 
-const API_BASE = 'http://localhost:3001';
-
-export const getUser = (id) => axios.get(`${API_BASE}/user/${id}`);
-export const saveUser = (user) => axios.post(`${API_BASE}/user`, user);
-export const saveInquiry = (inquiry) => axios.post(`${API_BASE}/inquiry`, inquiry);
-export const uploadPhoto = (inquiryId, file) => {
-  const formData = new FormData();
-  formData.append('photo', file);
-  formData.append('inquiryId', inquiryId);
-  return axios.post(`${API_BASE}/inquiry/upload-photo`, formData);
+export const getUser = async (id) => {
+  return await userService.getUserProfile(id);
 };
-export const linkUserToInquiry = (link) => axios.post(`${API_BASE}/link`, link);
-export const queryUsers = (filters) => axios.get(`${API_BASE}/user`, { params: filters });
+
+export const saveUser = async (user) => {
+  return await userService.createUser(user);
+};
+
+export const saveInquiry = async (inquiry) => {
+  return await inquiryService.createInquiry(inquiry);
+};
+
+export const uploadPhoto = async (inquiryId, file) => {
+  try {
+    // Create a reference to the file in Firebase Storage
+    const fileName = `inquiry-photos/${inquiryId}/${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, fileName);
+    
+    // Upload the file
+    const snapshot = await uploadBytes(storageRef, file);
+    
+    // Get the download URL
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    
+    return { data: { photoUrl: downloadURL } };
+  } catch (error) {
+    console.error('Error uploading photo:', error);
+    throw error;
+  }
+};
+
+export const linkUserToInquiry = async (link) => {
+  try {
+    await updateDoc(doc(db, 'inquiry', link.inquiryId), {
+      assignedVolunteers: arrayUnion(link.userId),
+      updatedAt: serverTimestamp()
+    });
+    return { message: 'מתנדב קושר לפנייה בהצלחה' };
+  } catch (error) {
+    console.error('Error linking user to inquiry:', error);
+    throw error;
+  }
+};
+
+export const queryUsers = async (filters) => {
+  return await userService.getAllUsers(); // Can be enhanced with filters if needed
+};

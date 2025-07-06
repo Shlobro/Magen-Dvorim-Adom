@@ -1,37 +1,26 @@
 // frontend/src/services/inquiryApi.js
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
+import { inquiryService } from './firebaseService';
 
 export async function fetchCoordinatorInquiries(coordinatorId) {
-  const res = await axios.get(`${API_BASE}/api/inquiries`, { params: { coordinatorId } });
-  return res.data;
+  return await inquiryService.getInquiries(coordinatorId);
 }
 
 export async function takeOwnership(inquiryId, coordinatorId) {
-  return axios.post(`${API_BASE}/api/inquiries/${inquiryId}/take-ownership`, { coordinatorId });
+  return await inquiryService.takeOwnership(inquiryId, coordinatorId);
 }
 
 export async function releaseOwnership(inquiryId, coordinatorId) {
-  return axios.post(`${API_BASE}/api/inquiries/${inquiryId}/release-ownership`, { coordinatorId });
+  return await inquiryService.releaseOwnership(inquiryId);
 }
 
 export async function fetchVolunteerInquiries(volunteerId) {
-  const res = await axios.get(`${API_BASE}/api/inquiries/volunteer/${volunteerId}`);
-  return res.data;
+  return await inquiryService.getVolunteerInquiries(volunteerId);
 }
 
 export async function updateInquiryStatus(inquiryId, status, closureReason = null, coordinatorId = null) {
-  const payload = { status };
-  if (closureReason) {
-    payload.closureReason = closureReason;
-  }
-  if (coordinatorId) {
-    payload.coordinatorId = coordinatorId;
-  }
-  return axios.post(`${API_BASE}/api/inquiries/${inquiryId}/status`, payload);
+  return await inquiryService.updateInquiryStatus(inquiryId, status, closureReason, coordinatorId);
 }
 
 export async function reassignVolunteer(inquiryId, newVolunteerId) {
-  return axios.post(`${API_BASE}/api/inquiries/${inquiryId}/reassign`, { volunteerId: newVolunteerId });
+  return await inquiryService.reassignVolunteer(inquiryId, newVolunteerId);
 }

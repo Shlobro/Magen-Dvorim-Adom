@@ -12,11 +12,13 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
-      react({ jsxRuntime: 'automatic' }),
+      react(),
     ],
+    root: '.', // Explicitly set root
+    publicDir: 'public', // Explicitly set public directory
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, 'src'),
+        '@': path.resolve(__dirname, 'frontend/src'),
       },
     },
     server: {
@@ -43,26 +45,19 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      // Production build optimizations
-      target: ['es2015', 'edge88', 'firefox78', 'chrome87', 'safari12'],
-      minify: 'terser',
-      cssMinify: true,
+      // Production build optimizations - use very conservative settings
+      target: 'es2020',
+      minify: false,  // Disable minification to debug constructor issues
+      cssMinify: false,
       rollupOptions: {
         output: {
           manualChunks: {
             vendor: ['react', 'react-dom'],
             mui: ['@mui/material', '@mui/icons-material'],
-            firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+            firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
             charts: ['chart.js', 'react-chartjs-2'],
             maps: ['leaflet', 'react-leaflet'],
           },
-        },
-      },
-      // Generate legacy bundles for older browsers
-      terserOptions: {
-        compress: {
-          drop_console: true,
-          drop_debugger: true,
         },
       },
     },
