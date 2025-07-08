@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =================================================================
+    // כללי אבטחה עדכניים לאתר מגן דבורים אדום
+    // =================================================================
+
+    // כלל עבור קולקציית 'inquiry'
+    // אפשר קריאה וכתיבה לכל הקריאות.
+    match /inquiry/{document=**} {
+      allow read, write: if true;
+    }
+
+    // כלל עבור קולקציית 'user' - אפשר לרכזים לקרוא את כל הקולקציה
+    match /user/{document=**} {
+      // אפשר לרכזים לקרוא את כל קולקציית המשתמשים (כולל queries)
+      allow read: if request.auth != null && 
+                        get(/databases/$(database)/documents/user/$(request.auth.uid)).data.userType == 1;
+    }
+
+    // כלל עבור קולקציית 'user' - מסמכים בודדים
+    match /user/{userId} {
+      // אפשר למשתמש ליצור את המסמך שלו בעת הרשמה
+      allow create: if true;
+
+      // אפשר לקרוא נתונים:
+      // 1. משתמש יכול לקרוא את המסמך של עצמו
+      // 2. רכז (userType == 1) יכול לקרוא כל מסמך בקולקציית 'user'
+      allow read: if request.auth != null &&
+                        (request.auth.uid == userId ||
+                         get(/databases/$(database)/documents/user/$(request.auth.uid)).data.userType == 1);
+
+      // אפשר עדכון ומחיקה:
+      // 1. משתמש יכול לעדכן את הפרטים של עצמו
+      // 2. רכז יכול לעדכן ולמחוק כל משתמש
+      allow update: if request.auth != null && 
+                          (request.auth.uid == userId || 
+                           get(/databases/$(database)/documents/user/$(request.auth.uid)).data.userType == 1);
+      
+      allow delete: if request.auth != null && 
+                          get(/databases/$(database)/documents/user/$(request.auth.uid)).data.userType == 1;
+    }
+
+    // כלל עבור קולקציית 'userToInquiry'
+    match /userToInquiry/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+                         get(/databases/$(database)/documents/user/$(request.auth.uid)).data.userType == 1;
+    }
+
+    // כלל עבור קולקציית 'feedback'
+    match /feedback/{feedbackId} {
+      // מאפשר לכל אחד ליצור מסמך חדש ב-feedback
+      allow create: if true;
+      // מאפשר קריאה, עדכון ומחיקה רק לרכזים (userType == 1)
+      allow read, update, delete: if request.auth != null && 
+                                        get(/databases/$(database)/documents/user/$(request.auth.uid)).data.userType == 1;
+    }
+
+    // כלל כללי לדחיית גישה לכל קולקציה שלא הוגדרה במפורש
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

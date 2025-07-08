@@ -21,6 +21,10 @@ import {
   deleteUser as deleteAuthUser
 } from 'firebase/auth';
 import { db, auth } from '../firebaseConfig';
+import { validateAddressGeocoding } from './geocoding';
+
+// API Base URL for backend calls
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 // User Management
 export const userService = {
@@ -127,12 +131,17 @@ export const userService = {
   // Delete user
   async deleteUser(userId) {
     try {
-      // Delete from Firestore
+      // Delete user document from Firestore
       await deleteDoc(doc(db, 'user', userId));
+      console.log('User document deleted from Firestore:', userId);
       
-      // Note: Deleting from Firebase Auth requires admin privileges
-      // For now, we'll just delete from Firestore
-      return { message: 'משתמש נמחק בהצלחה' };
+      // Note: We can only delete the current authenticated user from Auth
+      // Admin deletion of other users requires admin SDK
+      return { 
+        success: true, 
+        message: 'משתמש נמחק בהצלחה מהמסד נתונים',
+        note: 'לא ניתן למחוק את המשתמש מ-Authentication ללא הרשאות מנהל'
+      };
     } catch (error) {
       console.error('Error deleting user:', error);
       throw error;
@@ -142,20 +151,38 @@ export const userService = {
   // Get all users (for admin)
   async getAllUsers() {
     try {
-      console.log('Firebase Service: Getting all users from Firestore...');
-      const snapshot = await getDocs(collection(db, 'user'));
-      const users = [];
-      snapshot.forEach(doc => {
-        users.push({ id: doc.id, ...doc.data() });
+      const user = auth.currentUser;
+      console.log('� Firebase Service: Getting all users from Firestore... [VERSION 2025-07-08-v5-URGENT-FIX]');
+      console.log('Current user:', user ? user.uid : 'No user');
+      console.log('🚨 THIS IS THE NEW VERSION - NOT USING API ANYMORE! 🚨');
+      
+      if (!user) {
+        console.error('❌ No authenticated user found');
+        throw new Error('No authenticated user');
+      }
+
+      console.log('📊 Firebase Service: Creating Firestore query for all users...');
+      const usersRef = collection(db, 'user');
+      console.log('📊 Firebase Service: Executing getDocs query...');
+      
+      const querySnapshot = await getDocs(usersRef);
+      console.log('📊 Firebase Service: Query executed successfully, processing results...');
+      
+      const usersList = [];
+      
+      querySnapshot.forEach((doc) => {
+        usersList.push({ id: doc.id, ...doc.data() });
       });
-      console.log('Firebase Service: Retrieved', users.length, 'users');
-      return users;
+      
+      console.log('✅ Firebase Service: Retrieved', usersList.length, 'users from Firestore [VERSION 2025-07-08-v5]');
+      console.log('✅ FIRESTORE QUERY SUCCESSFUL - NO API USED!');
+      return usersList;
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('❌ Error fetching users from Firestore:', error);
       console.error('Error details:', {
-        code: error.code,
         message: error.message,
-        name: error.name
+        name: error.name,
+        code: error.code
       });
       throw error;
     }
@@ -224,25 +251,186 @@ export const userService = {
     });
   },
 
+  // Bulk create volunteers from Excel upload
+  async bulkCreateVolunteers(volunteers) {
+    try {
+      console.log('🔥 Firebase Service: Bulk creating volunteers in Firestore... [VERSION 2025-07-08-v7]');
+      console.log(`Processing ${volunteers.length} volunteers`);
+      
+      const results = {
+        success: [],
+        errors: [],
+        duplicates: [],
+        authExistsButAdded: [] // מקרים שהאימייל קיים ב-Auth אבל נוסף ל-Firestore
+      };
+
+      for (const volunteer of volunteers) {
+        try {
+          console.log(`🔄 Processing volunteer: ${volunteer.email}`);
+          
+          // Check if user already exists in Firestore by email or phone
+          const existingByEmail = await this.checkUserExists(volunteer.email);
+          const existingByPhone = volunteer.phoneNumber ? 
+            await this.checkUserExistsByPhone(volunteer.phoneNumber) : null;
+
+          if (existingByEmail || existingByPhone) {
+            console.log(`⚠️ Duplicate found in Firestore: ${volunteer.email}`);
+            results.duplicates.push({
+              email: volunteer.email,
+              reason: existingByEmail ? 'אימייל קיים בFirestore' : 'מספר טלפון קיים בFirestore'
+            });
+            continue;
+          }
+
+          // Create the volunteer data
+          const volunteerData = {
+            firstName: volunteer.firstName || '',
+            lastName: volunteer.lastName || '',
+            email: volunteer.email,
+            phoneNumber: volunteer.phoneNumber || '',
+            idNumber: volunteer.idNumber || '',
+            address: volunteer.address || '',
+            city: volunteer.city || '',
+            beeExperience: volunteer.beeExperience || false,
+            beekeepingExperience: volunteer.beekeepingExperience || false,
+            hasTraining: volunteer.hasTraining || false,
+            heightPermit: volunteer.heightPermit || false,
+            previousEvacuation: volunteer.previousEvacuation || false,
+            signupDate: volunteer.signupDate || new Date(),
+            userType: 2, // Force volunteer type
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            isActive: true,
+            requirePasswordChange: false
+          };
+
+          // Try to geocode the address for map display
+          if (volunteer.address && volunteer.city) {
+            try {
+              console.log(`🗺️ Geocoding address for: ${volunteer.email} - ${volunteer.address}, ${volunteer.city}`);
+              const geocodeResult = await validateAddressGeocoding(volunteer.address, volunteer.city);
+              
+              if (geocodeResult.isValid && geocodeResult.coordinates) {
+                volunteerData.lat = geocodeResult.coordinates.lat;
+                volunteerData.lng = geocodeResult.coordinates.lng;
+                console.log(`✅ Geocoded: ${volunteer.email} -> (${volunteerData.lat}, ${volunteerData.lng})`);
+              } else {
+                console.log(`⚠️ Geocoding failed for: ${volunteer.email} - ${geocodeResult.error || 'No coordinates found'}`);
+              }
+            } catch (geocodeError) {
+              console.log(`❌ Geocoding error for: ${volunteer.email}`, geocodeError);
+            }
+          } else {
+            console.log(`⚠️ No address/city provided for geocoding: ${volunteer.email}`);
+          }
+
+          // Generate a temporary password for Firebase Auth
+          const tempPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
+          
+          try {
+            // Try to create new user in Firebase Auth
+            console.log(`🔑 Creating Firebase Auth user: ${volunteer.email}`);
+            const userCredential = await createUserWithEmailAndPassword(auth, volunteer.email, tempPassword);
+            
+            // Create user document in Firestore
+            console.log(`📝 Creating Firestore document for: ${volunteer.email}`);
+            await setDoc(doc(db, 'user', userCredential.user.uid), volunteerData);
+            
+            console.log(`✅ Successfully created: ${volunteer.email}`);
+            results.success.push({
+              id: userCredential.user.uid,
+              email: volunteer.email,
+              name: `${volunteer.firstName || ''} ${volunteer.lastName || ''}`.trim()
+            });
+            
+          } catch (authError) {
+            // Handle Firebase Auth duplicate email error specifically
+            if (authError.code === 'auth/email-already-in-use') {
+              console.log(`🔄 Email exists in Auth, adding to Firestore only: ${volunteer.email}`);
+              
+              // Generate a unique document ID for Firestore
+              const uniqueId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+              
+              // Create user document in Firestore with generated ID
+              await setDoc(doc(db, 'user', uniqueId), volunteerData);
+              
+              console.log(`✅ Added to Firestore with new ID: ${volunteer.email} (${uniqueId})`);
+              results.authExistsButAdded.push({
+                id: uniqueId,
+                email: volunteer.email,
+                name: `${volunteer.firstName || ''} ${volunteer.lastName || ''}`.trim(),
+                note: 'האימייל קיים ב-Authentication, נוסף ל-Firestore עם מזהה חדש'
+              });
+              
+            } else {
+              // Other auth errors
+              console.error(`❌ Firebase Auth error for: ${volunteer.email}`, authError);
+              results.errors.push({
+                email: volunteer.email,
+                error: `שגיאת Authentication: ${authError.message}`
+              });
+            }
+          }
+
+        } catch (error) {
+          console.error(`❌ Error processing volunteer: ${volunteer.email}`, error);
+          results.errors.push({
+            email: volunteer.email,
+            error: error.message
+          });
+        }
+      }
+
+      // Log summary
+      console.log('📊 Bulk create summary:');
+      console.log(`✅ New users created: ${results.success.length}`);
+      console.log(`🔄 Auth exists but added to Firestore: ${results.authExistsButAdded.length}`);
+      console.log(`⚠️ Duplicates skipped: ${results.duplicates.length}`);
+      console.log(`❌ Errors: ${results.errors.length}`);
+      
+      console.log('Bulk create results:', results);
+      return results;
+    } catch (error) {
+      console.error('Error bulk creating volunteers:', error);
+      throw error;
+    }
+  },
+
   // Get all volunteers
   async getVolunteers() {
     try {
-      const volunteersQuery = query(
-        collection(db, 'user'),
-        where('userType', '==', 2)
-      );
-      
-      const snapshot = await getDocs(volunteersQuery);
-      const volunteers = [];
-      
-      snapshot.forEach(doc => {
-        volunteers.push({ id: doc.id, ...doc.data() });
-      });
-      
+      const allUsers = await this.getAllUsers();
+      const volunteers = allUsers.filter(user => user.userType === 2);
       return volunteers;
     } catch (error) {
       console.error('Error fetching volunteers:', error);
       throw error;
+    }
+  },
+
+  // Helper function to check if user exists by email
+  async checkUserExists(email) {
+    try {
+      const usersRef = collection(db, 'user');
+      const q = query(usersRef, where('email', '==', email));
+      const querySnapshot = await getDocs(q);
+      return !querySnapshot.empty;
+    } catch (error) {
+      console.error('Error checking user existence:', error);
+      return false;
+    }
+  },
+
+  // Helper function to check if user exists by phone
+  async checkUserExistsByPhone(phoneNumber) {
+    try {
+      const usersRef = collection(db, 'user');
+      const q = query(usersRef, where('phoneNumber', '==', phoneNumber));
+      const querySnapshot = await getDocs(q);
+      return !querySnapshot.empty;
+    } catch (error) {
+      console.error('Error checking user existence by phone:', error);
+      return false;
     }
   }
 };

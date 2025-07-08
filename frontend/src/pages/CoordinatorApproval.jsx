@@ -53,11 +53,11 @@ export default function CoordinatorApproval() {
     try {
       setLoading(true);
       
-      // Get pending coordinators from Firebase (userType = 3 and status = 'pending')
+      // Get pending coordinators from Firebase (userType = 1 and approved = false)
       const q = query(
         collection(db, 'user'),
-        where('userType', '==', 3),
-        where('status', '==', 'pending')
+        where('userType', '==', 1),
+        where('approved', '==', false)
       );
       
       const querySnapshot = await getDocs(q);
@@ -88,7 +88,7 @@ export default function CoordinatorApproval() {
     try {
       setLoadingExisting(true);
       
-      // Get approved coordinators from Firebase (userType = 1)
+      // Get all coordinators (userType = 1), filter by approved status later
       const q = query(
         collection(db, 'user'),
         where('userType', '==', 1)
@@ -99,12 +99,15 @@ export default function CoordinatorApproval() {
       
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        existing.push({
-          id: doc.id,
-          ...data,
-          createdAt: convertFirestoreDate(data.createdAt),
-          approvedAt: convertFirestoreDate(data.approvedAt || data.createdAt)
-        });
+        // Include coordinators that are approved OR don't have the approved field (legacy users)
+        if (data.approved === true || data.approved === undefined) {
+          existing.push({
+            id: doc.id,
+            ...data,
+            createdAt: convertFirestoreDate(data.createdAt),
+            approvedAt: convertFirestoreDate(data.approvedAt || data.createdAt)
+          });
+        }
       });
       
       // Sort by creation date (newest first)
@@ -122,10 +125,9 @@ export default function CoordinatorApproval() {
   const handleApprove = async (pendingCoordinator) => {
     setProcessingId(pendingCoordinator.id);
     try {
-      // Update the user's userType to 1 (coordinator) and set status to approved
+      // Update the user's approved status to true
       await updateDoc(doc(db, 'user', pendingCoordinator.id), {
-        userType: 1, // Change from 3 (pending) to 1 (coordinator)
-        status: 'approved',
+        approved: true,
         approvedAt: new Date(),
         approvedBy: currentUser.uid
       });

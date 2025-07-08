@@ -2,17 +2,11 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useNotification } from '../contexts/NotificationContext';
-
-// Use Firebase Functions URL or disable backend calls for now
-const API_BASE = import.meta.env.VITE_API_BASE || '';
+import { userService } from '../services/firebaseService';
 
 // Only log in development
 if (import.meta.env.DEV) {
-  console.log('CoordinatorSignup - API_BASE:', API_BASE);
-  console.log('CoordinatorSignup - VITE_API_BASE:', import.meta.env.VITE_API_BASE);
-  if (!API_BASE) {
-    console.log('CoordinatorSignup - No API_BASE configured, coordinator signup will be disabled');
-  }
+  console.log('CoordinatorSignup - Using Firebase directly for coordinator signup');
 }
 
 // =========================================================
@@ -155,42 +149,26 @@ export default function CoordinatorSignup() {
       return;
     }
 
-    // Check if API_BASE is configured
-    if (!API_BASE) {
-      showError('הרשמת רכזים חדשים זמנית לא זמינה. אנא פנה למערכת בדרך אחרת.');
-      setLoading(false);
-      return;
-    }
-
     try {
-      // Submit coordinator signup request via backend API
-      const apiUrl = `${API_BASE}/api/coordinators/signup`;
-      console.log('Submitting to:', apiUrl);
-      console.log('API_BASE:', API_BASE);
+      console.log('🔥 Creating coordinator via Firebase...');
       
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          phoneNumber: phoneNumber.trim(),
-          email: email.trim().toLowerCase(),
-          city: city.trim(),
-          password: password.trim()
-        }),
-      });
+      // Create coordinator user directly via Firebase
+      const coordinatorData = {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phoneNumber: phoneNumber.trim(),
+        email: email.trim().toLowerCase(),
+        city: city.trim(),
+        userType: 1, // Coordinator type
+        approved: false, // Needs approval
+        requirePasswordChange: true, // Force password change on first login
+        password: password.trim() // Use provided password
+      };
 
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to submit signup request');
-      }      const result = await response.json();
-      console.log('Success result:', result);
+      const result = await userService.createUser(coordinatorData);
+      
+      console.log('✅ Coordinator signup successful:', result);
+      
       showSuccess('בקשת הרשמה נשלחה בהצלחה! הבקשה שלך תיבדק על ידי רכז קיים ותקבל עדכון בהקדם.');
       
       // Reset form
@@ -206,8 +184,12 @@ export default function CoordinatorSignup() {
       setTimeout(() => {
         navigate('/');
       }, 4000);    } catch (err) {
-      console.error('שגיאה בשליחת בקשת הרשמה:', err);
-      showError(err.message || 'שגיאה בשליחת בקשת הרשמה. אנא נסה שוב.');
+      console.error('❌ Error creating coordinator:', err);
+      if (err.message && err.message.includes('email-already-in-use')) {
+        showError('כתובת האימייל כבר רשומה במערכת.');
+      } else {
+        showError(err.message || 'שגיאה ביצירת חשבון רכז. אנא נסה שוב.');
+      }
     } finally {
       setLoading(false);
     }

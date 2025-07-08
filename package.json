@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "concurrently \"cd backend && node server.js\" \"npm run dev\"",
+    "start:backend": "cd backend && node server.js",
     "dev": "vite --host",
     "build": "vite build",
     "lint": "eslint .",

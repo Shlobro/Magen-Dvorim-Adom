@@ -12,13 +12,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
-      react(),
+      react({ jsxRuntime: 'automatic' }),
     ],
-    root: '.', // Explicitly set root
-    publicDir: 'public', // Explicitly set public directory
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, 'frontend/src'),
+        '@': path.resolve(__dirname, 'src'),
       },
     },
     server: {
@@ -34,7 +32,7 @@ export default defineConfig(({ mode }) => {
         'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
         'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=(), usb=()',
-        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ws: wss: https: blob: http://localhost:3001; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'",
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ws: wss: https: blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'",
       },
       proxy: {
         // Any fetch/axios to "/api/**" will be forwarded to apiBase
@@ -45,16 +43,20 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      // Production build optimizations - use very conservative settings
-      target: 'es2020',
-      minify: false,  // Disable minification to debug constructor issues
-      cssMinify: false,
+      // Production build optimizations  
+      target: ['es2015', 'edge88', 'firefox78', 'chrome87', 'safari12'],
+      minify: 'esbuild', // Use esbuild instead of terser to avoid dependency issue
+      cssMinify: true,
       rollupOptions: {
         output: {
+          // Force new file names for cache busting
+          entryFileNames: `[name]-[hash]-${Date.now()}.js`,
+          chunkFileNames: `[name]-[hash]-${Date.now()}.js`,
+          assetFileNames: `[name]-[hash]-${Date.now()}.[ext]`,
           manualChunks: {
             vendor: ['react', 'react-dom'],
             mui: ['@mui/material', '@mui/icons-material'],
-            firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+            firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
             charts: ['chart.js', 'react-chartjs-2'],
             maps: ['leaflet', 'react-leaflet'],
           },

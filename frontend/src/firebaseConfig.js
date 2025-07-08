@@ -18,13 +18,32 @@ const firebaseConfig = {
 // Initialize Firebase with error handling
 let app, auth, db, storage;
 
+console.log('🔧 Initializing Firebase...')
+console.log('  - Environment mode:', import.meta.env?.MODE || 'unknown')
+console.log('  - Current URL:', typeof window !== 'undefined' ? window.location.href : 'server-side')
+console.log('  - Config check:')
+console.log('    - apiKey exists:', !!firebaseConfig.apiKey)
+console.log('    - projectId:', firebaseConfig.projectId)
+console.log('    - authDomain:', firebaseConfig.authDomain)
+
 try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
   storage = getStorage(app);
+  
+  console.log('✅ Firebase initialized successfully')
+  console.log('  - App name:', app.name)
+  console.log('  - Auth exists:', !!auth)
+  console.log('  - DB exists:', !!db)
+  console.log('  - Storage exists:', !!storage)
 } catch (error) {
-  console.error('Firebase initialization error:', error);
+  console.error('❌ Firebase initialization error:', error);
+  console.error('Error details:', {
+    message: error.message,
+    code: error.code,
+    stack: error.stack
+  });
   // Create fallback objects to prevent constructor errors
   auth = null;
   db = null;

@@ -11,6 +11,9 @@ import { userService } from "../services/firebaseService"
 import { useNotification } from "../contexts/NotificationContext"
 
 export default function Dashboard() {
+  // Debug log to confirm new version is loaded
+  console.log('📊 Dashboard loaded - Fixed volunteer filter & removed free search v1.0.1 (Jan 6, 2025)');
+  
   const [calls, setCalls] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -83,7 +86,7 @@ export default function Dashboard() {
   const [filterStartDate, setFilterStartDate] = useState("")
   const [filterEndDate, setFilterEndDate] = useState("")
   const [filterStatus, setFilterStatus] = useState("נפתחה פנייה (טופס מולא)")
-  const [searchTerm, setSearchTerm] = useState("") // Free search across multiple fields
+  // Removed searchTerm - no longer needed
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1)
@@ -197,13 +200,23 @@ export default function Dashboard() {
         setLoading(true)
         let fetchedInquiries = []
         if (userRole === 1) {
-          // Coordinator role
-          fetchedInquiries = await fetchCoordinatorInquiries(currentUser.uid)
+          // Coordinator role - get ALL inquiries, not just assigned ones
+          console.log('🔥 Dashboard: Loading all inquiries for coordinator...');
+          const inquiriesRef = collection(db, "inquiry")
+          const allInquiriesQuery = inquiriesRef
+          const inquirySnap = await getDocs(allInquiriesQuery)
+          fetchedInquiries = inquirySnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          console.log('✅ Dashboard: Loaded', fetchedInquiries.length, 'inquiries');
         } else {
           const inquiriesRef = collection(db, "inquiry")
           const allInquiriesQuery = inquiriesRef
           const inquirySnap = await getDocs(allInquiriesQuery)
           fetchedInquiries = inquirySnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        }
+
+        console.log('📊 Dashboard: Sample inquiry data:');
+        if (fetchedInquiries.length > 0) {
+          console.log(fetchedInquiries[0]);
         }
 
         // Collect all unique volunteer UIDs and coordinator UIDs
@@ -353,50 +366,50 @@ export default function Dashboard() {
 
   // ───────────────────────────── Derived State: Unique Volunteer Names
   const uniqueVolunteerNames = useMemo(() => {
+    console.log('🎯 Building unique volunteer names...');
     const names = new Set()
     calls.forEach((call) => {
       if (call.assignedVolunteerName && call.assignedVolunteerName !== "-") {
         names.add(call.assignedVolunteerName)
+        console.log('  - Found volunteer name:', call.assignedVolunteerName);
       }
     })
-    return Array.from(names).sort()
+    // Don't add "ללא מתנדב" option - removed as requested
+    const result = Array.from(names).sort()
+    console.log('🎯 Final unique volunteer names:', result);
+    return result
   }, [calls])
 
   // ───────────────────────────── Filtered Calls Logic with Pagination
   const filteredCalls = useMemo(() => {
+    console.log('🔍 Dashboard Filter Debug:');
+    console.log('  - Total calls:', calls.length);
+    console.log('  - filterVolunteer:', filterVolunteer);
+    console.log('  - filterStatus:', filterStatus);
+    
     const filtered = calls.filter((call) => {
       let match = true
 
-      // Free search functionality
-      if (searchTerm && searchTerm.trim() !== "") {
-        const searchLower = searchTerm.toLowerCase().trim()
-        const searchableFields = [
-          call.fullName || "",
-          call.phoneNumber || "",
-          call.address || "",
-          call.city || "",
-          call.additionalDetails || "",
-          call.assignedVolunteerName || "",
-          call.coordinatorName || "",
-          call.status || "",
-          call.closureReason || ""
-        ]
+      // Volunteer filter
+      if (filterVolunteer && filterVolunteer !== "") {
+        console.log(`  - Checking volunteer filter for call ${call.id}:`);
+        console.log(`    - Call assignedVolunteerName: "${call.assignedVolunteerName}"`);
+        console.log(`    - Filter value: "${filterVolunteer}"`);
         
-        const matchesSearch = searchableFields.some(field => 
-          field.toString().toLowerCase().includes(searchLower)
-        )
-        
-        if (!matchesSearch) {
+        // Show calls assigned to specific volunteer
+        if (call.assignedVolunteerName !== filterVolunteer) {
+          console.log(`    - FILTERED OUT: Different volunteer`);
           match = false
+        } else {
+          console.log(`    - MATCH: Same volunteer`);
         }
       }
 
-      if (filterVolunteer && call.assignedVolunteerName !== filterVolunteer) {
-        match = false
-      }
       if (filterStatus && call.status !== filterStatus) {
+        console.log(`  - FILTERED OUT by status: "${call.status}" != "${filterStatus}"`);
         match = false
       }
+      
       if ((filterStartDate || filterEndDate) && match) {
         const callDate = convertTimestamp(call.timestamp)
         let fallbackDate = null
@@ -424,10 +437,21 @@ export default function Dashboard() {
 
       return match
     })
+    
+    console.log('🔍 Filter results:');
+    console.log('  - Filtered calls count:', filtered.length);
+    if (filtered.length > 0) {
+      console.log('  - Sample filtered call:', {
+        id: filtered[0].id,
+        fullName: filtered[0].fullName,
+        assignedVolunteerName: filtered[0].assignedVolunteerName,
+        status: filtered[0].status
+      });
+    }
 
     // Apply sorting to filtered results
     return getSortedCalls(filtered)
-  }, [calls, filterVolunteer, filterStartDate, filterEndDate, filterStatus, searchTerm, sortColumn, sortDirection])
+  }, [calls, filterVolunteer, filterStartDate, filterEndDate, filterStatus, sortColumn, sortDirection])
 
   // Paginated data
   const paginatedCalls = useMemo(() => {
@@ -442,7 +466,7 @@ export default function Dashboard() {
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [filterVolunteer, filterStartDate, filterEndDate, filterStatus, searchTerm])
+  }, [filterVolunteer, filterStartDate, filterEndDate, filterStatus])
   const handleVolunteerFilterChange = (e) => {
     setFilterVolunteer(e.target.value)
     setCurrentPage(1)
@@ -467,18 +491,12 @@ export default function Dashboard() {
     setCurrentPage(1)
   }
 
-  const handleSearchTermChange = (e) => {
-    setSearchTerm(e.target.value)
-    setCurrentPage(1)
-  }
-
   // Clear all filters function
   const handleClearAllFilters = () => {
     setFilterVolunteer("")
     setFilterStatus("נפתחה פנייה (טופס מולא)") // Reset to default
     setFilterStartDate("")
     setFilterEndDate("")
-    setSearchTerm("") // Clear search term
     setCurrentPage(1)
   }  // ───────────────────────────── status / closure handlers
   const handleStatusChange = async (callId, newStatus) => {
@@ -499,9 +517,8 @@ export default function Dashboard() {
       // Find the current call to check if it has a volunteer assigned
       const currentCall = calls.find(c => c.id === callId)
       
-      // Check if the coordinator has ownership of this inquiry (moved here to use the same currentCall)
-      if (!currentCall || currentCall.coordinatorId !== currentUser?.uid) {
-        showError("לא ניתן לשנות את הסטטוס ללא בעלות על הפנייה. יש לקחת בעלות על הפנייה תחילה.")
+      if (!currentCall) {
+        showError("לא נמצאה הפנייה");
         return
       }
       
@@ -697,10 +714,27 @@ export default function Dashboard() {
     // Find the current call to check ownership
     const currentCall = calls.find(c => c.id === inquiryId)
     
-    // Check if the coordinator has ownership of this inquiry
-    if (!currentCall || currentCall.coordinatorId !== currentUser?.uid) {
-      showError("לא ניתן לשנות שיבוץ מתנדב ללא בעלות על הפנייה. יש לקחת בעלות על הפנייה תחילה.")
+    if (!currentCall) {
+      showError("לא נמצאה הפנייה");
       return
+    }
+
+    // Check if the coordinator has ownership of this inquiry - only if another coordinator owns it
+    if (currentCall.coordinatorId && currentCall.coordinatorId !== currentUser?.uid) {
+      showError("לא ניתן לשנות שיבוץ מתנדב - הפנייה כבר שייכת לרכז אחר.")
+      return
+    }
+
+    // If no coordinator is assigned, take ownership automatically
+    if (!currentCall.coordinatorId) {
+      console.log('🔄 Taking automatic ownership for volunteer reassignment...');
+      try {
+        await takeOwnership(inquiryId, currentUser.uid);
+      } catch (error) {
+        console.error('Failed to take ownership:', error);
+        showError("שגיאה בלקיחת בעלות על הפנייה.");
+        return;
+      }
     }
 
     try {
@@ -1256,39 +1290,6 @@ export default function Dashboard() {
                       }}
                       className="no-select"
                     >
-                      חיפוש חופשי:
-                    </label>
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={handleSearchTermChange}
-                      placeholder="חפש לפי שם, טלפון, כתובת, הערות..."
-                      style={{
-                        width: "85%",
-                        padding: "12px 16px",
-                        borderRadius: "8px",
-                        border: "2px solid #e9ecef",
-                        fontSize: "1em",
-                        background: "white",
-                        transition: "border-color 0.3s ease",
-                        direction: "rtl",
-                      }}
-                      onFocus={(e) => (e.currentTarget.style.borderColor = "#007bff")}
-                      onBlur={(e) => (e.currentTarget.style.borderColor = "#e9ecef")}
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "8px",
-                        fontWeight: "600",
-                        color: "#495057",
-                        fontSize: "0.95em",
-                      }}
-                      className="no-select"
-                    >
                       פילטר סטטוס:
                     </label>
                     <select
@@ -1734,18 +1735,18 @@ export default function Dashboard() {
                           <select
                             value={call.status || ""}
                             onChange={(e) => handleStatusChange(call.id, e.target.value)}
-                            disabled={call.coordinatorId !== currentUser?.uid}
+                            disabled={false}
                             style={{
                               padding: "10px 15px",
                               borderRadius: "6px",
                               border: "1px solid #b0bec5",
                               minWidth: "180px",
-                              backgroundColor: call.coordinatorId !== currentUser?.uid ? "#f5f5f5" : "white",
+                              backgroundColor: "white",
                               fontSize: "0.95em",
-                              cursor: call.coordinatorId !== currentUser?.uid ? "not-allowed" : "pointer",
-                              opacity: call.coordinatorId !== currentUser?.uid ? 0.6 : 1,
+                              cursor: "pointer",
+                              opacity: 1,
                             }}
-                            title={call.coordinatorId !== currentUser?.uid ? "יש לקחת בעלות על הפנייה כדי לשנות את הסטטוס" : ""}
+                            title="שינוי סטטוס פנייה"
                           >
                             {statusOptions.map((o) => (
                               <option key={o} value={o}>

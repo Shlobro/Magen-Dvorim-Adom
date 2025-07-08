@@ -84,11 +84,19 @@ export default function VolunteerManagement() {
   // Fetch all volunteers
   useEffect(() => {
     const loadVolunteers = async () => {
+      console.log('🔄 VolunteerManagement: Loading volunteers... [VERSION 2025-07-08-v4]')
       setLoading(true)
       try {
+        console.log('📊 VolunteerManagement: Calling userService.getAllUsers()...')
         const allUsers = await userService.getAllUsers()
-        setVolunteers(allUsers.filter((u) => u.userType === 2))
+        console.log('📊 VolunteerManagement: Received', allUsers.length, 'total users')
+        
+        const volunteers = allUsers.filter((u) => u.userType === 2)
+        console.log('✅ VolunteerManagement: Filtered to', volunteers.length, 'volunteers')
+        
+        setVolunteers(volunteers)
       } catch (err) {
+        console.error('❌ VolunteerManagement: Error loading volunteers:', err)
         showError("שגיאה בטעינת מתנדבים")
       } finally {
         setLoading(false)
@@ -526,22 +534,20 @@ export default function VolunteerManagement() {
         setUploadStatus(`שולח ${volunteersToAdd.length} מתנדבים לשרת...`)
         setUploadProgress(80)
 
-        // Send to Firebase using batch creation
+        // Send to server using bulk creation API
         setUploadStatus('יוצר משתמשים ב-Firebase...')
-        let createdCount = 0;
+        const bulkResult = await userService.bulkCreateVolunteers(volunteersToAdd);
         
-        for (const volunteer of volunteersToAdd) {
-          try {
-            await userService.createUser(volunteer);
-            createdCount++;
-          } catch (error) {
-            console.error('Error creating volunteer:', volunteer.email, error);
-          }
-        }
+        console.log('Bulk creation result:', bulkResult);
+        
+        // Calculate total successful additions
+        const newUsersCount = (bulkResult.success || []).length;
+        const authExistsCount = (bulkResult.authExistsButAdded || []).length;
+        const totalCreated = newUsersCount + authExistsCount;
 
         setUploadProgress(90)
 
-        if (createdCount > 0) {
+        if (totalCreated > 0) {
           setUploadStatus('מעדכן רשימת מתנדבים...')
           
           // Refresh volunteers list
@@ -551,28 +557,60 @@ export default function VolunteerManagement() {
           setUploadProgress(100)
           setUploadStatus('הושלם בהצלחה!')
           
-          const successMessage = `${createdCount} מתנדבים נוספו בהצלחה למערכת!`;
-          const warningMessage = processingErrors.length > 0 ? 
-            `\n\nהתקבלו ${processingErrors.length} שגיאות בעיבוד (ראה פרטים למעלה)` : '';
+          // Combine processing errors and server errors
+          const allErrors = [...processingErrors];
+          if (bulkResult.errors && bulkResult.errors.length > 0) {
+            allErrors.push(...bulkResult.errors.map(err => `שגיאה: ${err.email} - ${err.error}`));
+          }
+          if (bulkResult.duplicates && bulkResult.duplicates.length > 0) {
+            allErrors.push(...bulkResult.duplicates.map(dup => `כפילות: ${dup.email} - ${dup.reason}`));
+          }
           
-          showSuccess(successMessage + warningMessage)
+          if (allErrors.length > 0) {
+            setUploadErrors(allErrors);
+          }
+          
+          // Create detailed success message
+          let successMessage = `סה"כ ${totalCreated} מתנדבים נוספו למערכת!\n`;
+          if (newUsersCount > 0) {
+            successMessage += `• ${newUsersCount} משתמשים חדשים נוצרו\n`;
+          }
+          if (authExistsCount > 0) {
+            successMessage += `• ${authExistsCount} משתמשים נוספו (האימיילים קיימים במערכת)\n`;
+          }
+          if (allErrors.length > 0) {
+            successMessage += `\n⚠️ ${allErrors.length} שגיאות/אזהרות (ראה פרטים למעלה)`;
+          }
+          
+          showSuccess(successMessage)
           
           // Show detailed success info
           console.log('Upload completed:', {
             totalRows: dataRows.length,
-            successfullyAdded: response.data.created,
-            errors: processingErrors.length,
-            errorDetails: processingErrors
+            newUsers: newUsersCount,
+            authExistsButAdded: authExistsCount,
+            totalSuccessful: totalCreated,
+            duplicates: (bulkResult.duplicates || []).length,
+            errors: (bulkResult.errors || []).length,
+            processingErrors: processingErrors.length,
+            bulkResult
           })
           
           // Close dialog after short delay
           setTimeout(() => {
             setUploadDialogOpen(false)
-          }, 2000)
+          }, 3000)
         } else {
-          setUploadStatus('שגיאה בשרת')
-          setUploadErrors([response.data.message || "שגיאה בהוספת מתנדבים"])
-          showError(response.data.message || "שגיאה בהוספת מתנדבים")
+          setUploadStatus('שגיאה או כפילויות')
+          const serverErrors = bulkResult.errors || [];
+          const duplicateErrors = bulkResult.duplicates || [];
+          const allErrors = [
+            ...processingErrors, 
+            ...serverErrors.map(err => `שגיאה: ${err.email} - ${err.error}`),
+            ...duplicateErrors.map(dup => `כפילות: ${dup.email} - ${dup.reason}`)
+          ];
+          setUploadErrors(allErrors)
+          showError("לא נוספו מתנדבים חדשים. ראה פרטי שגיאות למעלה.")
         }
 
       } catch (error) {

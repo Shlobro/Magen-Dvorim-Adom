@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import {
@@ -14,7 +13,8 @@ import {
   IconButton,
   InputAdornment,
   CircularProgress,
-  Grid
+  Grid,
+  Paper
 } from '@mui/material';
 import {
   Person,
@@ -25,16 +25,12 @@ import {
   Save,
   Cancel,
   Visibility,
-  VisibilityOff,
-  Delete
+  VisibilityOff
 } from '@mui/icons-material';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
-
 export default function CoordinatorProfile() {
-  const { currentUser, userData, setUserData, updateUserData, updateUserPassword } = useAuth();
-  const { showSuccess, showError, showConfirmDialog } = useNotification();
-  const navigate = useNavigate();
+  const { currentUser, userData, setUserData, updateUserPassword } = useAuth();
+  const { showSuccess, showError } = useNotification();
   
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -97,7 +93,7 @@ export default function CoordinatorProfile() {
         return;
       }
 
-      // Update profile via API
+      // Update profile via API (using proxy)
       const response = await fetch(`/api/users/${currentUser.uid}/update`, {
         method: 'POST',
         headers: {
@@ -207,61 +203,6 @@ export default function CoordinatorProfile() {
       ...prev,
       [field]: !prev[field]
     }));
-  };
-
-  const handleSelfDelete = async () => {
-    const confirmed = await showConfirmDialog({
-      title: 'מחיקת חשבון רכז',
-      message: 'האם אתה בטוח שברצונך למחוק את חשבון הרכז שלך? פעולה זו בלתי הפיכה ותמחק את כל הנתונים שלך מהמערכת.',
-      confirmText: 'מחק חשבון',
-      cancelText: 'ביטול',
-      severity: 'error'
-    });
-
-    if (!confirmed) return;
-
-    // Ask for additional confirmation with current password
-    const currentPassword = prompt('אנא הזן את הסיסמה הנוכחית שלך לאישור מחיקת החשבון:');
-    if (!currentPassword) {
-      showError('נדרשת סיסמה לאישור מחיקת החשבון');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // First verify the current password by attempting to update it to itself
-      await updateUserPassword(currentPassword, currentPassword);
-      
-      // If password verification succeeds, proceed with deletion
-      const response = await fetch(`${API_BASE}/api/coordinators/self/${currentUser.uid}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        showSuccess('החשבון נמחק בהצלחה. תועבר לדף הבית.');
-        
-        // Sign out the user and redirect to home
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 2000);
-      } else {
-        throw new Error(result.message || result.error || 'Failed to delete account');
-      }
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      if (error.code === 'auth/wrong-password') {
-        showError('הסיסמה שגויה');
-      } else {
-        showError('שגיאה במחיקת החשבון: ' + (error.message || 'שגיאה לא ידועה'));
-      }
-    } finally {
-      setLoading(false);
-    }
   };
 
   if (!userData) {
@@ -565,23 +506,6 @@ export default function CoordinatorProfile() {
             </Typography>
           </Grid>
         </Grid>
-
-        {/* Delete Account Section */}
-        <Divider sx={{ my: 4 }} />
-        
-        <Typography variant="h6" sx={{ mb: 3, fontWeight: 'bold', color: 'primary.main' }}>
-          מחיקת חשבון
-        </Typography>
-        
-        <Button
-          variant="contained"
-          color="error"
-          onClick={handleSelfDelete}
-          disabled={loading}
-          startIcon={loading ? <CircularProgress size={20} /> : <Delete />}
-        >
-          {loading ? 'מוחק חשבון...' : 'מחק חשבון שלי'}
-        </Button>
       </Card>
     </Container>
   );

@@ -56,22 +56,27 @@ export function AuthProvider({ children }) {
     }
 
     try {
+      console.log('updateUserPassword: Starting password update process');
+      console.log('updateUserPassword: Current user email:', currentUser.email);
+      
       // יצירת credential עבור הסיסמה הנוכחית
       const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
+      console.log('updateUserPassword: Created credential for email:', currentUser.email);
       
       // re-authenticate המשתמש עם הסיסמה הנוכחית
-      console.log('Attempting to reauthenticate user with email:', currentUser.email);
+      console.log('updateUserPassword: Attempting to reauthenticate user...');
       await reauthenticateWithCredential(currentUser, credential);
-      console.log('Reauthentication successful');
+      console.log('updateUserPassword: Reauthentication successful');
       
       // עדכון הסיסמה החדשה
+      console.log('updateUserPassword: Attempting to update password...');
       await updatePassword(currentUser, newPassword);
-      console.log("Password updated successfully");
+      console.log('updateUserPassword: Password updated successfully');
       
     } catch (error) {
-      console.error("AuthContext: Password update error:", error);
-      console.error("Error code:", error.code);
-      console.error("Error message:", error.message);
+      console.error("updateUserPassword: Error occurred:", error);
+      console.error("updateUserPassword: Error code:", error.code);
+      console.error("updateUserPassword: Error message:", error.message);
       throw error;
     }
   };

@@ -38,6 +38,7 @@ function AppWithHeader() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
         <Route path="/coordinator-signup" element={<CoordinatorSignup />} />
+        <Route path="/coordinator-register" element={<CoordinatorSignup />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/feedback" element={<FeedbackForm />} />
         

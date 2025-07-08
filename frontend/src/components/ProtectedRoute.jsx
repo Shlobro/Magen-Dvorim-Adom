@@ -69,9 +69,10 @@ const ProtectedRoute = ({ children, requiredRole }) => {
 
   // Check if user needs to change password (for Excel imported users)
   // Make sure userData is loaded and contains the requirePasswordChange flag
-  if (userData && userData.requirePasswordChange === true) {
-    return <ForcePasswordChange />;
-  }
+  // TEMPORARILY DISABLED - need to fix ForcePasswordChange to work without API
+  // if (userData && userData.requirePasswordChange === true) {
+  //   return <ForcePasswordChange />;
+  // }
 
   // אם הכל תקין, הצג את הקומפוננטות הילדות
   return children;

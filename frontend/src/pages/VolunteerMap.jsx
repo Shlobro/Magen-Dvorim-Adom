@@ -11,6 +11,7 @@ import { useLocation, useNavigate } from "react-router-dom"
 import { useNotification } from "../contexts/NotificationContext"
 import { useAuth } from "../contexts/AuthContext"
 import { takeOwnership, releaseOwnership } from "../services/inquiryApi"
+import { userService } from "../services/firebaseService"
 import {
   Card,
   CardContent,
@@ -50,6 +51,17 @@ import {
   FilterList,
   Search,
 } from "@mui/icons-material"
+
+// Debug Firebase connection on load
+console.log('🔧 VolunteerMap: Firebase connection check:')
+console.log('  - db object exists:', !!db)
+console.log('  - db app name:', db?.app?.name)
+console.log('  - Environment mode:', import.meta.env.MODE)
+console.log('  - Current URL:', window.location.href)
+
+if (!db) {
+  console.error('❌ Firebase database not initialized in VolunteerMap!')
+}
 
 // Helper function to create bee icon safely
 const createBeeIcon = () => {
@@ -109,7 +121,55 @@ const toRad = (deg) => {
   return deg * (Math.PI / 180)
 }
 
+// Calculate volunteer score based on distance and experience
+const calculateVolunteerScore = (volunteer, distance) => {
+  let totalScore = 0;
+  
+  // 1. Distance Score (30% of total) - Maximum 30 points
+  let distanceScore = 0;
+  if (distance <= 15) {
+    distanceScore = 30; // Full points for <= 15km
+  } else if (distance <= 25) {
+    distanceScore = 20; // 20 points for 15-25km
+  } else if (distance <= 40) {
+    distanceScore = 10; // 10 points for 25-40km
+  } else {
+    distanceScore = 0; // 0 points for > 40km
+  }
+  totalScore += distanceScore;
+  
+  // 2. Bee Removal Experience (15% of total) - Maximum 15 points
+  if (volunteer.beeExperience === true) {
+    totalScore += 15;
+  }
+  
+  // 3. Beekeeping Experience (10% of total) - Maximum 10 points
+  if (volunteer.beekeepingExperience === true) {
+    totalScore += 10;
+  }
+  
+  // 4. Training Experience (15% of total) - Maximum 15 points
+  if (volunteer.hasTraining === true) {
+    totalScore += 15;
+  }
+  
+  // 5. Height Permit (10% of total) - Maximum 10 points
+  if (volunteer.heightPermit === true) {
+    totalScore += 10;
+  }
+  
+  // 6. Assignment History Score (20% of total) - Maximum 20 points
+  // For frontend display, we'll assume new volunteers get full 20 points
+  // In a real implementation, this would query the database for completed assignments
+  totalScore += 20;
+  
+  return Math.round(totalScore * 100) / 100; // Round to 2 decimal places
+};
+
 export default function VolunteerMap() {
+  // Debug log to confirm new version is loaded
+  console.log('🗺️ VolunteerMap loaded - New unified volunteer list v1.0.2 (Jan 8, 2025)');
+  
   const [inquiries, setInquiries] = useState([])
   const [allInquiries, setAllInquiries] = useState([]) // Store all inquiries for filtering
   const [selectedInquiry, setSelectedInquiry] = useState(null)
@@ -117,7 +177,7 @@ export default function VolunteerMap() {
   const [selectedVolunteerIds, setSelectedVolunteerIds] = useState([])
   const [isSidebarVisible, setIsSidebarVisible] = useState(window.innerWidth > 768)
   const [showInquiryDetails, setShowInquiryDetails] = useState(false)
-  const [statusFilter, setStatusFilter] = useState("unassigned") // Default to unassigned
+  const [statusFilter, setStatusFilter] = useState("all") // Default to show all inquiries
   const [volunteerSearchTerm, setVolunteerSearchTerm] = useState("") // Search filter for volunteers
   const [loadingVolunteers, setLoadingVolunteers] = useState(false) // Loading state for volunteers
   const [beeIcon, setBeeIcon] = useState(null) // State for bee icon
@@ -127,6 +187,28 @@ export default function VolunteerMap() {
   const navigate = useNavigate()
   const { showSuccess, showError, showWarning, showConfirmDialog } = useNotification()
   const { currentUser, userRole, loading: authLoading } = useAuth()
+
+  // Validate Firebase connection and auth before proceeding
+  useEffect(() => {
+    console.log('🔧 Component mount - validating environment:')
+    console.log('  - Firebase db:', !!db)
+    console.log('  - Current user:', !!currentUser)
+    console.log('  - User role:', userRole)
+    console.log('  - Auth loading:', authLoading)
+    console.log('  - Environment:', import.meta.env.MODE)
+    
+    if (!db) {
+      console.error('❌ Firebase not initialized!')
+      showError("שגיאה בחיבור למסד הנתונים. אנא רענן את הדף.")
+      return
+    }
+    
+    if (!authLoading && !currentUser) {
+      console.warn('⚠️ User not authenticated')
+      showWarning("נדרש להתחבר למערכת כדי לצפות במתנדבים.")
+      return
+    }
+  }, [currentUser, userRole, authLoading, db])
 
   // Initialize bee icon when component mounts
   useEffect(() => {
@@ -149,12 +231,15 @@ export default function VolunteerMap() {
   }
 
   const fetchInquiries = useCallback(async () => {
+    console.log('🔄 fetchInquiries called');
     try {
       const q = query(
         collection(db, "inquiry"),
         where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב", "המתנדב בדרך"]),
       )
+      console.log('📡 Querying Firebase for inquiries...');
       const querySnapshot = await getDocs(q)
+      console.log(`📊 Raw results from Firebase: ${querySnapshot.docs.length} inquiries`);
       const fetched = querySnapshot.docs.map((doc) => {
         const data = doc.data()
         const { lat, lng } = extractCoordinates(data)
@@ -165,6 +250,16 @@ export default function VolunteerMap() {
       const validInquiries = fetched.filter(
         (inquiry) => inquiry.lat != null && !isNaN(inquiry.lat) && inquiry.lng != null && !isNaN(inquiry.lng),
       )
+      
+      console.log(`📍 Coordinate filtering:`)
+      console.log(`  - Total fetched: ${fetched.length}`)
+      console.log(`  - With valid coordinates: ${validInquiries.length}`)
+      console.log(`  - Without coordinates: ${fetched.length - validInquiries.length}`)
+      
+      // Log first few inquiries for debugging
+      fetched.slice(0, 3).forEach((inq, idx) => {
+        console.log(`  - Inquiry ${idx + 1}: lat=${inq.lat}, lng=${inq.lng}, status=${inq.status}`)
+      })
 
       // 2. Collect all unique volunteer UIDs
       const volunteerUids = new Set()
@@ -209,6 +304,17 @@ export default function VolunteerMap() {
       }))
 
       setAllInquiries(numbered)
+      
+      console.log(`✅ Final inquiries set: ${numbered.length}`)
+      console.log(`📊 Status breakdown:`)
+      const statusCounts = numbered.reduce((acc, inq) => {
+        acc[inq.status] = (acc[inq.status] || 0) + 1
+        return acc
+      }, {})
+      Object.entries(statusCounts).forEach(([status, count]) => {
+        console.log(`  - ${status}: ${count}`)
+      })
+      
     } catch (error) {
       console.error("Error fetching inquiries:", error)
     }
@@ -220,6 +326,7 @@ export default function VolunteerMap() {
 
   // Filter inquiries based on status
   useEffect(() => {
+    console.log(`🔍 Filtering inquiries - statusFilter: ${statusFilter}, allInquiries: ${allInquiries.length}`)
     if (!allInquiries.length) return
 
     let filtered = []
@@ -246,6 +353,7 @@ export default function VolunteerMap() {
         break
     }
 
+    console.log(`📋 Filtered results: ${filtered.length} inquiries for filter "${statusFilter}"`)
     setInquiries(filtered)
   }, [allInquiries, statusFilter])
 
@@ -287,40 +395,103 @@ export default function VolunteerMap() {
       
       setLoadingVolunteers(true)
       try {
-        // Use Firebase to fetch all volunteers
-        const q = query(collection(db, "user"), where("userType", "==", 2))
-        const querySnapshot = await getDocs(q)
-        const volunteers = []
+        // Debug Firebase connection
+        console.log('🔧 Firebase debug info:')
+        console.log('  - db object:', !!db)
+        console.log('  - Firebase app:', db?.app?.name)
+        console.log('  - Current URL:', window.location.href)
+        console.log('  - Environment:', import.meta.env.MODE)
         
-        querySnapshot.forEach((doc) => {
-          const data = doc.data()
+        if (!db) {
+          throw new Error('Firebase database not initialized')
+        }
+        
+        // Use userService instead of direct Firestore query (same as VolunteerManagement)
+        console.log('🔍 Fetching all users via userService...')
+        const allUsers = await userService.getAllUsers()
+        console.log('✅ userService query completed, total users:', allUsers.length)
+        
+        // Filter to volunteers only
+        const volunteersData = allUsers.filter(user => user.userType === 2)
+        console.log('✅ Filtered to volunteers:', volunteersData.length)
+        
+        const allVolunteers = []
+        
+        volunteersData.forEach((data) => {
           const { lat, lng } = extractCoordinates(data)
+          
+          // Create full name from firstName and lastName
+          const name = `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'מתנדב ללא שם'
+          
+          let distance = null
+          let score = 0
           
           if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
             // Calculate distance from selected inquiry
-            const distance = calculateDistance(
+            distance = calculateDistance(
               selectedInquiry.lat,
               selectedInquiry.lng,
               lat,
               lng
             )
             
-            volunteers.push({
-              id: doc.id,
-              ...data,
-              lat,
-              lng,
-              distance,
-            })
+            // Calculate volunteer score with distance
+            score = calculateVolunteerScore(data, distance)
+          } else {
+            // Give volunteers without coordinates a score based on experience only (assume 50km distance)
+            score = calculateVolunteerScore(data, 50)
           }
+          
+          allVolunteers.push({
+            id: data.id,
+            ...data,
+            name,
+            lat,
+            lng,
+            distance,
+            score,
+            hasCoordinates: lat != null && lng != null && !isNaN(lat) && !isNaN(lng)
+          })
         })
         
-        // Sort by distance
-        volunteers.sort((a, b) => a.distance - b.distance)
+        // Sort ALL volunteers by score (highest first), then by distance if available
+        allVolunteers.sort((a, b) => {
+          if (b.score !== a.score) {
+            return b.score - a.score; // Higher score first
+          }
+          // If scores are equal, prioritize those with coordinates and closer distance
+          if (a.hasCoordinates && b.hasCoordinates) {
+            return a.distance - b.distance; // Closer distance first
+          }
+          if (a.hasCoordinates && !b.hasCoordinates) return -1; // Prioritize with coordinates
+          if (!a.hasCoordinates && b.hasCoordinates) return 1;  // Prioritize with coordinates
+          return 0; // Same priority
+        })
         
-        setAvailableVolunteers(volunteers)
+        setAvailableVolunteers(allVolunteers)
+        
+        console.log(`📊 Volunteer summary:`)
+        console.log(`  - Total volunteers: ${allVolunteers.length}`)
+        console.log(`  - With coordinates: ${allVolunteers.filter(v => v.hasCoordinates).length}`)
+        console.log(`  - Without coordinates: ${allVolunteers.filter(v => !v.hasCoordinates).length}`)
+        console.log(`  - Top 8 scores: ${allVolunteers.slice(0, 8).map(v => v.score.toFixed(1)).join(', ')}`)
+        
       } catch (error) {
         console.error("Error fetching available volunteers:", error)
+        console.error("Error details:", {
+          message: error.message,
+          code: error.code,
+          stack: error.stack,
+          name: error.name
+        })
+        
+        // Show user-friendly error message
+        if (error.message?.includes('Firebase') || error.code?.includes('firestore')) {
+          showError("שגיאה בחיבור למסד הנתונים. אנא נסה שוב מאוחר יותר.")
+        } else {
+          showError("שגיאה בטעינת רשימת המתנדבים. אנא נסה שוב.")
+        }
+        
         setAvailableVolunteers([])
       } finally {
         setLoadingVolunteers(false)
@@ -329,18 +500,39 @@ export default function VolunteerMap() {
     fetchVolunteers()
   }, [selectedInquiry])
   const assignToInquiry = async () => {
+    console.log('🔄 assignToInquiry called');
+    console.log('  - selectedInquiry:', selectedInquiry?.id);
+    console.log('  - selectedVolunteerIds:', selectedVolunteerIds);
+    console.log('  - availableVolunteers count:', availableVolunteers.length);
+    
     if (!selectedInquiry || selectedVolunteerIds.length === 0) {
+      console.log('❌ Missing selection - inquiry:', !!selectedInquiry, 'volunteers:', selectedVolunteerIds.length);
       showWarning("אנא בחר פנייה ומתנדב לשיבוץ.")
       return
     }
 
     // Check if coordinator has ownership of this inquiry
-    if (!selectedInquiry.coordinatorId || selectedInquiry.coordinatorId !== currentUser?.uid) {
-      showError("לא ניתן לשבץ מתנדב ללא בעלות על הפנייה. יש לקחת בעלות על הפנייה תחילה.")
+    if (selectedInquiry.coordinatorId && selectedInquiry.coordinatorId !== currentUser?.uid) {
+      showError("לא ניתן לשבץ מתנדב - הפנייה כבר שייכת לרכז אחר.")
       return
     }
 
-    const inquiryId = selectedInquiry.id
+    // If no coordinator is assigned, take ownership automatically
+    let inquiryToUpdate = selectedInquiry;
+    if (!selectedInquiry.coordinatorId) {
+      console.log('🔄 Taking automatic ownership of unassigned inquiry...');
+      try {
+        await takeOwnership(selectedInquiry.id, currentUser.uid);
+        inquiryToUpdate = { ...selectedInquiry, coordinatorId: currentUser.uid };
+        setSelectedInquiry(inquiryToUpdate);
+      } catch (error) {
+        console.error('Failed to take ownership:', error);
+        showError("שגיאה בלקיחת בעלות על הפנייה.");
+        return;
+      }
+    }
+
+    const inquiryId = inquiryToUpdate.id
     const volunteerToAssignId = selectedVolunteerIds[0]
 
     const confirmed = await showConfirmDialog({
@@ -655,6 +847,18 @@ export default function VolunteerMap() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             />
             <MapSetter />
+            {(() => {
+              console.log('🗺️ Rendering markers:');
+              console.log(`  - inquiries array: ${Array.isArray(inquiries)} (length: ${inquiries?.length || 0})`);
+              console.log(`  - beeIcon available: ${!!beeIcon}`);
+              
+              const validMarkers = Array.isArray(inquiries) ? inquiries.filter(inquiry => 
+                inquiry.lat != null && inquiry.lng != null && !isNaN(inquiry.lat) && !isNaN(inquiry.lng) && beeIcon
+              ) : [];
+              console.log(`  - Valid markers to render: ${validMarkers.length}`);
+              
+              return null;
+            })()}
             {Array.isArray(inquiries) && inquiries.map((inquiry) =>
               inquiry.lat != null && inquiry.lng != null && !isNaN(inquiry.lat) && !isNaN(inquiry.lng) && beeIcon ? (
                 <Marker
@@ -1026,13 +1230,31 @@ export default function VolunteerMap() {
                                     (volunteer.name && volunteer.name.toLowerCase().includes(volunteerSearchTerm.toLowerCase()))
                                   ) : [];
 
+                                // Get top 8 volunteers with highest scores (regardless of coordinates)
+                                const topVolunteers = filteredVolunteers.slice(0, 8);
+                                const otherVolunteers = filteredVolunteers.slice(8);
+
                                 return filteredVolunteers.length > 0 ? (
                                   <FormControl component="fieldset" fullWidth>
+                                    
+                                    {/* Top volunteers section */}
+                                    {topVolunteers.length > 0 && (
+                                      <>
+                                        <Typography variant="h6" sx={{ mb: 1, color: 'primary.main', fontWeight: 'bold' }}>
+                                          ⭐ 8 המתנדבים עם הציון הגבוה ביותר
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                                          {topVolunteers.length} מתנדבים ממוינים לפי ציון התאמה
+                                        </Typography>
+                                      </>
+                                    )}
+
                                     <RadioGroup
                                       value={selectedVolunteerIds[0] || ""}
                                       onChange={(e) => setSelectedVolunteerIds([e.target.value])}
                                     >
-                                      {filteredVolunteers.map((volunteer) => (
+                                      {/* Display top volunteers */}
+                                      {topVolunteers.map((volunteer) => (
                                         <Paper
                                           key={volunteer.id}
                                           elevation={selectedVolunteerIds[0] === volunteer.id ? 3 : 1}
@@ -1042,6 +1264,9 @@ export default function VolunteerMap() {
                                             borderRadius: 2,
                                             bgcolor:
                                               selectedVolunteerIds[0] === volunteer.id ? "primary.light" : "background.paper",
+                                            border: '2px solid',
+                                            borderColor: volunteer.score >= 80 ? 'success.main' : 
+                                                        volunteer.score >= 60 ? 'warning.main' : 'grey.300',
                                             opacity: isSelectedInquiryAssigned ? 0.5 : 1,
                                             transition: "all 0.2s ease-in-out",
                                             "&:hover": {
@@ -1060,8 +1285,16 @@ export default function VolunteerMap() {
                                                     {volunteer.name}
                                                   </Typography>
                                                   <Typography variant="body2" color="text.secondary">
-                                                    מרחק: {volunteer.distance?.toFixed(1)} ק"מ
+                                                    {volunteer.hasCoordinates ? 
+                                                      `מרחק: ${volunteer.distance?.toFixed(1)} ק"מ` : 
+                                                      'מיקום לא זמין במפה'
+                                                    }
                                                   </Typography>
+                                                  {volunteer.city && (
+                                                    <Typography variant="body2" color="text.secondary">
+                                                      עיר: {volunteer.city}
+                                                    </Typography>
+                                                  )}
 
                                                   {/* Experience indicators */}
                                                   <Box sx={{ display: "flex", gap: 0.5, mt: 0.5, flexWrap: "wrap" }}>
@@ -1133,6 +1366,130 @@ export default function VolunteerMap() {
                                           />
                                         </Paper>
                                       ))}
+
+                                      {/* Other volunteers section - showing filtered volunteers beyond top 8 */}
+                                      {otherVolunteers.length > 0 && (
+                                        <>
+                                          <Box sx={{ my: 2, borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>
+                                            <Typography variant="h6" sx={{ mb: 1, color: 'text.secondary', fontWeight: 'bold' }}>
+                                              👥 מתנדבים נוספים ({otherVolunteers.length})
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                                              נמצאו במונחי החיפוש שלך
+                                            </Typography>
+                                          </Box>
+                                          
+                                          {otherVolunteers.map((volunteer) => (
+                                            <Paper
+                                              key={volunteer.id}
+                                              elevation={selectedVolunteerIds[0] === volunteer.id ? 3 : 1}
+                                              sx={{
+                                                p: 2,
+                                                mb: 1,
+                                                borderRadius: 2,
+                                                bgcolor:
+                                                  selectedVolunteerIds[0] === volunteer.id ? "primary.light" : "background.paper",
+                                                opacity: isSelectedInquiryAssigned ? 0.5 : 1,
+                                                transition: "all 0.2s ease-in-out",
+                                                "&:hover": {
+                                                  elevation: 2,
+                                                  bgcolor: selectedVolunteerIds[0] === volunteer.id ? "primary.light" : "grey.50",
+                                                },
+                                              }}
+                                            >
+                                              <FormControlLabel
+                                                value={volunteer.id}
+                                                control={<Radio disabled={isSelectedInquiryAssigned} />}
+                                                label={
+                                                  <Box sx={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                                                    <Box sx={{ flex: 1 }}>
+                                                      <Typography variant="subtitle2" fontWeight="bold">
+                                                        {volunteer.name}
+                                                      </Typography>
+                                                      <Typography variant="body2" color="text.secondary">
+                                                        {volunteer.hasCoordinates ? 
+                                                          `מרחק: ${volunteer.distance?.toFixed(1)} ק"מ` : 
+                                                          'מיקום לא זמין במפה'
+                                                        }
+                                                      </Typography>
+                                                      {volunteer.city && (
+                                                        <Typography variant="body2" color="text.secondary">
+                                                          עיר: {volunteer.city}
+                                                        </Typography>
+                                                      )}
+
+                                                      {/* Experience indicators */}
+                                                      <Box sx={{ display: "flex", gap: 0.5, mt: 0.5, flexWrap: "wrap" }}>
+                                                        {volunteer.beeExperience && (
+                                                          <Chip
+                                                            label="פינוי נחילים"
+                                                            size="small"
+                                                            color="success"
+                                                            variant="outlined"
+                                                            sx={{ fontSize: "0.65rem", height: "18px" }}
+                                                          />
+                                                        )}
+                                                        {volunteer.beekeepingExperience && (
+                                                          <Chip
+                                                            label="גידול דבורים"
+                                                            size="small"
+                                                            color="info"
+                                                            variant="outlined"
+                                                            sx={{ fontSize: "0.65rem", height: "18px" }}
+                                                          />
+                                                        )}
+                                                        {volunteer.hasTraining && (
+                                                          <Chip
+                                                            label="הדרכות"
+                                                            size="small"
+                                                            color="primary"
+                                                            variant="outlined"
+                                                            sx={{ fontSize: "0.65rem", height: "18px" }}
+                                                          />
+                                                        )}
+                                                        {volunteer.heightPermit && (
+                                                          <Chip
+                                                            label="היתר גובה"
+                                                            size="small"
+                                                            color="warning"
+                                                            variant="outlined"
+                                                            sx={{ fontSize: "0.65rem", height: "18px" }}
+                                                          />
+                                                        )}
+                                                      </Box>
+                                                    </Box>
+                                                    <Box
+                                                      sx={{
+                                                        display: "flex",
+                                                        flexDirection: "column",
+                                                        alignItems: "center",
+                                                        ml: 1,
+                                                      }}
+                                                    >
+                                                      <Chip
+                                                        label={`${volunteer.score?.toFixed(1)}/100`}
+                                                        size="small"
+                                                        color={
+                                                          volunteer.score >= 80
+                                                            ? "success"
+                                                            : volunteer.score >= 60
+                                                            ? "warning"
+                                                            : "default"
+                                                        }
+                                                        sx={{ fontFamily: "monospace", fontWeight: "bold" }}
+                                                      />
+                                                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                                                        ציון התאמה
+                                                      </Typography>
+                                                    </Box>
+                                                  </Box>
+                                                }
+                                                sx={{ width: "100%", m: 0 }}
+                                              />
+                                            </Paper>
+                                          ))}
+                                        </>
+                                      )}
                                     </RadioGroup>
                                   </FormControl>
                                 ) : (
@@ -1170,7 +1527,15 @@ export default function VolunteerMap() {
               }}
             >
               {/* Only show assignment button if user has ownership and inquiry is not assigned */}
-              {selectedInquiry.coordinatorId === currentUser?.uid && !isSelectedInquiryAssigned && (
+              {(() => {
+                console.log('🔍 Button visibility check:');
+                console.log('  - selectedInquiry.coordinatorId:', selectedInquiry?.coordinatorId);
+                console.log('  - currentUser?.uid:', currentUser?.uid);
+                console.log('  - isSelectedInquiryAssigned:', isSelectedInquiryAssigned);
+                console.log('  - Show button:', selectedInquiry?.coordinatorId === currentUser?.uid && !isSelectedInquiryAssigned);
+                return null;
+              })()}
+              {selectedInquiry?.coordinatorId === currentUser?.uid && !isSelectedInquiryAssigned && (
                 <Button
                   onClick={assignToInquiry}
                   disabled={!selectedInquiry || selectedVolunteerIds.length === 0}
