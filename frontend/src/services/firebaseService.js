@@ -31,10 +31,6 @@ export const userService = {
   // Get user profile
   async getUserProfile(userId) {
     try {
-      console.log('getUserProfile called with userId:', userId);
-      console.log('Type of userId:', typeof userId);
-      console.log('userId length:', userId ? userId.length : 'undefined');
-      
       // Validate userId parameter
       if (!userId || typeof userId !== 'string' || userId.trim() === '') {
         console.error('Invalid userId provided to getUserProfile:', userId);
@@ -43,7 +39,6 @@ export const userService = {
       
       // Ensure userId is trimmed
       const cleanUserId = userId.trim();
-      console.log('Clean userId:', cleanUserId);
       
       const userDoc = await getDoc(doc(db, 'user', cleanUserId));
       if (userDoc.exists()) {
@@ -133,7 +128,6 @@ export const userService = {
     try {
       // Delete user document from Firestore
       await deleteDoc(doc(db, 'user', userId));
-      console.log('User document deleted from Firestore:', userId);
       
       // Note: We can only delete the current authenticated user from Auth
       // Admin deletion of other users requires admin SDK
@@ -152,21 +146,14 @@ export const userService = {
   async getAllUsers() {
     try {
       const user = auth.currentUser;
-      console.log('� Firebase Service: Getting all users from Firestore... [VERSION 2025-07-08-v5-URGENT-FIX]');
-      console.log('Current user:', user ? user.uid : 'No user');
-      console.log('🚨 THIS IS THE NEW VERSION - NOT USING API ANYMORE! 🚨');
       
       if (!user) {
         console.error('❌ No authenticated user found');
         throw new Error('No authenticated user');
       }
 
-      console.log('📊 Firebase Service: Creating Firestore query for all users...');
       const usersRef = collection(db, 'user');
-      console.log('📊 Firebase Service: Executing getDocs query...');
-      
       const querySnapshot = await getDocs(usersRef);
-      console.log('📊 Firebase Service: Query executed successfully, processing results...');
       
       const usersList = [];
       
@@ -174,8 +161,6 @@ export const userService = {
         usersList.push({ id: doc.id, ...doc.data() });
       });
       
-      console.log('✅ Firebase Service: Retrieved', usersList.length, 'users from Firestore [VERSION 2025-07-08-v5]');
-      console.log('✅ FIRESTORE QUERY SUCCESSFUL - NO API USED!');
       return usersList;
     } catch (error) {
       console.error('❌ Error fetching users from Firestore:', error);

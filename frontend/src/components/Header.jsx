@@ -17,11 +17,6 @@ export default function Header() {
 
   const { currentUser, loading, userRole } = useAuth(); // הוסף userRole כדי לבדוק תפקיד
 
-  // Debug logging to see what's happening with userRole
-  console.log('Header v2 - currentUser:', currentUser ? 'logged in' : 'not logged in');
-  console.log('Header v2 - userRole:', userRole);
-  console.log('Header v2 - loading:', loading);
-
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
@@ -78,10 +73,6 @@ export default function Header() {
 
   const currentNavItems = currentUser ? navItemsLoggedIn : navItemsLoggedOut;
   
-  // Debug navigation items
-  console.log('Header - currentNavItems:', currentNavItems);
-  console.log('Header - navItemsLoggedIn length:', navItemsLoggedIn.length);
-
   return (
     <>
       <div className="header">
@@ -101,7 +92,6 @@ export default function Header() {
                 <button 
                   key={index} 
                   onClick={() => {
-                    console.log('Button clicked v2:', item.label);
                     item.onClick();
                   }} 
                   className="nav-link"
@@ -116,7 +106,6 @@ export default function Header() {
                   to={item.to} 
                   className="nav-link"
                   style={{ position: 'relative', zIndex: 1001, pointerEvents: 'auto' }}
-                  onClick={() => console.log('Link clicked v2:', item.label, 'to:', item.to)}
                 >
                   {item.icon}
                   <span>{item.label}</span>
@@ -139,7 +128,6 @@ export default function Header() {
                 <button 
                   key={index} 
                   onClick={() => {
-                    console.log('Mobile Button clicked:', item.label);
                     item.onClick();
                   }} 
                   className="menu-item"
@@ -153,7 +141,6 @@ export default function Header() {
                   to={item.to} 
                   className="menu-item" 
                   onClick={() => {
-                    console.log('Mobile Link clicked:', item.label, 'to:', item.to);
                     setMenuOpen(false);
                   }}
                 >

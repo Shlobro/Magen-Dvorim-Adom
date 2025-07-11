@@ -13,9 +13,6 @@ import "../styles/HomeScreen.css"
 import "../styles/Dashboard.css"
 
 export default function Dashboard() {
-  // Debug log to confirm new version is loaded
-  console.log('📊 Dashboard loaded - Refactored with separated components v2.0.0 (July 12, 2025)');
-  
   const navigate = useNavigate()
   const { currentUser, userRole, loading: authLoading } = useAuth()
   const { showSuccess, showError, showWarning, showInfo, showConfirmDialog } = useNotification()
