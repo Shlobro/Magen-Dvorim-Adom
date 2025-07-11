@@ -4,6 +4,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { userService } from '../services/firebaseService';
 import { collection, query, where, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import '../styles/CoordinatorApproval.css';
 
 export default function CoordinatorApproval() {
   const [pendingCoordinators, setPendingCoordinators] = useState([]);
@@ -172,43 +173,18 @@ export default function CoordinatorApproval() {
 
   if (authLoading || loading) {
     return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '60vh',
-        fontSize: '1.1em',
-        color: '#666'
-      }}>
-        <div style={{
-          padding: '40px',
-          textAlign: 'center',
-          background: '#f8f9fa',
-          borderRadius: '12px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
-        }}>
+      <div className="coordinator-approval-loading-container">
+        <div className="coordinator-approval-loading-content">
           טוען נתונים...
         </div>
       </div>
-    );  }
+    );
+  }
 
   if (!currentUser || userRole !== 1) {
     return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '60vh'
-      }}>
-        <div style={{
-          padding: '40px',
-          textAlign: 'center',
-          background: '#fff5f5',
-          borderRadius: '12px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-          border: '1px solid #fed7d7',
-          color: '#e53e3e'
-        }}>
+      <div className="coordinator-approval-error-container">
+        <div className="coordinator-approval-error-content">
           רק רכזים יכולים לגשת לדף זה.
         </div>
       </div>
@@ -216,131 +192,43 @@ export default function CoordinatorApproval() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-      padding: '20px 0'
-    }}>
-      <div style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '0 20px'
-      }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-          overflow: 'hidden'
-        }}>
+    <div className="coordinator-approval-container">
+      <div className="coordinator-approval-content">
+        <div className="coordinator-approval-main-card">
           {/* Header Section */}
-          <div style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            padding: '40px 30px',
-            textAlign: 'center'
-          }}>
-            <h1 style={{
-              margin: '0 0 10px 0',
-              fontSize: '2.5em',
-              fontWeight: '700',
-              textShadow: '0 2px 4px rgba(0,0,0,0.2)'
-            }}>
+          <div className="coordinator-approval-header">
+            <h1 className="coordinator-approval-title">
               אישור רכזים חדשים
             </h1>
-            <div style={{
-              fontSize: '1.1em',
-              opacity: '0.9',
-              fontWeight: '400'
-            }}>
+            <div className="coordinator-approval-subtitle">
               ניהול בקשות הצטרפות רכזים למערכת
             </div>
           </div>
 
-          <div style={{ padding: '30px' }}>
+          <div className="coordinator-approval-inner-content">
             {/* Signup Link Section */}
-            <div style={{
-              marginBottom: '40px',
-              textAlign: 'center',
-              padding: '25px',
-              background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
-              borderRadius: '12px',
-              border: '1px solid #e1f5fe'
-            }}>
-              <div style={{
-                marginBottom: '20px',
-                fontSize: '1.1em',
-                color: '#1565c0',
-                fontWeight: '600'
-              }}>
+            <div className="signup-link-section">
+              <div className="signup-link-title">
                 קישור הרשמת רכזים חדשים
               </div>
               <button
                 onClick={copySignupLink}
-                style={{
-                  background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
-                  color: 'white',
-                  padding: '15px 30px',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '1.1em',
-                  fontWeight: '600',
-                  boxShadow: '0 4px 15px rgba(0,123,255,0.3)',
-                  transition: 'all 0.3s ease',
-                  transform: 'translateY(0)'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,123,255,0.4)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,123,255,0.3)';
-                }}
+                className="signup-link-button"
               >
                 📋 העתק קישור הרשמה
               </button>
             </div>            {/* Tab Navigation */}
-            <div style={{
-              marginBottom: '30px',
-              borderBottom: '2px solid #e9ecef'
-            }}>
-              <div style={{
-                display: 'flex',
-                gap: '20px',
-                justifyContent: 'center'
-              }}>
+            <div className="tab-navigation">
+              <div className="tab-buttons-container">
                 <button
                   onClick={() => setActiveTab('pending')}
-                  style={{
-                    padding: '15px 30px',
-                    border: 'none',
-                    borderRadius: '8px 8px 0 0',
-                    cursor: 'pointer',
-                    fontSize: '1.1em',
-                    fontWeight: '600',
-                    background: activeTab === 'pending' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#f8f9fa',
-                    color: activeTab === 'pending' ? 'white' : '#495057',
-                    transition: 'all 0.3s ease',
-                    transform: activeTab === 'pending' ? 'translateY(2px)' : 'translateY(0)'
-                  }}
+                  className={`tab-button ${activeTab === 'pending' ? 'active' : 'inactive'}`}
                 >
                   רכזים ממתינים לאישור ({pendingCoordinators.length})
                 </button>
                 <button
                   onClick={() => setActiveTab('existing')}
-                  style={{
-                    padding: '15px 30px',
-                    border: 'none',
-                    borderRadius: '8px 8px 0 0',
-                    cursor: 'pointer',
-                    fontSize: '1.1em',
-                    fontWeight: '600',
-                    background: activeTab === 'existing' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#f8f9fa',
-                    color: activeTab === 'existing' ? 'white' : '#495057',
-                    transition: 'all 0.3s ease',
-                    transform: activeTab === 'existing' ? 'translateY(2px)' : 'translateY(0)'
-                  }}
+                  className={`tab-button ${activeTab === 'existing' ? 'active' : 'inactive'}`}
                 >
                   רכזים קיימים ({existingCoordinators.length})
                 </button>
@@ -350,46 +238,20 @@ export default function CoordinatorApproval() {
             {/* Tab Content */}
             {activeTab === 'pending' ? (
               /* Pending Coordinators Section */
-              <div style={{ marginBottom: '30px' }}>
+              <div className="tab-content-section">
                 {pendingCoordinators.length === 0 ? (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '40px',
-                    color: '#666',
-                    fontSize: '1.1em',
-                    background: '#f8f9fa',
-                    borderRadius: '12px',
-                    border: '1px solid #e9ecef'
-                  }}>
+                  <div className="empty-state-container">
                     אין רכזים ממתינים לאישור כרגע
                   </div>
                 ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{
-                      width: '100%',
-                      borderCollapse: 'separate',
-                      borderSpacing: '0',
-                      borderRadius: '12px',
-                      overflow: 'hidden',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                      direction: 'rtl'
-                    }}>
-                      <thead>
-                        <tr style={{ background: '#f0f4f7' }}>
+                  <div className="table-wrapper">
+                    <table className="coordinator-table">
+                      <thead className="pending-table-header">
+                        <tr>
                           {[
                             'שם פרטי', 'שם משפחה', 'אימייל', 'טלפון', 'עיר', 'תאריך בקשה', 'פעולות'
                           ].map((header) => (
-                            <th
-                              key={header}
-                              style={{
-                                padding: '15px 20px',
-                                textAlign: 'right',
-                                borderBottom: '2px solid #dae1e8',
-                                fontWeight: '700',
-                                color: '#34495e',
-                                backgroundColor: '#eef4f9'
-                              }}
-                            >
+                            <th key={header} className="pending-table-header-cell">
                               {header}
                             </th>
                           ))}
@@ -399,77 +261,29 @@ export default function CoordinatorApproval() {
                         {pendingCoordinators.map((coordinator, index) => (
                           <tr
                             key={coordinator.id}
-                            style={{
-                              borderBottom: '1px solid #eceff1',
-                              backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fcfd',
-                              transition: 'background-color 0.3s ease'
-                            }}
-                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e3f2fd'}
-                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#ffffff' : '#f9fcfd'}
+                            className={`pending-table-row ${index % 2 === 0 ? 'even' : 'odd'}`}
                           >
-                            <td style={{ padding: '15px 20px' }}>{coordinator.firstName}</td>
-                            <td style={{ padding: '15px 20px' }}>{coordinator.lastName}</td>
-                            <td style={{ padding: '15px 20px' }}>{coordinator.email}</td>
-                            <td style={{ padding: '15px 20px' }}>{coordinator.phoneNumber}</td>
-                            <td style={{ padding: '15px 20px' }}>{coordinator.city}</td>
-                            <td style={{ padding: '15px 20px' }}>
+                            <td className="table-cell">{coordinator.firstName}</td>
+                            <td className="table-cell">{coordinator.lastName}</td>
+                            <td className="table-cell">{coordinator.email}</td>
+                            <td className="table-cell">{coordinator.phoneNumber}</td>
+                            <td className="table-cell">{coordinator.city}</td>
+                            <td className="table-cell">
                               {coordinator.createdAt?.toLocaleDateString('he-IL')}
                             </td>
-                            <td style={{ padding: '15px 20px' }}>
-                              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <td className="table-cell">
+                              <div className="action-buttons-container">
                                 <button
                                   onClick={() => handleApprove(coordinator)}
                                   disabled={processingId === coordinator.id}
-                                  style={{
-                                    background: 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
-                                    color: 'white',
-                                    padding: '8px 16px',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: processingId === coordinator.id ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.9em',
-                                    fontWeight: '600',
-                                    opacity: processingId === coordinator.id ? 0.6 : 1,
-                                    transition: 'all 0.3s ease'
-                                  }}
-                                  onMouseOver={(e) => {
-                                    if (processingId !== coordinator.id) {
-                                      e.currentTarget.style.transform = 'translateY(-1px)';
-                                      e.currentTarget.style.boxShadow = '0 3px 10px rgba(40,167,69,0.3)';
-                                    }
-                                  }}
-                                  onMouseOut={(e) => {
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'none';
-                                  }}
+                                  className="approve-button"
                                 >
                                   {processingId === coordinator.id ? 'מעבד...' : '✅ אשר'}
                                 </button>
                                 <button
                                   onClick={() => handleReject(coordinator.id)}
                                   disabled={processingId === coordinator.id}
-                                  style={{
-                                    background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
-                                    color: 'white',
-                                    padding: '8px 16px',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: processingId === coordinator.id ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.9em',
-                                    fontWeight: '600',
-                                    opacity: processingId === coordinator.id ? 0.6 : 1,
-                                    transition: 'all 0.3s ease'
-                                  }}
-                                  onMouseOver={(e) => {
-                                    if (processingId !== coordinator.id) {
-                                      e.currentTarget.style.transform = 'translateY(-1px)';
-                                      e.currentTarget.style.boxShadow = '0 3px 10px rgba(220,53,69,0.3)';
-                                    }
-                                  }}
-                                  onMouseOut={(e) => {
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'none';
-                                  }}
+                                  className="reject-button"
                                 >
                                   {processingId === coordinator.id ? 'מעבד...' : '❌ דחה'}
                                 </button>
@@ -484,57 +298,24 @@ export default function CoordinatorApproval() {
               </div>
             ) : (
               /* Existing Coordinators Section */
-              <div style={{ marginBottom: '30px' }}>
+              <div className="tab-content-section">
                 {loadingExisting ? (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '40px',
-                    color: '#666',
-                    fontSize: '1.1em',
-                    background: '#f8f9fa',
-                    borderRadius: '12px'
-                  }}>
+                  <div className="loading-existing-container">
                     טוען רכזים קיימים...
                   </div>
                 ) : existingCoordinators.length === 0 ? (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '40px',
-                    color: '#666',
-                    fontSize: '1.1em',
-                    background: '#f8f9fa',
-                    borderRadius: '12px',
-                    border: '1px solid #e9ecef'
-                  }}>
+                  <div className="empty-state-container">
                     לא נמצאו רכזים קיימים במערכת
                   </div>
                 ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{
-                      width: '100%',
-                      borderCollapse: 'separate',
-                      borderSpacing: '0',
-                      borderRadius: '12px',
-                      overflow: 'hidden',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                      direction: 'rtl'
-                    }}>
-                      <thead>
-                        <tr style={{ background: '#e8f5e8' }}>
+                  <div className="table-wrapper">
+                    <table className="coordinator-table">
+                      <thead className="existing-table-header">
+                        <tr>
                           {[
                             'שם פרטי', 'שם משפחה', 'אימייל', 'טלפון', 'עיר', 'תאריך הצטרפות', 'תאריך אישור', 'סטטוס'
                           ].map((header) => (
-                            <th
-                              key={header}
-                              style={{
-                                padding: '15px 20px',
-                                textAlign: 'right',
-                                borderBottom: '2px solid #c8e6c9',
-                                fontWeight: '700',
-                                color: '#2e7d32',
-                                backgroundColor: '#e8f5e8'
-                              }}
-                            >
+                            <th key={header} className="existing-table-header-cell">
                               {header}
                             </th>
                           ))}
@@ -544,34 +325,21 @@ export default function CoordinatorApproval() {
                         {existingCoordinators.map((coordinator, index) => (
                           <tr
                             key={coordinator.id}
-                            style={{
-                              borderBottom: '1px solid #eceff1',
-                              backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fff9',
-                              transition: 'background-color 0.3s ease'
-                            }}
-                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e8f5e8'}
-                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#ffffff' : '#f9fff9'}
+                            className={`existing-table-row ${index % 2 === 0 ? 'even' : 'odd'}`}
                           >
-                            <td style={{ padding: '15px 20px' }}>{coordinator.firstName}</td>
-                            <td style={{ padding: '15px 20px' }}>{coordinator.lastName}</td>
-                            <td style={{ padding: '15px 20px' }}>{coordinator.email}</td>
-                            <td style={{ padding: '15px 20px' }}>{coordinator.phoneNumber}</td>
-                            <td style={{ padding: '15px 20px' }}>{coordinator.city}</td>
-                            <td style={{ padding: '15px 20px' }}>
+                            <td className="table-cell">{coordinator.firstName}</td>
+                            <td className="table-cell">{coordinator.lastName}</td>
+                            <td className="table-cell">{coordinator.email}</td>
+                            <td className="table-cell">{coordinator.phoneNumber}</td>
+                            <td className="table-cell">{coordinator.city}</td>
+                            <td className="table-cell">
                               {coordinator.createdAt?.toLocaleDateString('he-IL')}
                             </td>
-                            <td style={{ padding: '15px 20px' }}>
+                            <td className="table-cell">
                               {coordinator.approvedAt?.toLocaleDateString('he-IL') || 'לא זמין'}
                             </td>
-                            <td style={{ padding: '15px 20px' }}>
-                              <span style={{
-                                padding: '4px 12px',
-                                borderRadius: '20px',
-                                fontSize: '0.9em',
-                                fontWeight: '600',
-                                background: coordinator.isApproved ? 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' : '#ffc107',
-                                color: 'white'
-                              }}>
+                            <td className="table-cell">
+                              <span className={`status-badge ${coordinator.isApproved ? 'approved' : 'pending'}`}>
                                 {coordinator.isApproved ? '✅ מאושר' : '⏳ ממתין'}
                               </span>
                             </td>
