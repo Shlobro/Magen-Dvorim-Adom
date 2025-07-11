@@ -519,11 +519,46 @@ export const inquiryService = {
   // Create new inquiry
   async createInquiry(inquiryData) {
     try {
+      console.log('🔄 Creating inquiry with direct Firestore access...');
+      console.log('  - Has coordinates:', !!(inquiryData.location?.latitude && inquiryData.location?.longitude));
+      console.log('  - City/Address:', { city: inquiryData.city, address: inquiryData.address });
+      
+      // Attempt client-side geocoding if no coordinates are provided
+      if (!inquiryData.location && inquiryData.city && inquiryData.address) {
+        console.log('⚠️ No coordinates provided - attempting client-side geocoding...');
+        
+        try {
+          const { geocodeAddress } = await import('./geocoding');
+          const fullAddress = `${inquiryData.address}, ${inquiryData.city}, ישראל`;
+          const coords = await geocodeAddress(fullAddress);
+          
+          if (coords && coords.lat && coords.lng) {
+            inquiryData.location = {
+              latitude: coords.lat,
+              longitude: coords.lng
+            };
+            console.log('✅ Client-side geocoding successful:', coords);
+          } else {
+            console.warn('⚠️ Client-side geocoding failed for:', fullAddress);
+          }
+        } catch (geocodingError) {
+          console.error('❌ Client-side geocoding error:', geocodingError);
+        }
+      }
+      
       const docRef = await addDoc(collection(db, 'inquiry'), {
         ...inquiryData,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      
+      if (!inquiryData.location) {
+        console.warn('⚠️ WARNING: Inquiry created without coordinates! ID:', docRef.id);
+        console.warn('   This inquiry may not appear on the map until coordinates are manually added.');
+      } else {
+        console.log('✅ Inquiry created successfully with coordinates. ID:', docRef.id);
+      }
+      
       return { id: docRef.id, message: 'פנייה נוצרה בהצלחה' };
     } catch (error) {
       console.error('Error creating inquiry:', error);

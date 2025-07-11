@@ -71,8 +71,8 @@ const createBeeIcon = () => {
       const icon = new L.Icon({
         iconUrl: beeIconUrl,
         iconSize: [48, 48],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -32],
+        iconAnchor: [24, 48],
+        popupAnchor: [0, -48],
       })
       console.log('✅ Bee icon created successfully')
       return icon
@@ -81,6 +81,50 @@ const createBeeIcon = () => {
     }
   } catch (error) {
     console.error('❌ Error creating bee icon:', error)
+  }
+  return null
+}
+
+// Helper function to create volunteer icon safely
+const createVolunteerIcon = () => {
+  try {
+    console.log('Creating volunteer icon, L object:', L)
+    if (L && L.DivIcon) {
+      // Create a professional volunteer icon
+      const icon = new L.DivIcon({
+        className: 'volunteer-marker',
+        html: `<div style="
+          width: 32px;
+          height: 32px;
+          background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+          border: 3px solid white;
+          border-radius: 50%;
+          box-shadow: 0 3px 12px rgba(25, 118, 210, 0.4);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-weight: bold;
+          font-size: 16px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          position: relative;
+        " onmouseover="this.style.transform='scale(1.15)'; this.style.boxShadow='0 5px 20px rgba(25, 118, 210, 0.6)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 3px 12px rgba(25, 118, 210, 0.4)'">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+          </svg>
+        </div>`,
+        iconSize: [38, 38],
+        iconAnchor: [19, 19],
+        popupAnchor: [0, -19],
+      })
+      console.log('✅ Volunteer icon created successfully')
+      return icon
+    } else {
+      console.error('❌ L or L.DivIcon not available:', { L: !!L, LDivIcon: !!(L && L.DivIcon) })
+    }
+  } catch (error) {
+    console.error('❌ Error creating volunteer icon:', error)
   }
   return null
 }
@@ -181,6 +225,7 @@ export default function VolunteerMap() {
   const [volunteerSearchTerm, setVolunteerSearchTerm] = useState("") // Search filter for volunteers
   const [loadingVolunteers, setLoadingVolunteers] = useState(false) // Loading state for volunteers
   const [beeIcon, setBeeIcon] = useState(null) // State for bee icon
+  const [volunteerIcon, setVolunteerIcon] = useState(null) // State for volunteer icon
 
   const mapRef = useRef()
   const location = useLocation()
@@ -210,10 +255,12 @@ export default function VolunteerMap() {
     }
   }, [currentUser, userRole, authLoading, db])
 
-  // Initialize bee icon when component mounts
+  // Initialize bee icon and volunteer icon when component mounts
   useEffect(() => {
-    const icon = createBeeIcon();
-    setBeeIcon(icon);
+    const beeIconInstance = createBeeIcon();
+    const volunteerIconInstance = createVolunteerIcon();
+    setBeeIcon(beeIconInstance);
+    setVolunteerIcon(volunteerIconInstance);
   }, []);
 
   const extractCoordinates = (data) => {
@@ -718,16 +765,36 @@ export default function VolunteerMap() {
   }
 
   return (
-    <Box
-      sx={{
-        display: "flex",
-        height: "100vh",
-        width: "100%",
-        background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
-        fontFamily: '"Segoe UI", sans-serif',
-        justifyContent: "flex-start",
-      }}
-    >
+    <>
+      {/* CSS for volunteer markers */}
+      <style>{`
+        .volunteer-marker {
+          background: transparent !important;
+          border: none !important;
+        }
+        .volunteer-marker div {
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+        }
+        .volunteer-marker:hover div {
+          transform: scale(1.15) !important;
+        }
+        .leaflet-div-icon {
+          background: transparent !important;
+          border: none !important;
+        }
+      `}</style>
+      
+      <Box
+        sx={{
+          display: "flex",
+          height: "100vh",
+          width: "100%",
+          background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+          fontFamily: '"Segoe UI", sans-serif',
+          justifyContent: "flex-start",
+        }}
+      >
       {/* Map Section */}
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column", position: "relative" }}>
         {/* Header with Filter */}
@@ -851,11 +918,17 @@ export default function VolunteerMap() {
               console.log('🗺️ Rendering markers:');
               console.log(`  - inquiries array: ${Array.isArray(inquiries)} (length: ${inquiries?.length || 0})`);
               console.log(`  - beeIcon available: ${!!beeIcon}`);
+              console.log(`  - availableVolunteers array: ${Array.isArray(availableVolunteers)} (length: ${availableVolunteers?.length || 0})`);
+              console.log(`  - volunteerIcon available: ${!!volunteerIcon}`);
               
-              const validMarkers = Array.isArray(inquiries) ? inquiries.filter(inquiry => 
+              const validInquiryMarkers = Array.isArray(inquiries) ? inquiries.filter(inquiry => 
                 inquiry.lat != null && inquiry.lng != null && !isNaN(inquiry.lat) && !isNaN(inquiry.lng) && beeIcon
               ) : [];
-              console.log(`  - Valid markers to render: ${validMarkers.length}`);
+              const validVolunteerMarkers = Array.isArray(availableVolunteers) ? availableVolunteers.filter(volunteer => 
+                volunteer.lat != null && volunteer.lng != null && !isNaN(volunteer.lat) && !isNaN(volunteer.lng) && volunteerIcon
+              ) : [];
+              console.log(`  - Valid inquiry markers to render: ${validInquiryMarkers.length}`);
+              console.log(`  - Valid volunteer markers to render: ${validVolunteerMarkers.length}`);
               
               return null;
             })()}
@@ -898,8 +971,12 @@ export default function VolunteerMap() {
               ) : null
             )}
             {Array.isArray(availableVolunteers) && availableVolunteers.map((volunteer) =>
-              volunteer.lat != null && volunteer.lng != null && !isNaN(volunteer.lat) && !isNaN(volunteer.lng) ? (
-                <Marker key={volunteer.id} position={[volunteer.lat, volunteer.lng]}>
+              volunteer.lat != null && volunteer.lng != null && !isNaN(volunteer.lat) && !isNaN(volunteer.lng) && volunteerIcon ? (
+                <Marker 
+                  key={volunteer.id} 
+                  position={[volunteer.lat, volunteer.lng]}
+                  icon={volunteerIcon}
+                >
                   <Popup>
                     <Box sx={{ p: 1, minWidth: 200 }}>
                       <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
@@ -1593,5 +1670,6 @@ export default function VolunteerMap() {
         )}
       </Paper>
     </Box>
+    </>
   )
 }

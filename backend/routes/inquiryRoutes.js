@@ -17,28 +17,39 @@ router.post('/', async (req, res) => {
     const inquiry = req.body;
     console.log("Inquiry received in inquiryRoutes:", inquiry);
     
+    // Validate required fields for geocoding
+    if (!inquiry.city || !inquiry.address) {
+      console.warn("Missing required address data for geocoding:", { 
+        city: !!inquiry.city, 
+        address: !!inquiry.address 
+      });
+      return res.status(400).json({
+        error: "Missing required address data",
+        message: "Both city and address are required for geocoding",
+        details: {
+          city: inquiry.city ? "present" : "missing",
+          address: inquiry.address ? "present" : "missing"
+        }
+      });
+    }
+    
     // בנה כתובת מלאה עבור הגיאו-קידוד
     const fullAddress = `${inquiry.address}, ${inquiry.city}, ישראל`;
     console.log("Full address for geocoding:", fullAddress);
 
     let locationData = null; // אתחל את אובייקט המיקום
 
-    // בצע גיאו-קידוד רק אם קיימים נתוני עיר וכתובת
-    if (inquiry.city && inquiry.address) {
-      const coords = await geocodeAddress(fullAddress);
-      console.log("Geocoding coordinates received:", coords);
-      if (coords) {
-        // שמור את הקואורדינטות כאובייקט location עם latitude ו-longitude
-        locationData = {
-          latitude: coords.lat,
-          longitude: coords.lng
-        };
-      } else {
-        console.warn(`Could not geocode address: ${fullAddress}. Location will be null.`);
-        // locationData כבר null, אין צורך להגדיר מחדש
-      }
+    // בצע גיאו-קידוד
+    const coords = await geocodeAddress(fullAddress);
+    console.log("Geocoding coordinates received:", coords);
+    if (coords) {
+      // שמור את הקואורדינטות כאובייקט location עם latitude ו-longitude
+      locationData = {
+        latitude: coords.lat,
+        longitude: coords.lng
+      };
     } else {
-      console.warn("Missing city or address in inquiry. Skipping geocoding.");
+      console.warn(`Could not geocode address: ${fullAddress}. Location will be null.`);
       // locationData כבר null, אין צורך להגדיר מחדש
     }
 
