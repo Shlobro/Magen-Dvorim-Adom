@@ -159,7 +159,11 @@ export default function VolunteerManagement() {
   const handleDeleteClick = async (volunteer) => {
     const confirmed = await showConfirmDialog({
       title: 'אישור הסרת מתנדב',
-      message: `האם אתה בטוח שברצונך להסיר את המתנדב ${volunteer.name || `${volunteer.firstName || ""} ${volunteer.lastName || ""}`} מהמערכת? פעולה זו אינה ניתנת לביטול.`,
+      message: `האם אתה בטוח שברצונך להסיר את המתנדב ${volunteer.name || `${volunteer.firstName || ""} ${volunteer.lastName || ""}`} מהמערכת? 
+      
+⚠️ הערה חשובה: המחיקה תסיר את המתנדב ממסד הנתונים בלבד. חשבון ה-Authentication יישאר פעיל ויידרש ניקוי ידני.
+
+פעולה זו אינה ניתנת לביטול.`,
       confirmText: 'הסר מתנדב',
       cancelText: 'ביטול',
       severity: 'error',
@@ -170,14 +174,20 @@ export default function VolunteerManagement() {
     setRemovingId(volunteer.id);
     
     try {
-      await userService.deleteUser(volunteer.id)
-      setVolunteers(volunteers.filter((v) => v.id !== volunteer.id))
-      showSuccess("המתנדב הוסר בהצלחה מהמערכת")
+      const result = await userService.deleteUser(volunteer.id);
+      setVolunteers(volunteers.filter((v) => v.id !== volunteer.id));
+      
+      if (result.completeDeletion) {
+        showSuccess("המתנדב הוסר בהצלחה מהמערכת לחלוטין");
+      } else {
+        showSuccess("המתנדב הוסר ממסד הנתונים. שים לב: חשבון ה-Authentication נותר פעיל ויש צורך בניקוי ידני.");
+      }
     } catch (e) {
       showError("שגיאה בהסרת מתנדב")
     }
 
-    setRemovingId(null)  }
+    setRemovingId(null)
+  }
 
   // Handle opening volunteer details modal
   const handleOpenVolunteerDetails = (volunteer) => {

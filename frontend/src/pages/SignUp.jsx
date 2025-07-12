@@ -6,9 +6,10 @@ import mdaLogo from '../assets/mda_logo.png';
 import { FaBell, FaEye, FaEyeSlash, FaUser, FaMapMarkerAlt, FaGraduationCap, FaInfoCircle, FaShieldAlt } from 'react-icons/fa';
 
 import { db, auth } from '../firebaseConfig';
-import { collection, doc, setDoc } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { collection, doc, setDoc, query, where, getDocs } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { validateAddressGeocoding } from '../services/geocoding';
+import { userService } from '../services/firebaseService';
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -126,6 +127,37 @@ export default function SignUp() {
     const fullAddress = `${streetName.trim()} ${houseNumber.trim()}`;
 
     try {
+      // **NEW: Check for duplicates before creating user**
+      console.log('🔍 Checking for existing users...');
+      
+      // Check if email already exists in Firestore
+      const emailExists = await userService.checkUserExists(email.trim());
+      if (emailExists) {
+        showError('כתובת אימייל זו כבר רשומה במערכת.');
+        setLoading(false);
+        return;
+      }
+      
+      // Check if phone number already exists in Firestore
+      const phoneExists = await userService.checkUserExistsByPhone(phoneNumber.trim());
+      if (phoneExists) {
+        showError('מספר הטלפון הזה כבר רשום במערכת.');
+        setLoading(false);
+        return;
+      }
+      
+      // Check if ID number already exists
+      const usersRef = collection(db, 'user');
+      const idQuery = query(usersRef, where('idNumber', '==', idNumber.trim()));
+      const idSnapshot = await getDocs(idQuery);
+      if (!idSnapshot.empty) {
+        showError('מספר תעודת זהות זה כבר רשום במערכת.');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('✅ No duplicates found, proceeding with signup...');
+
       const geocodingResult = await validateAddressGeocoding(fullAddress, city);
       
       if (!geocodingResult.isValid) {
@@ -137,9 +169,76 @@ export default function SignUp() {
       const { lat, lng } = geocodingResult.coordinates;
       console.log('Geocode success:', lat, lng);
 
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      // Try to create Firebase Auth user
+      let userCredential;
+      try {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        console.log('✅ New Firebase Auth user created:', userCredential.user.uid);
+      } catch (authError) {
+        if (authError.code === 'auth/email-already-in-use') {
+          // This means the user was previously deleted from Firestore but Auth account remains
+          console.log('🔄 Found orphaned Auth account, attempting to sign in and reuse...');
+          
+          try {
+            // Try to sign in with the provided password
+            userCredential = await signInWithEmailAndPassword(auth, email, password);
+            console.log('✅ Successfully signed in to existing Auth account:', userCredential.user.uid);
+            
+            // We'll reuse this Auth account and create a new Firestore document
+            console.log('🔄 Reusing existing Auth account for new signup');
+          } catch (signInError) {
+            if (signInError.code === 'auth/wrong-password') {
+              // User has orphaned Auth account but forgot password
+              console.log('🔑 User has orphaned Auth account but wrong password - offering reset option');
+              
+              // Check if this is actually an orphaned account (no Firestore document)
+              const firestoreExists = await userService.checkUserExists(email);
+              
+              if (!firestoreExists) {
+                // This is indeed an orphaned Auth account - offer password reset
+                const resetConfirmed = window.confirm(
+                  'נמצא חשבון קיים עם כתובת המייל הזו אבל הסיסמה שגויה.\n\n' +
+                  'יש לך שתי אפשרויות:\n' +
+                  '1. לחץ "אישור" לקבל מייל איפוס סיסמה ולהתחבר עם הסיסמה החדשה\n' +
+                  '2. לחץ "ביטול" ונסה סיסמה אחרת\n\n' +
+                  'האם תרצה לקבל מייל איפוס סיסמה?'
+                );
+                
+                if (resetConfirmed) {
+                  try {
+                    const { sendPasswordResetEmail } = await import('firebase/auth');
+                    await sendPasswordResetEmail(auth, email);
+                    showSuccess(
+                      'נשלח מייל איפוס סיסמה לכתובת שלך!\n\n' +
+                      'אנא בדוק את המייל שלך (כולל תיקיית הספאם), איפס את הסיסמה, וחזור לכאן להירשם עם הסיסמה החדשה.'
+                    );
+                    setLoading(false);
+                    return;
+                  } catch (resetError) {
+                    console.error('Password reset error:', resetError);
+                    showError('שגיאה בשליחת מייל איפוס סיסמה. אנא נסה שוב או פנה לתמיכה.');
+                  }
+                } else {
+                  showError('אנא נסה סיסמה אחרת או השתמש באפשרות איפוס הסיסמה.');
+                }
+              } else {
+                // User exists in both Auth and Firestore - this is a normal duplicate
+                showError('כתובת אימייל זו כבר רשומה במערכת. אם שכחת את הסיסמה, השתמש באפשרות איפוס סיסמה בדף ההתחברות.');
+              }
+            } else {
+              showError('כתובת אימייל זו כבר רשומה במערכת אך לא ניתן להתחבר אליה. אנא פנה לתמיכה.');
+            }
+            setLoading(false);
+            return;
+          }
+        } else {
+          // Other auth errors
+          throw authError;
+        }
+      }
+      
       const user = userCredential.user;
-      console.log('Firebase Auth user created:', user.uid);
+      console.log('Using Auth UID for Firestore document:', user.uid);
 
       await setDoc(doc(db, 'user', user.uid), {
         uid: user.uid,

@@ -23,9 +23,6 @@ import {
 import { db, auth } from '../firebaseConfig';
 import { validateAddressGeocoding } from './geocoding';
 
-// API Base URL for backend calls
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
 // User Management
 export const userService = {
   // Get user profile
@@ -123,18 +120,61 @@ export const userService = {
     }
   },
 
-  // Delete user
+  // Delete user completely (Firestore + Auth warning)
   async deleteUser(userId) {
     try {
-      // Delete user document from Firestore
-      await deleteDoc(doc(db, 'user', userId));
+      console.log(`🗑️ Deleting user: ${userId}`);
       
-      // Note: We can only delete the current authenticated user from Auth
-      // Admin deletion of other users requires admin SDK
+      // 1. Get user data before deletion (for logging)
+      const userDoc = await getDoc(doc(db, 'user', userId));
+      const userData = userDoc.exists() ? userDoc.data() : null;
+      
+      // 2. Delete user document from Firestore
+      await deleteDoc(doc(db, 'user', userId));
+      console.log(`✅ Deleted Firestore document for: ${userId}`);
+      
+      // 3. Check if this is the current user (can delete from Auth)
+      const currentUser = auth.currentUser;
+      if (currentUser && currentUser.uid === userId) {
+        try {
+          await deleteAuthUser(currentUser);
+          console.log(`✅ Deleted Auth account for current user: ${userId}`);
+          return { 
+            success: true, 
+            message: 'משתמש נמחק בהצלחה מהמערכת לחלוטין',
+            completeDeletion: true
+          };
+        } catch (authError) {
+          console.error(`⚠️ Could not delete Auth account for current user:`, authError);
+        }
+      }
+      
+      // 4. Log warning about incomplete deletion and provide cleanup instructions
+      if (userData) {
+        console.warn(`⚠️ WARNING: User ${userData.email} (${userId}) deleted from Firestore but Auth account remains!`);
+        console.warn(`   This creates an orphaned Auth account that should be cleaned up manually.`);
+        console.warn(`   📋 CLEANUP INSTRUCTIONS:`);
+        console.warn(`   1. Go to Firebase Console > Authentication > Users`);
+        console.warn(`   2. Search for: ${userData.email}`);
+        console.warn(`   3. Delete the user manually`);
+        console.warn(`   4. Or use Firebase CLI: firebase auth:delete ${userId}`);
+      }
+      
       return { 
         success: true, 
-        message: 'משתמש נמחק בהצלחה מהמסד נתונים',
-        note: 'לא ניתן למחוק את המשתמש מ-Authentication ללא הרשאות מנהל'
+        message: 'משתמש נמחק מהמסד נתונים. חשבון ה-Authentication נותר פעיל ויש צורך בניקוי ידני.',
+        completeDeletion: false,
+        warning: 'לא ניתן למחוק את חשבון ה-Authentication מהצד הקליינט - יש צורך בניקוי ידני',
+        cleanupInstructions: {
+          email: userData?.email,
+          uid: userId,
+          steps: [
+            'פתח Firebase Console > Authentication > Users',
+            `חפש את: ${userData?.email || 'המשתמש'}`,
+            'מחק את המשתמש ידנית',
+            `או השתמש ב-CLI: firebase auth:delete ${userId}`
+          ]
+        }
       };
     } catch (error) {
       console.error('Error deleting user:', error);
@@ -239,21 +279,21 @@ export const userService = {
   // Bulk create volunteers from Excel upload
   async bulkCreateVolunteers(volunteers) {
     try {
-      console.log('🔥 Firebase Service: Bulk creating volunteers in Firestore... [VERSION 2025-07-08-v7]');
+      console.log('🔥 Firebase Service: Bulk creating volunteers (frontend-only)... [VERSION 2025-07-12-FIXED]');
       console.log(`Processing ${volunteers.length} volunteers`);
       
       const results = {
         success: [],
         errors: [],
         duplicates: [],
-        authExistsButAdded: [] // מקרים שהאימייל קיים ב-Auth אבל נוסף ל-Firestore
+        orphanedAuthCleaned: []
       };
 
       for (const volunteer of volunteers) {
         try {
           console.log(`🔄 Processing volunteer: ${volunteer.email}`);
           
-          // Check if user already exists in Firestore by email or phone
+          // 1. Check if user already exists in Firestore by email or phone
           const existingByEmail = await this.checkUserExists(volunteer.email);
           const existingByPhone = volunteer.phoneNumber ? 
             await this.checkUserExistsByPhone(volunteer.phoneNumber) : null;
@@ -262,12 +302,50 @@ export const userService = {
             console.log(`⚠️ Duplicate found in Firestore: ${volunteer.email}`);
             results.duplicates.push({
               email: volunteer.email,
-              reason: existingByEmail ? 'אימייל קיים בFirestore' : 'מספר טלפון קיים בFirestore'
+              reason: existingByEmail ? 'אימייל קיים במערכת' : 'מספר טלפון קיים במערכת'
             });
             continue;
           }
 
-          // Create the volunteer data
+          // 2. Check if email exists in Firebase Auth (orphaned auth account)
+          let authUserExists = false;
+          let userCredential = null;
+          
+          try {
+            // Try to create auth user to test if email exists
+            const tempPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
+            userCredential = await createUserWithEmailAndPassword(auth, volunteer.email, tempPassword);
+            console.log(`✅ Created new Firebase Auth user: ${volunteer.email}`);
+          } catch (authError) {
+            if (authError.code === 'auth/email-already-in-use') {
+              authUserExists = true;
+              console.log(`🧹 Found orphaned Auth account for: ${volunteer.email}`);
+              
+              // Since we can't delete other users' Auth accounts from frontend,
+              // we'll report this as an error requiring manual cleanup
+              console.error(`❌ Cannot import ${volunteer.email}: Auth account exists but not in Firestore`);
+              console.error(`   This indicates an orphaned Auth account that needs manual cleanup`);
+              console.error(`   Cleanup: Firebase Console > Authentication > Users > Delete ${volunteer.email}`);
+              
+              results.errors.push({
+                email: volunteer.email,
+                error: 'מתנדב זה הוסר בעבר אך חשבון ה-Authentication שלו נותר פעיל',
+                details: 'המתנדב יכול להירשם שוב דרך הטופס הרגיל (לא דרך אקסל) ולאפס את הסיסמה אם צריך',
+                cleanup: `אלטרנטיבה: מחק את ${volunteer.email} מ-Firebase Console > Authentication > Users ואז נסה שוב`
+              });
+              continue;
+            } else {
+              // Other auth error
+              console.error(`❌ Failed to create Auth user for ${volunteer.email}:`, authError);
+              results.errors.push({
+                email: volunteer.email,
+                error: `שגיאה ביצירת חשבון Authentication: ${authError.message}`
+              });
+              continue;
+            }
+          }
+
+          // 3. Create the volunteer data
           const volunteerData = {
             firstName: volunteer.firstName || '',
             lastName: volunteer.lastName || '',
@@ -286,75 +364,50 @@ export const userService = {
             createdAt: new Date(),
             updatedAt: new Date(),
             isActive: true,
-            requirePasswordChange: false
+            requirePasswordChange: true, // Force password change for Excel imports
+            isExcelImported: true
           };
 
-          // Try to geocode the address for map display
+          // 4. Try to geocode the address for map display
           if (volunteer.address && volunteer.city) {
             try {
-              console.log(`🗺️ Geocoding address for: ${volunteer.email} - ${volunteer.address}, ${volunteer.city}`);
+              console.log(`🗺️ Geocoding address for: ${volunteer.email}`);
               const geocodeResult = await validateAddressGeocoding(volunteer.address, volunteer.city);
               
               if (geocodeResult.isValid && geocodeResult.coordinates) {
                 volunteerData.lat = geocodeResult.coordinates.lat;
                 volunteerData.lng = geocodeResult.coordinates.lng;
-                console.log(`✅ Geocoded: ${volunteer.email} -> (${volunteerData.lat}, ${volunteerData.lng})`);
-              } else {
-                console.log(`⚠️ Geocoding failed for: ${volunteer.email} - ${geocodeResult.error || 'No coordinates found'}`);
+                console.log(`✅ Geocoded: ${volunteer.email}`);
               }
             } catch (geocodeError) {
-              console.log(`❌ Geocoding error for: ${volunteer.email}`, geocodeError);
+              console.log(`⚠️ Geocoding failed for: ${volunteer.email}`);
             }
-          } else {
-            console.log(`⚠️ No address/city provided for geocoding: ${volunteer.email}`);
           }
 
-          // Generate a temporary password for Firebase Auth
-          const tempPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
-          
-          try {
-            // Try to create new user in Firebase Auth
-            console.log(`🔑 Creating Firebase Auth user: ${volunteer.email}`);
-            const userCredential = await createUserWithEmailAndPassword(auth, volunteer.email, tempPassword);
-            
-            // Create user document in Firestore
-            console.log(`📝 Creating Firestore document for: ${volunteer.email}`);
-            await setDoc(doc(db, 'user', userCredential.user.uid), volunteerData);
-            
-            console.log(`✅ Successfully created: ${volunteer.email}`);
-            results.success.push({
-              id: userCredential.user.uid,
-              email: volunteer.email,
-              name: `${volunteer.firstName || ''} ${volunteer.lastName || ''}`.trim()
-            });
-            
-          } catch (authError) {
-            // Handle Firebase Auth duplicate email error specifically
-            if (authError.code === 'auth/email-already-in-use') {
-              console.log(`🔄 Email exists in Auth, adding to Firestore only: ${volunteer.email}`);
+          // 5. Create Firestore document with correct UID
+          if (userCredential && userCredential.user) {
+            try {
+              await setDoc(doc(db, 'user', userCredential.user.uid), volunteerData);
+              console.log(`✅ Created Firestore document: ${volunteer.email}`);
               
-              // Generate a unique document ID for Firestore
-              const uniqueId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-              
-              // Create user document in Firestore with generated ID
-              await setDoc(doc(db, 'user', uniqueId), volunteerData);
-              
-              console.log(`✅ Added to Firestore with new ID: ${volunteer.email} (${uniqueId})`);
-              results.authExistsButAdded.push({
-                id: uniqueId,
+              results.success.push({
+                id: userCredential.user.uid,
                 email: volunteer.email,
-                name: `${volunteer.firstName || ''} ${volunteer.lastName || ''}`.trim(),
-                note: 'האימייל קיים ב-Authentication, נוסף ל-Firestore עם מזהה חדש'
+                name: `${volunteer.firstName || ''} ${volunteer.lastName || ''}`.trim()
               });
-              
-            } else {
-              // Other auth errors
-              console.error(`❌ Firebase Auth error for: ${volunteer.email}`, authError);
+            } catch (firestoreError) {
+              console.error(`❌ Failed to create Firestore document for ${volunteer.email}:`, firestoreError);
               results.errors.push({
                 email: volunteer.email,
-                error: `שגיאת Authentication: ${authError.message}`
+                error: `שגיאה ביצירת מסמך במסד הנתונים: ${firestoreError.message}`
               });
             }
+          } else {
+            console.error(`❌ No valid userCredential for ${volunteer.email}`);
+            results.errors.push({
+              email: volunteer.email,
+              error: 'לא נוצר חשבון Authentication תקין'
+            });
           }
 
         } catch (error) {
@@ -368,15 +421,13 @@ export const userService = {
 
       // Log summary
       console.log('📊 Bulk create summary:');
-      console.log(`✅ New users created: ${results.success.length}`);
-      console.log(`🔄 Auth exists but added to Firestore: ${results.authExistsButAdded.length}`);
+      console.log(`✅ Successfully created: ${results.success.length}`);
       console.log(`⚠️ Duplicates skipped: ${results.duplicates.length}`);
       console.log(`❌ Errors: ${results.errors.length}`);
       
-      console.log('Bulk create results:', results);
       return results;
     } catch (error) {
-      console.error('Error bulk creating volunteers:', error);
+      console.error('❌ Error in bulk create:', error);
       throw error;
     }
   },
@@ -482,22 +533,52 @@ export const inquiryService = {
   // Get volunteer inquiries
   async getVolunteerInquiries(volunteerId) {
     try {
-      const inquiryQuery = query(
-        collection(db, 'inquiry'),
-        where('assignedVolunteers', 'array-contains', volunteerId),
-        orderBy('createdAt', 'desc')
-      );
+      let inquiryQuery;
+      let inquiries = [];
       
-      const snapshot = await getDocs(inquiryQuery);
-      const inquiries = [];
-      snapshot.forEach(doc => {
-        inquiries.push({ id: doc.id, ...doc.data() });
-      });
-      
-      return inquiries;
+      // Try the complex query first, fall back to simple query if index doesn't exist
+      try {
+        inquiryQuery = query(
+          collection(db, 'inquiry'),
+          where('assignedVolunteers', 'array-contains', volunteerId),
+          orderBy('createdAt', 'desc')
+        );
+        
+        const snapshot = await getDocs(inquiryQuery);
+        snapshot.forEach(doc => {
+          inquiries.push({ id: doc.id, ...doc.data() });
+        });
+        
+        return inquiries;
+      } catch (indexError) {
+        console.warn('Composite index not available for volunteer inquiries, using simple query:', indexError.message);
+        
+        // Fallback to simple query without ordering
+        inquiryQuery = query(
+          collection(db, 'inquiry'),
+          where('assignedVolunteers', 'array-contains', volunteerId)
+        );
+        
+        const snapshot = await getDocs(inquiryQuery);
+        snapshot.forEach(doc => {
+          inquiries.push({ id: doc.id, ...doc.data() });
+        });
+        
+        // Sort manually by createdAt
+        if (inquiries.length > 0) {
+          inquiries.sort((a, b) => {
+            const aDate = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+            const bDate = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+            return bDate - aDate;
+          });
+        }
+        
+        return inquiries;
+      }
     } catch (error) {
       console.error('Error fetching volunteer inquiries:', error);
-      throw error;
+      // Return empty array instead of throwing to prevent crashes
+      return [];
     }
   },
 
