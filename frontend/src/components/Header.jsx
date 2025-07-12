@@ -1,6 +1,6 @@
 // frontend/src/components/Header.jsx
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FaBars, FaTimes, FaHome, FaBell, FaUsers, FaSignInAlt, FaSignOutAlt, FaMapMarkedAlt, FaChartBar, FaUserCheck, FaUserCog } from 'react-icons/fa'; // הוסף FaMapMarkedAlt, FaChartBar, FaUserCheck ו-FaUserCog
 
 import mdaLogo from '../assets/mda_logo.png';
@@ -14,6 +14,7 @@ import { signOut } from 'firebase/auth';
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const navigate = useNavigate();
 
   const { currentUser, loading, userRole } = useAuth(); // הוסף userRole כדי לבדוק תפקיד
 
@@ -40,30 +41,33 @@ export default function Header() {
   }
   
   // הגדרת פריטי הניווט בהתאם למצב המשתמש
-  const navItemsLoggedIn = [
-    // רכזים (userType === 1) יראו את מסך הקריאות הרגיל
-    ...(userRole === 1 ? [{ label: 'מסך הקריאות', icon: <FaBell />, to: '/dashboard', isButton: false }] : []),
-    
-    // מתנדבים (userType === 2) יראו את לוח המחוונים שלהם
-    ...(userRole === 2 ? [{ label: 'הפניות שלי', icon: <FaBell />, to: '/volunteer-dashboard', isButton: false }] : []),
-    
-    // פרופיל מתנדב
-    ...(userRole === 2 ? [{ label: 'הפרופיל שלי', icon: <FaUserCog />, to: '/volunteer-profile', isButton: false }] : []),
-    
-    // הוסף את הקישור למפת המתנדבים כאן
-    // נציג אותו רק אם המשתמש הוא רכז (userType === 1)
-    ...(userRole === 1 ? [{ label: 'מפת מתנדבים', icon: <FaMapMarkedAlt />, to: '/volunteer-map', isButton: false }] : []),
-    // הוסף את הקישור לדף התובנות כאן
-    // נציג אותו רק אם המשתמש הוא רכז (userType === 1)
-    ...(userRole === 1 ? [{ label: 'תובנות', icon: <FaChartBar />, to: '/insights', isButton: false }] : []), // <--- חדש: קישור לדף תובנות
-    // קישור חדש: ניהול מתנדבים
-    ...(userRole === 1 ? [{ label: 'ניהול מתנדבים', icon: <FaUsers />, to: '/volunteer-management', isButton: false }] : []),
-    // קישור חדש: אישור רכזים
-    ...(userRole === 1 ? [{ label: 'אישור רכזים', icon: <FaUserCheck />, to: '/coordinator-approval', isButton: false }] : []),
-    // קישור חדש: פרופיל רכז
-    ...(userRole === 1 ? [{ label: 'הפרופיל שלי', icon: <FaUserCog />, to: '/coordinator-profile', isButton: false }] : []),
-    { label: 'התנתק', icon: <FaSignOutAlt />, onClick: handleLogout, isButton: true },
-  ];
+  const navItemsLoggedIn = [];
+  
+  // Convert userRole to number for consistent comparison
+  const userRoleNum = Number(userRole);
+  
+  // רכזים (userType === 1) יראו את כל האפשרויות
+  if (userRoleNum === 1 || userRole === 1 || userRole === '1') {
+    navItemsLoggedIn.push(
+      { label: 'מסך הקריאות', icon: <FaBell />, to: '/dashboard', isButton: false },
+      { label: 'מפת מתנדבים', icon: <FaMapMarkedAlt />, to: '/volunteer-map', isButton: false },
+      { label: 'תובנות', icon: <FaChartBar />, to: '/insights', isButton: false },
+      { label: 'ניהול מתנדבים', icon: <FaUsers />, to: '/volunteer-management', isButton: false },
+      { label: 'אישור רכזים', icon: <FaUserCheck />, to: '/coordinator-approval', isButton: false },
+      { label: 'הפרופיל שלי', icon: <FaUserCog />, to: '/coordinator-profile', isButton: false }
+    );
+  }
+  
+  // מתנדבים (userType === 2) יראו את לוח המחוונים שלהם
+  if (userRoleNum === 2 || userRole === 2 || userRole === '2') {
+    navItemsLoggedIn.push(
+      { label: 'הפניות שלי', icon: <FaBell />, to: '/volunteer-dashboard', isButton: false },
+      { label: 'הפרופיל שלי', icon: <FaUserCog />, to: '/volunteer-profile', isButton: false }
+    );
+  }
+  
+  // כל המשתמשים יראו התנתק
+  navItemsLoggedIn.push({ label: 'התנתק', icon: <FaSignOutAlt />, onClick: handleLogout, isButton: true });
 
   const navItemsLoggedOut = [
     { label: 'דיווח על נחיל', icon: <FaBell />, to: '/report', isButton: false },
@@ -73,6 +77,24 @@ export default function Header() {
 
   const currentNavItems = currentUser ? navItemsLoggedIn : navItemsLoggedOut;
   
+  // If we have a logged in user but no nav items (except logout), something is wrong
+  if (currentUser && navItemsLoggedIn.length <= 1) {
+    console.warn('Header - WARNING: Logged in user but no nav items! userRole might not be loaded correctly');
+    console.warn('Header - Adding fallback navigation items...');
+    console.warn('Header - userRole value:', userRole, 'type:', typeof userRole);
+    
+    // Add some basic fallback navigation (insert before logout)
+    const logoutItem = navItemsLoggedIn.pop(); // Remove logout temporarily
+    
+    // Add default volunteer navigation as fallback
+    navItemsLoggedIn.push(
+      { label: 'הפניות שלי', icon: <FaBell />, to: '/volunteer-dashboard', isButton: false },
+      { label: 'הפרופיל שלי', icon: <FaUserCog />, to: '/volunteer-profile', isButton: false }
+    );
+    navItemsLoggedIn.push(logoutItem); // Add logout back at the end
+    
+    console.warn('Header - Fallback navigation added:', navItemsLoggedIn.map(item => item.label));
+  }
   return (
     <>
       <div className="header">
@@ -101,15 +123,17 @@ export default function Header() {
                   <span>{item.label}</span>
                 </button>
               ) : (
-                <Link 
+                <button 
                   key={index} 
-                  to={item.to} 
                   className="nav-link"
                   style={{ position: 'relative', zIndex: 1001, pointerEvents: 'auto' }}
+                  onClick={() => {
+                    navigate(item.to);
+                  }}
                 >
                   {item.icon}
                   <span>{item.label}</span>
-                </Link>
+                </button>
               )
             ))}
           </div>
@@ -136,17 +160,17 @@ export default function Header() {
                   <span>{item.label}</span>
                 </button>
               ) : (
-                <Link 
+                <button 
                   key={index} 
-                  to={item.to} 
                   className="menu-item" 
                   onClick={() => {
+                    navigate(item.to);
                     setMenuOpen(false);
                   }}
                 >
                   {item.icon}
                   <span>{item.label}</span>
-                </Link>
+                </button>
               )
             ))}
           </div>

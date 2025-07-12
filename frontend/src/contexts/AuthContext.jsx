@@ -9,7 +9,7 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider 
 } from 'firebase/auth'; 
-import { doc, getDoc, updateDoc } from 'firebase/firestore'; 
+import { doc, getDoc, updateDoc, collection, getDocs, setDoc } from 'firebase/firestore'; 
 
 const AuthContext = createContext();
 
@@ -99,6 +99,51 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Function to create missing user document
+  const createMissingUserDocument = async (user) => {
+    try {
+      // Create a basic user document with default volunteer settings
+      const userDocData = {
+        uid: user.uid,
+        email: user.email,
+        name: user.displayName || user.email.split('@')[0], // Use display name or email prefix
+        firstName: user.displayName ? user.displayName.split(' ')[0] : user.email.split('@')[0],
+        lastName: user.displayName ? user.displayName.split(' ')[1] || '' : '',
+        userType: 2, // Default to volunteer (2)
+        createdAt: new Date().toISOString(),
+        signupDate: new Date().toLocaleDateString('he-IL'),
+        isActive: true,
+        // Add some default fields for volunteers
+        phoneNumber: '',
+        city: '',
+        streetName: '',
+        houseNumber: '',
+        address: '',
+        idNumber: '',
+        beeExperience: false,
+        beekeepingExperience: false,
+        hasTraining: false,
+        heightPermit: false,
+        additionalDetails: 'חשבון נוצר אוטומטית - יש לעדכן פרטים',
+        lat: 0,
+        lng: 0,
+        agreedToEthics: true
+      };
+      
+      const userDocRef = doc(db, 'user', user.uid);
+      await setDoc(userDocRef, userDocData);
+      
+      // Update local state
+      setUserData(userDocData);
+      setUserRole(userDocData.userType);
+      
+      return userDocData;
+    } catch (error) {
+      console.error("Error creating missing user document:", error);
+      throw error;
+    }
+  };
+
   // פונקציה לרענון נתוני המשתמש מ-Firestore
   const refreshUserData = async () => {
     if (!currentUser) return;
@@ -133,12 +178,18 @@ export function AuthProvider({ children }) {
             const userDataFromFirestore = userDocSnap.data();
             setUserRole(userDataFromFirestore.userType);
             setUserData(userDataFromFirestore);
-            console.log("AuthContext: User data loaded:", userDataFromFirestore);
-            console.log("AuthContext: User Type:", userDataFromFirestore.userType);
           } else {
             console.log("AuthContext: No user data found in 'user' collection for UID:", user.uid);
-            setUserRole(null);
-            setUserData(null);
+            
+            // Automatically create missing user document
+            try {
+              await createMissingUserDocument(user);
+              console.log("AuthContext: Successfully created missing user document");
+            } catch (createError) {
+              console.error("AuthContext: Failed to create missing user document:", createError);
+              setUserRole(null);
+              setUserData(null);
+            }
           }
         } catch (error) {
           console.error("AuthContext: Error fetching user role from Firestore:", error);

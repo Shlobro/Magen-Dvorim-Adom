@@ -13,8 +13,8 @@ service cloud.firestore {
     }
 
     // כלל עבור קולקציית 'user' - אפשר לרכזים לקרוא את כל הקולקציה
-    match /user/{document=**} {
-      // אפשר לרכזים לקרוא את כל קולקציית המשתמשים (כולל queries)
+    match /user {
+      // אפשר לרכזים לקרוא את כל קולקציית המשתמשים
       allow read: if request.auth != null && 
                         get(/databases/$(database)/documents/user/$(request.auth.uid)).data.userType == 1;
     }
