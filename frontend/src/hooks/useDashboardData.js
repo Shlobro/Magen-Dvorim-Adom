@@ -76,13 +76,37 @@ export const useDashboardData = (currentUser, userRole, authLoading, showSuccess
         setLoading(true)
         let fetchedInquiries = []
         if (userRole === 1) {
-          // Coordinator role - get ALL inquiries, not just assigned ones
-          console.log('🔥 Dashboard: Loading all inquiries for coordinator...');
-          const inquiriesRef = collection(db, "inquiry")
-          const allInquiriesQuery = inquiriesRef
-          const inquirySnap = await getDocs(allInquiriesQuery)
-          fetchedInquiries = inquirySnap.docs.map((d) => ({ id: d.id, ...d.data() }))
-          console.log('✅ Dashboard: Loaded', fetchedInquiries.length, 'inquiries');
+          // Coordinator role - get inquiries assigned to this coordinator OR unassigned ones
+          console.log('🔥 Dashboard: Loading inquiries for coordinator...');
+          
+          try {
+            // Try backend API first
+            const backendUrl = import.meta.env.VITE_API_BASE || 
+                              (import.meta.env.PROD ? 'https://magen-dvorim-adom-backend.railway.app' : 'http://localhost:3001');
+            
+            const response = await fetch(`${backendUrl}/api/inquiries?coordinatorId=${currentUser.uid}`)
+            if (!response.ok) {
+              throw new Error('Backend API failed')
+            }
+            fetchedInquiries = await response.json()
+            console.log('✅ Dashboard: Loaded', fetchedInquiries.length, 'inquiries from backend API');
+          } catch (apiError) {
+            console.warn('Backend API failed, falling back to direct Firestore:', apiError.message);
+            
+            // Fallback to direct Firestore query
+            const inquiriesRef = collection(db, "inquiry")
+            const allInquiriesQuery = inquiriesRef
+            const inquirySnap = await getDocs(allInquiriesQuery)
+            const allInquiries = inquirySnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+            
+            // Filter for coordinator's inquiries and unassigned ones
+            fetchedInquiries = allInquiries.filter(inquiry => {
+              return !inquiry.coordinatorId || 
+                     inquiry.coordinatorId === '' || 
+                     inquiry.coordinatorId === currentUser.uid;
+            });
+            console.log('✅ Dashboard: Loaded', fetchedInquiries.length, 'inquiries from Firestore fallback');
+          }
         } else {
           const inquiriesRef = collection(db, "inquiry")
           const allInquiriesQuery = inquiriesRef
@@ -100,12 +124,17 @@ export const useDashboardData = (currentUser, userRole, authLoading, showSuccess
         const coordinatorUids = new Set()
 
         fetchedInquiries.forEach((call) => {
-          if (
-            call.assignedVolunteers &&
-            typeof call.assignedVolunteers === "string" &&
-            call.assignedVolunteers.trim() !== ""
-          ) {
-            volunteerUids.add(call.assignedVolunteers)
+          // Handle both array and string formats for assignedVolunteers
+          if (call.assignedVolunteers) {
+            if (Array.isArray(call.assignedVolunteers)) {
+              call.assignedVolunteers.forEach(uid => {
+                if (uid && uid.trim() !== "") {
+                  volunteerUids.add(uid)
+                }
+              })
+            } else if (typeof call.assignedVolunteers === "string" && call.assignedVolunteers.trim() !== "") {
+              volunteerUids.add(call.assignedVolunteers)
+            }
           }
           if (call.coordinatorId && typeof call.coordinatorId === "string" && call.coordinatorId.trim() !== "") {
             coordinatorUids.add(call.coordinatorId)
@@ -146,13 +175,25 @@ export const useDashboardData = (currentUser, userRole, authLoading, showSuccess
         coordinatorNamesRef.current = uidToCoordinatorName // Store for later use if needed
 
         // Merge names and ensure coordinatorId is present (or null)
-        const withNames = fetchedInquiries.map((c) => ({
-          ...c,
-          assignedVolunteerName: uidToVolunteerName[c.assignedVolunteers] ?? "-",
-          coordinatorId: c.coordinatorId || null,
-          coordinatorName:
-            c.coordinatorId && uidToCoordinatorName[c.coordinatorId] ? uidToCoordinatorName[c.coordinatorId] : "-", // Add coordinatorName
-        }))
+        const withNames = fetchedInquiries.map((c) => {
+          // Get assigned volunteer name (handle both array and string formats)
+          let assignedVolunteerName = "-"
+          if (c.assignedVolunteers) {
+            if (Array.isArray(c.assignedVolunteers) && c.assignedVolunteers.length > 0) {
+              assignedVolunteerName = uidToVolunteerName[c.assignedVolunteers[0]] ?? "-"
+            } else if (typeof c.assignedVolunteers === "string") {
+              assignedVolunteerName = uidToVolunteerName[c.assignedVolunteers] ?? "-"
+            }
+          }
+
+          return {
+            ...c,
+            assignedVolunteerName,
+            coordinatorId: c.coordinatorId || null,
+            coordinatorName:
+              c.coordinatorId && uidToCoordinatorName[c.coordinatorId] ? uidToCoordinatorName[c.coordinatorId] : "-", // Add coordinatorName
+          }
+        })
 
         setCalls(withNames)
         setLoading(false)
@@ -192,7 +233,9 @@ export const useDashboardData = (currentUser, userRole, authLoading, showSuccess
         return
       }
       
-      const hasVolunteerAssigned = currentCall && currentCall.assignedVolunteers && currentCall.assignedVolunteers !== "-" && currentCall.assignedVolunteers !== null
+      const hasVolunteerAssigned = currentCall && currentCall.assignedVolunteers && 
+        ((Array.isArray(currentCall.assignedVolunteers) && currentCall.assignedVolunteers.length > 0) ||
+         (typeof currentCall.assignedVolunteers === "string" && currentCall.assignedVolunteers !== "-" && currentCall.assignedVolunteers !== null && currentCall.assignedVolunteers !== ""))
 
       // Check if trying to set a status that requires a volunteer when none is assigned
       if (statusesRequiringVolunteer.includes(newStatus) && !hasVolunteerAssigned) {
@@ -411,9 +454,10 @@ export const useDashboardData = (currentUser, userRole, authLoading, showSuccess
           call.id === inquiryId
             ? {
                 ...call,
-                assignedVolunteers: newVolunteerId,
+                assignedVolunteers: [newVolunteerId],
                 assignedVolunteerName: newVolunteerName,
                 status: "לפנייה שובץ מתנדב",
+                coordinatorId: currentUser.uid, // Ensure ownership is maintained
               }
             : call,
         ),

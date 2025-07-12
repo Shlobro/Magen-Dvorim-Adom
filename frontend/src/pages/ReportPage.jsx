@@ -86,7 +86,7 @@ export default function ReportPage() {
 
       // Save inquiry to Firestore via your backend API
       // saveInquiry returns { id: docRef.id, message: 'success message' }
-      const response = await saveInquiry(inquiryData);
+      const response = await saveInquiry(inquiryData, coordinatorId);
       // Get the inquiry ID from the response
       const inquiryId = response.id; 
 
