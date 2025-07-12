@@ -342,12 +342,37 @@ router.post('/:id/release-ownership', async (req, res) => {
 router.get('/volunteer/:volunteerId', async (req, res) => {
   const { volunteerId } = req.params;
   try {
-    // Query inquiries where assignedVolunteers contains the volunteer ID
-    const snap = await db.collection('inquiry')
-      .where('assignedVolunteers', '==', volunteerId)
-      .get();
+    let inquiries = [];
     
-    const inquiries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Query inquiries where assignedVolunteers is an array containing the volunteer ID
+    try {
+      const arraySnap = await db.collection('inquiry')
+        .where('assignedVolunteers', 'array-contains', volunteerId)
+        .get();
+      
+      arraySnap.docs.forEach(d => {
+        inquiries.push({ id: d.id, ...d.data() });
+      });
+    } catch (error) {
+      console.warn('Array query failed:', error.message);
+    }
+    
+    // Query inquiries where assignedVolunteers is a string equal to the volunteer ID (legacy format)
+    try {
+      const stringSnap = await db.collection('inquiry')
+        .where('assignedVolunteers', '==', volunteerId)
+        .get();
+      
+      stringSnap.docs.forEach(d => {
+        const existingIds = inquiries.map(inq => inq.id);
+        if (!existingIds.includes(d.id)) {
+          inquiries.push({ id: d.id, ...d.data() });
+        }
+      });
+    } catch (error) {
+      console.warn('String query failed:', error.message);
+    }
+    
     res.json(inquiries);
   } catch (e) {
     console.error('Error fetching volunteer inquiries:', e);
@@ -368,7 +393,7 @@ router.post('/:id/reassign', async (req, res) => {
     
     // Update the assigned volunteer
     await docRef.update({ 
-      assignedVolunteers: volunteerId,
+      assignedVolunteers: [volunteerId],
       status: 'לפנייה שובץ מתנדב',
       reassignedAt: new Date().toISOString()
     });

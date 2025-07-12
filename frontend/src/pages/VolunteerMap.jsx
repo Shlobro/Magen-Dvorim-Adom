@@ -279,19 +279,80 @@ export default function VolunteerMap() {
 
   const fetchInquiries = useCallback(async () => {
     console.log('🔄 fetchInquiries called');
+    
+    if (!currentUser) {
+      console.log('❌ No current user, skipping inquiry fetch');
+      return;
+    }
+    
     try {
-      const q = query(
-        collection(db, "inquiry"),
-        where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב", "המתנדב בדרך"]),
-      )
-      console.log('📡 Querying Firebase for inquiries...');
-      const querySnapshot = await getDocs(q)
-      console.log(`📊 Raw results from Firebase: ${querySnapshot.docs.length} inquiries`);
-      const fetched = querySnapshot.docs.map((doc) => {
-        const data = doc.data()
-        const { lat, lng } = extractCoordinates(data)
-        return { id: doc.id, ...data, lat, lng }
-      })
+      let fetched = [];
+      
+      if (userRole === 1) {
+        // Coordinator role - get inquiries assigned to this coordinator OR unassigned ones
+        console.log('🎯 Fetching inquiries for coordinator on map...');
+        
+        try {
+          // Try backend API first (same as dashboard)
+          const backendUrl = import.meta.env.VITE_API_BASE || 
+                            (import.meta.env.PROD ? 'https://magen-dvorim-adom-backend.railway.app' : 'http://localhost:3001');
+          
+          const response = await fetch(`${backendUrl}/api/inquiries?coordinatorId=${currentUser.uid}`)
+          if (!response.ok) {
+            throw new Error('Backend API failed')
+          }
+          const inquiries = await response.json()
+          
+          // Filter by status and add coordinates
+          fetched = inquiries
+            .filter(inquiry => ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב", "המתנדב בדרך"].includes(inquiry.status))
+            .map((data) => {
+              const { lat, lng } = extractCoordinates(data)
+              return { id: data.id, ...data, lat, lng }
+            })
+          
+          console.log('✅ Map: Loaded', fetched.length, 'coordinator inquiries from backend API');
+        } catch (apiError) {
+          console.warn('Backend API failed, falling back to direct Firestore:', apiError.message);
+          
+          // Fallback to direct Firestore query
+          const q = query(
+            collection(db, "inquiry"),
+            where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב", "המתנדב בדרך"]),
+          )
+          const querySnapshot = await getDocs(q)
+          const allInquiries = querySnapshot.docs.map((doc) => {
+            const data = doc.data()
+            const { lat, lng } = extractCoordinates(data)
+            return { id: doc.id, ...data, lat, lng }
+          })
+          
+          // Filter for coordinator's inquiries and unassigned ones
+          fetched = allInquiries.filter(inquiry => {
+            return !inquiry.coordinatorId || 
+                   inquiry.coordinatorId === '' || 
+                   inquiry.coordinatorId === currentUser.uid;
+          });
+          
+          console.log('✅ Map: Loaded', fetched.length, 'coordinator inquiries from Firestore fallback');
+        }
+      } else {
+        // Non-coordinator users - get all inquiries (existing behavior)
+        const q = query(
+          collection(db, "inquiry"),
+          where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב", "המתנדב בדרך"]),
+        )
+        console.log('📡 Querying Firebase for all inquiries...');
+        const querySnapshot = await getDocs(q)
+        fetched = querySnapshot.docs.map((doc) => {
+          const data = doc.data()
+          const { lat, lng } = extractCoordinates(data)
+          return { id: doc.id, ...data, lat, lng }
+        })
+        console.log('✅ Map: Loaded', fetched.length, 'inquiries for non-coordinator');
+      }
+
+      console.log(`📊 Raw results: ${fetched.length} inquiries`);
 
       // 1. Filter out bad coords
       const validInquiries = fetched.filter(
@@ -305,18 +366,23 @@ export default function VolunteerMap() {
       
       // Log first few inquiries for debugging
       fetched.slice(0, 3).forEach((inq, idx) => {
-        console.log(`  - Inquiry ${idx + 1}: lat=${inq.lat}, lng=${inq.lng}, status=${inq.status}`)
+        console.log(`  - Inquiry ${idx + 1}: lat=${inq.lat}, lng=${inq.lng}, status=${inq.status}, coordinatorId=${inq.coordinatorId}`)
       })
 
       // 2. Collect all unique volunteer UIDs
       const volunteerUids = new Set()
       validInquiries.forEach((call) => {
-        if (
-          call.assignedVolunteers &&
-          typeof call.assignedVolunteers === "string" &&
-          call.assignedVolunteers.trim() !== ""
-        ) {
-          volunteerUids.add(call.assignedVolunteers)
+        // Handle both array and string formats
+        if (call.assignedVolunteers) {
+          if (Array.isArray(call.assignedVolunteers)) {
+            call.assignedVolunteers.forEach(uid => {
+              if (uid && uid.trim() !== "") {
+                volunteerUids.add(uid)
+              }
+            })
+          } else if (typeof call.assignedVolunteers === "string" && call.assignedVolunteers.trim() !== "") {
+            volunteerUids.add(call.assignedVolunteers)
+          }
         }
       })
 
@@ -344,11 +410,23 @@ export default function VolunteerMap() {
       })
 
       // 5. Assign sequential number and add volunteer names
-      const numbered = validInquiries.map((inq, idx) => ({
-        ...inq,
-        seqNum: idx + 1,
-        assignedVolunteerName: uidToVolunteerName[inq.assignedVolunteers] ?? "-",
-      }))
+      const numbered = validInquiries.map((inq, idx) => {
+        // Get the first assigned volunteer name (handle both array and string formats)
+        let assignedVolunteerName = "-"
+        if (inq.assignedVolunteers) {
+          if (Array.isArray(inq.assignedVolunteers) && inq.assignedVolunteers.length > 0) {
+            assignedVolunteerName = uidToVolunteerName[inq.assignedVolunteers[0]] ?? "-"
+          } else if (typeof inq.assignedVolunteers === "string") {
+            assignedVolunteerName = uidToVolunteerName[inq.assignedVolunteers] ?? "-"
+          }
+        }
+        
+        return {
+          ...inq,
+          seqNum: idx + 1,
+          assignedVolunteerName,
+        }
+      })
 
       setAllInquiries(numbered)
       
@@ -365,7 +443,7 @@ export default function VolunteerMap() {
     } catch (error) {
       console.error("Error fetching inquiries:", error)
     }
-  }, [])
+  }, [currentUser, userRole])
 
   useEffect(() => {
     fetchInquiries()
@@ -382,13 +460,18 @@ export default function VolunteerMap() {
         filtered = allInquiries.filter(
           (inquiry) =>
             inquiry.status === "נפתחה פנייה (טופס מולא)" &&
-            (!inquiry.assignedVolunteers || inquiry.assignedVolunteers === ""),
+            (!inquiry.assignedVolunteers || 
+             (Array.isArray(inquiry.assignedVolunteers) && inquiry.assignedVolunteers.length === 0) ||
+             (typeof inquiry.assignedVolunteers === "string" && inquiry.assignedVolunteers === "")),
         )
         break
       case "assigned":
         filtered = allInquiries.filter(
           (inquiry) =>
-            inquiry.status === "לפנייה שובץ מתנדב" || (inquiry.assignedVolunteers && inquiry.assignedVolunteers !== ""),
+            inquiry.status === "לפנייה שובץ מתנדב" || 
+            (inquiry.assignedVolunteers && 
+             ((Array.isArray(inquiry.assignedVolunteers) && inquiry.assignedVolunteers.length > 0) ||
+              (typeof inquiry.assignedVolunteers === "string" && inquiry.assignedVolunteers !== ""))),
         )
         break
       case "in-progress":
@@ -593,7 +676,7 @@ export default function VolunteerMap() {
     try {
       const inquiryRef = doc(db, "inquiry", inquiryId)
       await updateDoc(inquiryRef, {
-        assignedVolunteers: volunteerToAssignId,
+        assignedVolunteers: [volunteerToAssignId],
         status: "לפנייה שובץ מתנדב",
         assignedTimestamp: Timestamp.now(),
       })

@@ -12,11 +12,17 @@ export const saveUser = async (user) => {
   return await userService.createUser(user);
 };
 
-export const saveInquiry = async (inquiry) => {
+export const saveInquiry = async (inquiry, coordinatorId = null) => {
   try {
+    // If a coordinator is creating this inquiry, add coordinatorId
+    if (coordinatorId) {
+      inquiry.coordinatorId = coordinatorId;
+      console.log('🎯 Assigning ownership to coordinator:', coordinatorId);
+    }
+
     // Determine the correct backend URL
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 
-                      (import.meta.env.PROD ? 'https://magen-dvorim-adom-backend.railway.app' : 'http://localhost:3000');
+    const backendUrl = import.meta.env.VITE_API_BASE || 
+                      (import.meta.env.PROD ? 'https://magen-dvorim-adom-backend.railway.app' : 'http://localhost:3001');
     
     console.log('🔄 Saving inquiry via backend API with geocoding...');
     console.log('  - Backend URL:', backendUrl);
@@ -72,7 +78,7 @@ export const saveInquiry = async (inquiry) => {
       
       // Fallback to direct Firestore creation
       console.log('🔄 Using direct Firestore creation as fallback...');
-      const result = await inquiryService.createInquiry(inquiry);
+      const result = await inquiryService.createInquiry(inquiry, coordinatorId);
       
       if (!inquiry.location) {
         console.warn('⚠️ WARNING: Inquiry saved without coordinates! Manual geocoding may be needed.');

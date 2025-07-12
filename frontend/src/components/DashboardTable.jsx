@@ -149,39 +149,51 @@ const DashboardTable = ({
                 </td>
 
                 <td className="table-cell nowrap">
-                  {call.assignedVolunteers && call.assignedVolunteers !== "-" ? (
-                    <div className="volunteer-assignment">
-                      <div className="current-volunteer">
-                        נוכחי: {call.assignedVolunteerName}
+                  {(() => {
+                    // Check if volunteer is assigned (handle both array and string formats)
+                    const hasAssignedVolunteer = call.assignedVolunteers && 
+                      ((Array.isArray(call.assignedVolunteers) && call.assignedVolunteers.length > 0) ||
+                       (typeof call.assignedVolunteers === "string" && call.assignedVolunteers !== "-" && call.assignedVolunteers !== ""))
+                    
+                    // Get current assigned volunteer ID (handle both formats)
+                    const currentVolunteerId = Array.isArray(call.assignedVolunteers) 
+                      ? call.assignedVolunteers[0] 
+                      : call.assignedVolunteers
+                    
+                    return hasAssignedVolunteer ? (
+                      <div className="volunteer-assignment">
+                        <div className="current-volunteer">
+                          נוכחי: {call.assignedVolunteerName}
+                        </div>
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleReassignVolunteer(call.id, e.target.value)
+                              e.target.value = ""
+                            }
+                          }}
+                          onFocus={fetchVolunteers}
+                          disabled={loadingVolunteers || call.coordinatorId !== currentUser?.uid}
+                          className={getVolunteerAssignmentClasses(call.coordinatorId, currentUser?.uid)}
+                          title={call.coordinatorId !== currentUser?.uid ? "יש לקחת בעלות על הפנייה כדי להחליף מתנדב" : ""}
+                        >
+                          <option value="">החלף מתנדב...</option>
+                          {volunteers.map((volunteer) => (
+                            <option
+                              key={volunteer.id}
+                              value={volunteer.id}
+                              disabled={volunteer.id === currentVolunteerId}
+                            >
+                              {volunteer.name || `${volunteer.firstName} ${volunteer.lastName}`}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            handleReassignVolunteer(call.id, e.target.value)
-                            e.target.value = ""
-                          }
-                        }}
-                        onFocus={fetchVolunteers}
-                        disabled={loadingVolunteers || call.coordinatorId !== currentUser?.uid}
-                        className={getVolunteerAssignmentClasses(call.coordinatorId, currentUser?.uid)}
-                        title={call.coordinatorId !== currentUser?.uid ? "יש לקחת בעלות על הפנייה כדי להחליף מתנדב" : ""}
-                      >
-                        <option value="">החלף מתנדב...</option>
-                        {volunteers.map((volunteer) => (
-                          <option
-                            key={volunteer.id}
-                            value={volunteer.id}
-                            disabled={volunteer.id === call.assignedVolunteers}
-                          >
-                            {volunteer.name || `${volunteer.firstName} ${volunteer.lastName}`}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ) : (
-                    <span style={{ color: "#999", fontStyle: "italic" }}>לא שובץ מתנדב</span>
-                  )}
+                    ) : (
+                      <span style={{ color: "#999", fontStyle: "italic" }}>לא שובץ מתנדב</span>
+                    )
+                  })()}
                 </td>
 
                 <td className="table-cell nowrap">

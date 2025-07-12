@@ -533,48 +533,51 @@ export const inquiryService = {
   // Get volunteer inquiries
   async getVolunteerInquiries(volunteerId) {
     try {
-      let inquiryQuery;
       let inquiries = [];
       
-      // Try the complex query first, fall back to simple query if index doesn't exist
+      // Query for inquiries where assignedVolunteers is an array containing the volunteer ID
       try {
-        inquiryQuery = query(
-          collection(db, 'inquiry'),
-          where('assignedVolunteers', 'array-contains', volunteerId),
-          orderBy('createdAt', 'desc')
-        );
-        
-        const snapshot = await getDocs(inquiryQuery);
-        snapshot.forEach(doc => {
-          inquiries.push({ id: doc.id, ...doc.data() });
-        });
-        
-        return inquiries;
-      } catch (indexError) {
-        console.warn('Composite index not available for volunteer inquiries, using simple query:', indexError.message);
-        
-        // Fallback to simple query without ordering
-        inquiryQuery = query(
+        const arrayQuery = query(
           collection(db, 'inquiry'),
           where('assignedVolunteers', 'array-contains', volunteerId)
         );
         
-        const snapshot = await getDocs(inquiryQuery);
-        snapshot.forEach(doc => {
+        const arraySnapshot = await getDocs(arrayQuery);
+        arraySnapshot.forEach(doc => {
           inquiries.push({ id: doc.id, ...doc.data() });
         });
-        
-        // Sort manually by createdAt
-        if (inquiries.length > 0) {
-          inquiries.sort((a, b) => {
-            const aDate = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
-            const bDate = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
-            return bDate - aDate;
-          });
-        }
-        
-        return inquiries;
+      } catch (error) {
+        console.warn('Array query failed:', error.message);
       }
+      
+      // Query for inquiries where assignedVolunteers is a string equal to the volunteer ID (legacy format)
+      try {
+        const stringQuery = query(
+          collection(db, 'inquiry'),
+          where('assignedVolunteers', '==', volunteerId)
+        );
+        
+        const stringSnapshot = await getDocs(stringQuery);
+        stringSnapshot.forEach(doc => {
+          const existingIds = inquiries.map(inq => inq.id);
+          if (!existingIds.includes(doc.id)) {
+            inquiries.push({ id: doc.id, ...doc.data() });
+          }
+        });
+      } catch (error) {
+        console.warn('String query failed:', error.message);
+      }
+      
+      // Sort manually by createdAt
+      if (inquiries.length > 0) {
+        inquiries.sort((a, b) => {
+          const aDate = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+          const bDate = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+          return bDate - aDate;
+        });
+      }
+      
+      return inquiries;
     } catch (error) {
       console.error('Error fetching volunteer inquiries:', error);
       // Return empty array instead of throwing to prevent crashes
@@ -583,11 +586,18 @@ export const inquiryService = {
   },
 
   // Create new inquiry
-  async createInquiry(inquiryData) {
+  async createInquiry(inquiryData, coordinatorId = null) {
     try {
       console.log('🔄 Creating inquiry with direct Firestore access...');
       console.log('  - Has coordinates:', !!(inquiryData.location?.latitude && inquiryData.location?.longitude));
       console.log('  - City/Address:', { city: inquiryData.city, address: inquiryData.address });
+      console.log('  - Coordinator ID:', coordinatorId);
+      
+      // If a coordinator is creating this inquiry, assign ownership automatically
+      if (coordinatorId) {
+        inquiryData.coordinatorId = coordinatorId;
+        console.log('🎯 Automatically assigning ownership to coordinator:', coordinatorId);
+      }
       
       // Attempt client-side geocoding if no coordinates are provided
       if (!inquiryData.location && inquiryData.city && inquiryData.address) {
