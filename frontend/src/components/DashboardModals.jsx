@@ -1,9 +1,6 @@
 import React from 'react'
 
 const DashboardModals = ({
-  isCommentModalOpen,
-  selectedComment,
-  handleCloseComment,
   isDetailsModalOpen,
   selectedCallDetails,
   handleCloseDetails,
@@ -12,32 +9,12 @@ const DashboardModals = ({
   handleDownloadPhoto
 }) => {
   
-  if (!isCommentModalOpen && !isDetailsModalOpen) {
+  if (!isDetailsModalOpen) {
     return null
   }
 
   return (
     <>
-      {/* Comment Modal */}
-      {isCommentModalOpen && selectedComment && (
-        <div className="modal-overlay" onClick={handleCloseComment}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">הערות נוספות</h3>
-              <button
-                onClick={handleCloseComment}
-                className="modal-close-button"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="modal-body">
-              <p className="comment-text">{selectedComment}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Details Modal */}
       {isDetailsModalOpen && selectedCallDetails && (
         <div className="modal-overlay" onClick={handleCloseDetails}>
