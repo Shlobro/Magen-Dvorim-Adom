@@ -49,6 +49,54 @@ import {
 } from "@mui/icons-material"
 import { useNotification } from "../contexts/NotificationContext"
 
+// Helper function to convert Firestore Timestamp objects to JavaScript Date objects
+const convertFirestoreTimestamp = (timestamp) => {
+  if (!timestamp) return null;
+  
+  // Handle Firestore Timestamp objects
+  if (timestamp && typeof timestamp === 'object' && timestamp.seconds) {
+    return new Date(timestamp.seconds * 1000);
+  }
+  
+  // Handle regular Date objects or date strings
+  if (timestamp instanceof Date) {
+    return timestamp;
+  }
+  
+  // Handle date strings
+  if (typeof timestamp === 'string') {
+    return new Date(timestamp);
+  }
+  
+  return null;
+};
+
+// Helper function to clean volunteer data by converting Firestore Timestamps
+const cleanVolunteerData = (volunteer) => {
+  return {
+    ...volunteer,
+    createdAt: convertFirestoreTimestamp(volunteer.createdAt),
+    updatedAt: convertFirestoreTimestamp(volunteer.updatedAt),
+    signupDate: convertFirestoreTimestamp(volunteer.signupDate),
+    passwordLastChanged: convertFirestoreTimestamp(volunteer.passwordLastChanged),
+  };
+};
+
+// Helper function to safely format dates for display
+const formatDate = (date) => {
+  if (!date) return "לא זמין";
+  
+  try {
+    if (date instanceof Date) {
+      return date.toLocaleDateString("he-IL");
+    }
+    return new Date(date).toLocaleDateString("he-IL");
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return "לא זמין";
+  }
+};
+
 export default function VolunteerManagement() {
   const [volunteers, setVolunteers] = useState([])
   const { showSuccess, showError, showConfirmDialog } = useNotification()
@@ -91,7 +139,9 @@ export default function VolunteerManagement() {
         const allUsers = await userService.getAllUsers()
         console.log('📊 VolunteerManagement: Received', allUsers.length, 'total users')
         
-        const volunteers = allUsers.filter((u) => u.userType === 2)
+        const volunteers = allUsers
+          .filter((u) => u.userType === 2)
+          .map(cleanVolunteerData); // Clean the data here
         console.log('✅ VolunteerManagement: Filtered to', volunteers.length, 'volunteers')
         
         setVolunteers(volunteers)
@@ -131,8 +181,11 @@ export default function VolunteerManagement() {
 
   // Handle opening volunteer details modal
   const handleOpenVolunteerDetails = (volunteer) => {
-    setSelectedVolunteerDetails(volunteer)
-    setIsDetailsModalOpen(true)
+    // Clean the volunteer data before setting it in state
+    const cleanedVolunteer = cleanVolunteerData(volunteer);
+    console.log('Opening volunteer details for:', cleanedVolunteer);
+    setSelectedVolunteerDetails(cleanedVolunteer);
+    setIsDetailsModalOpen(true);
   }
 
   // Handle closing volunteer details modal
@@ -1584,10 +1637,8 @@ export default function VolunteerManagement() {
                     תאריך הרשמה:
                   </Typography>
                   <Typography variant="body1" sx={{ fontSize: "1.1em", color: "#333" }}>
-                    {selectedVolunteerDetails.signupDate ||
-                     (selectedVolunteerDetails.createdAt 
-                      ? new Date(selectedVolunteerDetails.createdAt).toLocaleDateString("he-IL")
-                      : "לא זמין")}
+                    {formatDate(selectedVolunteerDetails.signupDate) ||
+                     formatDate(selectedVolunteerDetails.createdAt)}
                   </Typography>
                 </Paper>
 
@@ -1779,6 +1830,7 @@ export default function VolunteerManagement() {
                     </Typography>
                     <Box sx={{ maxHeight: "150px", overflow: "auto" }}>
                       {uploadErrors.slice(0, 10).map((error, index) => (
+                       
                         <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
                           • {error}
                         </Typography>

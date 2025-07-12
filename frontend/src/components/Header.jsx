@@ -95,7 +95,6 @@ export default function Header() {
     
     console.warn('Header - Fallback navigation added:', navItemsLoggedIn.map(item => item.label));
   }
-
   return (
     <>
       <div className="header">

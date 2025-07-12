@@ -11,6 +11,7 @@ import { useLocation, useNavigate } from "react-router-dom"
 import { useNotification } from "../contexts/NotificationContext"
 import { useAuth } from "../contexts/AuthContext"
 import { takeOwnership, releaseOwnership } from "../services/inquiryApi"
+import { userService } from "../services/firebaseService"
 import {
   Card,
   CardContent,
@@ -51,6 +52,17 @@ import {
   Search,
 } from "@mui/icons-material"
 
+// Debug Firebase connection on load
+console.log('🔧 VolunteerMap: Firebase connection check:')
+console.log('  - db object exists:', !!db)
+console.log('  - db app name:', db?.app?.name)
+console.log('  - Environment mode:', import.meta.env.MODE)
+console.log('  - Current URL:', window.location.href)
+
+if (!db) {
+  console.error('❌ Firebase database not initialized in VolunteerMap!')
+}
+
 // Helper function to create bee icon safely
 const createBeeIcon = () => {
   try {
@@ -59,8 +71,8 @@ const createBeeIcon = () => {
       const icon = new L.Icon({
         iconUrl: beeIconUrl,
         iconSize: [48, 48],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -32],
+        iconAnchor: [24, 48],
+        popupAnchor: [0, -48],
       })
       console.log('✅ Bee icon created successfully')
       return icon
@@ -69,6 +81,50 @@ const createBeeIcon = () => {
     }
   } catch (error) {
     console.error('❌ Error creating bee icon:', error)
+  }
+  return null
+}
+
+// Helper function to create volunteer icon safely
+const createVolunteerIcon = () => {
+  try {
+    console.log('Creating volunteer icon, L object:', L)
+    if (L && L.DivIcon) {
+      // Create a professional volunteer icon
+      const icon = new L.DivIcon({
+        className: 'volunteer-marker',
+        html: `<div style="
+          width: 32px;
+          height: 32px;
+          background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+          border: 3px solid white;
+          border-radius: 50%;
+          box-shadow: 0 3px 12px rgba(25, 118, 210, 0.4);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-weight: bold;
+          font-size: 16px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          position: relative;
+        " onmouseover="this.style.transform='scale(1.15)'; this.style.boxShadow='0 5px 20px rgba(25, 118, 210, 0.6)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 3px 12px rgba(25, 118, 210, 0.4)'">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+          </svg>
+        </div>`,
+        iconSize: [38, 38],
+        iconAnchor: [19, 19],
+        popupAnchor: [0, -19],
+      })
+      console.log('✅ Volunteer icon created successfully')
+      return icon
+    } else {
+      console.error('❌ L or L.DivIcon not available:', { L: !!L, LDivIcon: !!(L && L.DivIcon) })
+    }
+  } catch (error) {
+    console.error('❌ Error creating volunteer icon:', error)
   }
   return null
 }
@@ -156,7 +212,7 @@ const calculateVolunteerScore = (volunteer, distance) => {
 
 export default function VolunteerMap() {
   // Debug log to confirm new version is loaded
-  console.log('🗺️ VolunteerMap loaded - New unified volunteer list v1.0.1 (Jan 6, 2025)');
+  console.log('🗺️ VolunteerMap loaded - New unified volunteer list v1.0.2 (Jan 8, 2025)');
   
   const [inquiries, setInquiries] = useState([])
   const [allInquiries, setAllInquiries] = useState([]) // Store all inquiries for filtering
@@ -169,6 +225,7 @@ export default function VolunteerMap() {
   const [volunteerSearchTerm, setVolunteerSearchTerm] = useState("") // Search filter for volunteers
   const [loadingVolunteers, setLoadingVolunteers] = useState(false) // Loading state for volunteers
   const [beeIcon, setBeeIcon] = useState(null) // State for bee icon
+  const [volunteerIcon, setVolunteerIcon] = useState(null) // State for volunteer icon
 
   const mapRef = useRef()
   const location = useLocation()
@@ -176,10 +233,34 @@ export default function VolunteerMap() {
   const { showSuccess, showError, showWarning, showConfirmDialog } = useNotification()
   const { currentUser, userRole, loading: authLoading } = useAuth()
 
-  // Initialize bee icon when component mounts
+  // Validate Firebase connection and auth before proceeding
   useEffect(() => {
-    const icon = createBeeIcon();
-    setBeeIcon(icon);
+    console.log('🔧 Component mount - validating environment:')
+    console.log('  - Firebase db:', !!db)
+    console.log('  - Current user:', !!currentUser)
+    console.log('  - User role:', userRole)
+    console.log('  - Auth loading:', authLoading)
+    console.log('  - Environment:', import.meta.env.MODE)
+    
+    if (!db) {
+      console.error('❌ Firebase not initialized!')
+      showError("שגיאה בחיבור למסד הנתונים. אנא רענן את הדף.")
+      return
+    }
+    
+    if (!authLoading && !currentUser) {
+      console.warn('⚠️ User not authenticated')
+      showWarning("נדרש להתחבר למערכת כדי לצפות במתנדבים.")
+      return
+    }
+  }, [currentUser, userRole, authLoading, db])
+
+  // Initialize bee icon and volunteer icon when component mounts
+  useEffect(() => {
+    const beeIconInstance = createBeeIcon();
+    const volunteerIconInstance = createVolunteerIcon();
+    setBeeIcon(beeIconInstance);
+    setVolunteerIcon(volunteerIconInstance);
   }, []);
 
   const extractCoordinates = (data) => {
@@ -361,13 +442,29 @@ export default function VolunteerMap() {
       
       setLoadingVolunteers(true)
       try {
-        // Use Firebase to fetch all volunteers
-        const q = query(collection(db, "user"), where("userType", "==", 2))
-        const querySnapshot = await getDocs(q)
+        // Debug Firebase connection
+        console.log('🔧 Firebase debug info:')
+        console.log('  - db object:', !!db)
+        console.log('  - Firebase app:', db?.app?.name)
+        console.log('  - Current URL:', window.location.href)
+        console.log('  - Environment:', import.meta.env.MODE)
+        
+        if (!db) {
+          throw new Error('Firebase database not initialized')
+        }
+        
+        // Use userService instead of direct Firestore query (same as VolunteerManagement)
+        console.log('🔍 Fetching all users via userService...')
+        const allUsers = await userService.getAllUsers()
+        console.log('✅ userService query completed, total users:', allUsers.length)
+        
+        // Filter to volunteers only
+        const volunteersData = allUsers.filter(user => user.userType === 2)
+        console.log('✅ Filtered to volunteers:', volunteersData.length)
+        
         const allVolunteers = []
         
-        querySnapshot.forEach((doc) => {
-          const data = doc.data()
+        volunteersData.forEach((data) => {
           const { lat, lng } = extractCoordinates(data)
           
           // Create full name from firstName and lastName
@@ -393,7 +490,7 @@ export default function VolunteerMap() {
           }
           
           allVolunteers.push({
-            id: doc.id,
+            id: data.id,
             ...data,
             name,
             lat,
@@ -428,6 +525,20 @@ export default function VolunteerMap() {
         
       } catch (error) {
         console.error("Error fetching available volunteers:", error)
+        console.error("Error details:", {
+          message: error.message,
+          code: error.code,
+          stack: error.stack,
+          name: error.name
+        })
+        
+        // Show user-friendly error message
+        if (error.message?.includes('Firebase') || error.code?.includes('firestore')) {
+          showError("שגיאה בחיבור למסד הנתונים. אנא נסה שוב מאוחר יותר.")
+        } else {
+          showError("שגיאה בטעינת רשימת המתנדבים. אנא נסה שוב.")
+        }
+        
         setAvailableVolunteers([])
       } finally {
         setLoadingVolunteers(false)
@@ -654,16 +765,36 @@ export default function VolunteerMap() {
   }
 
   return (
-    <Box
-      sx={{
-        display: "flex",
-        height: "100vh",
-        width: "100%",
-        background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
-        fontFamily: '"Segoe UI", sans-serif',
-        justifyContent: "flex-start",
-      }}
-    >
+    <>
+      {/* CSS for volunteer markers */}
+      <style>{`
+        .volunteer-marker {
+          background: transparent !important;
+          border: none !important;
+        }
+        .volunteer-marker div {
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+        }
+        .volunteer-marker:hover div {
+          transform: scale(1.15) !important;
+        }
+        .leaflet-div-icon {
+          background: transparent !important;
+          border: none !important;
+        }
+      `}</style>
+      
+      <Box
+        sx={{
+          display: "flex",
+          height: "100vh",
+          width: "100%",
+          background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+          fontFamily: '"Segoe UI", sans-serif',
+          justifyContent: "flex-start",
+        }}
+      >
       {/* Map Section */}
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column", position: "relative" }}>
         {/* Header with Filter */}
@@ -787,11 +918,17 @@ export default function VolunteerMap() {
               console.log('🗺️ Rendering markers:');
               console.log(`  - inquiries array: ${Array.isArray(inquiries)} (length: ${inquiries?.length || 0})`);
               console.log(`  - beeIcon available: ${!!beeIcon}`);
+              console.log(`  - availableVolunteers array: ${Array.isArray(availableVolunteers)} (length: ${availableVolunteers?.length || 0})`);
+              console.log(`  - volunteerIcon available: ${!!volunteerIcon}`);
               
-              const validMarkers = Array.isArray(inquiries) ? inquiries.filter(inquiry => 
+              const validInquiryMarkers = Array.isArray(inquiries) ? inquiries.filter(inquiry => 
                 inquiry.lat != null && inquiry.lng != null && !isNaN(inquiry.lat) && !isNaN(inquiry.lng) && beeIcon
               ) : [];
-              console.log(`  - Valid markers to render: ${validMarkers.length}`);
+              const validVolunteerMarkers = Array.isArray(availableVolunteers) ? availableVolunteers.filter(volunteer => 
+                volunteer.lat != null && volunteer.lng != null && !isNaN(volunteer.lat) && !isNaN(volunteer.lng) && volunteerIcon
+              ) : [];
+              console.log(`  - Valid inquiry markers to render: ${validInquiryMarkers.length}`);
+              console.log(`  - Valid volunteer markers to render: ${validVolunteerMarkers.length}`);
               
               return null;
             })()}
@@ -834,8 +971,12 @@ export default function VolunteerMap() {
               ) : null
             )}
             {Array.isArray(availableVolunteers) && availableVolunteers.map((volunteer) =>
-              volunteer.lat != null && volunteer.lng != null && !isNaN(volunteer.lat) && !isNaN(volunteer.lng) ? (
-                <Marker key={volunteer.id} position={[volunteer.lat, volunteer.lng]}>
+              volunteer.lat != null && volunteer.lng != null && !isNaN(volunteer.lat) && !isNaN(volunteer.lng) && volunteerIcon ? (
+                <Marker 
+                  key={volunteer.id} 
+                  position={[volunteer.lat, volunteer.lng]}
+                  icon={volunteerIcon}
+                >
                   <Popup>
                     <Box sx={{ p: 1, minWidth: 200 }}>
                       <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
@@ -1529,5 +1670,6 @@ export default function VolunteerMap() {
         )}
       </Paper>
     </Box>
+    </>
   )
 }
