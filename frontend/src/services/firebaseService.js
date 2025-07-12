@@ -182,6 +182,44 @@ export const userService = {
     }
   },
 
+  // Delete volunteer completely by coordinator (Firestore + Auth via backend)
+  async deleteVolunteerByCoordinator(volunteerId, coordinatorId) {
+    try {
+      console.log(`🗑️ Coordinator deleting volunteer: ${volunteerId}`);
+      
+      // Determine the correct backend URL
+      const backendUrl = import.meta.env.PROD 
+        ? (import.meta.env.VITE_API_BASE || 'https://magen-dvorim-adom-backend.railway.app')
+        : (import.meta.env.VITE_API_BASE || 'http://localhost:3001');
+      
+      const response = await fetch(`${backendUrl}/api/users/coordinator-delete/${volunteerId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ coordinatorId })
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Failed to delete volunteer');
+      }
+      
+      console.log(`✅ Volunteer completely deleted by coordinator: ${volunteerId}`);
+      return { 
+        success: true, 
+        message: result.message,
+        completeDeletion: true,
+        deletedVolunteer: result.deletedVolunteer
+      };
+      
+    } catch (error) {
+      console.error('Error deleting volunteer by coordinator:', error);
+      throw error;
+    }
+  },
+
   // Get all users (for admin)
   async getAllUsers() {
     try {

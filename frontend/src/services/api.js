@@ -20,9 +20,10 @@ export const saveInquiry = async (inquiry, coordinatorId = null) => {
       console.log('🎯 Assigning ownership to coordinator:', coordinatorId);
     }
 
-    // Determine the correct backend URL
-    const backendUrl = import.meta.env.VITE_API_BASE || 
-                      (import.meta.env.PROD ? 'https://magen-dvorim-adom-backend.railway.app' : 'http://localhost:3001');
+    // Determine the correct backend URL - prioritize production detection
+    const backendUrl = import.meta.env.PROD 
+      ? (import.meta.env.VITE_API_BASE || 'https://magen-dvorim-adom-backend.railway.app')
+      : (import.meta.env.VITE_API_BASE || 'http://localhost:3001');
     
     console.log('🔄 Saving inquiry via backend API with geocoding...');
     console.log('  - Backend URL:', backendUrl);

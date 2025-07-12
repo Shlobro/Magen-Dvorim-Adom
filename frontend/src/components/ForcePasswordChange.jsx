@@ -16,7 +16,9 @@ import { Visibility, VisibilityOff, Lock, VpnKey } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
+const API_BASE = import.meta.env.PROD 
+  ? (import.meta.env.VITE_API_BASE || 'https://magen-dvorim-adom-backend.railway.app')
+  : (import.meta.env.VITE_API_BASE || 'http://localhost:3001');
 
 export default function ForcePasswordChange() {
   const [newPassword, setNewPassword] = useState('');
@@ -184,7 +186,9 @@ export default function ForcePasswordChange() {
       
       // Update user data via backend API to remove the requirePasswordChange flag
       console.log('ForcePasswordChange: Updating user data to remove password change requirement');
-      const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
+      const API_BASE = import.meta.env.PROD 
+        ? (import.meta.env.VITE_API_BASE || 'https://magen-dvorim-adom-backend.railway.app')
+        : (import.meta.env.VITE_API_BASE || 'http://localhost:3001');
       
       const response = await fetch(`${API_BASE}/api/users/${currentUser.uid}/password-changed`, {
         method: 'PUT',
