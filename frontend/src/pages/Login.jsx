@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useNotification } from '../contexts/NotificationContext';
 import { userService } from '../services/firebaseService';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '../firebaseConfig';
 import homeBackground from '../assets/home-background.png';
 
 // =========================================================
@@ -190,6 +192,26 @@ export default function Login() {
     }
   };
 
+  // Password reset handler
+  const handlePasswordReset = async () => {
+    if (!email) {
+      showError('אנא הכנס כתובת דואר אלקטרוני קודם');
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      showSuccess('נשלח מייל איפוס סיסמה לכתובת שלך! אנא בדוק את המייל (כולל תיקיית הספאם)');
+    } catch (error) {
+      console.error('Password reset error:', error);
+      if (error.code === 'auth/user-not-found') {
+        showError('כתובת המייל לא נמצאה במערכת');
+      } else {
+        showError('שגיאה בשליחת מייל איפוס סיסמה. אנא נסה שוב');
+      }
+    }
+  };
+
   return (
     <div style={containerStyle}>
       <div style={overlayStyle}></div>
@@ -220,7 +242,9 @@ export default function Login() {
               autoComplete="current-password"
               style={inputStyle}
             />
-          </div>          <button
+          </div>
+
+          <button
             type="submit"
             style={buttonStyle}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = buttonHoverStyle.backgroundColor}
@@ -229,6 +253,24 @@ export default function Login() {
           >
             {loading ? 'מתחבר...' : 'התחבר'}
           </button>
+          
+          <div style={{ marginTop: '15px', textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={handlePasswordReset}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#007bff',
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+              disabled={loading}
+            >
+              שכחתי סיסמה
+            </button>
+          </div>
         </form>
       </div>
     </div>
