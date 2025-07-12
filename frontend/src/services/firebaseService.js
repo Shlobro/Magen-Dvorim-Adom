@@ -312,9 +312,9 @@ export const userService = {
           let userCredential = null;
           
           try {
-            // Try to create auth user to test if email exists
-            const tempPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
-            userCredential = await createUserWithEmailAndPassword(auth, volunteer.email, tempPassword);
+            // Try to create auth user with default password
+            const defaultPassword = '123456';
+            userCredential = await createUserWithEmailAndPassword(auth, volunteer.email, defaultPassword);
             console.log(`✅ Created new Firebase Auth user: ${volunteer.email}`);
           } catch (authError) {
             if (authError.code === 'auth/email-already-in-use') {
