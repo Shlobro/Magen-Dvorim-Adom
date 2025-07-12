@@ -608,4 +608,116 @@ router.get('/:id/password-status', async (req, res) => {
   }
 });
 
+// DELETE /api/users/coordinator-delete/:id - Allow coordinator to completely delete a volunteer
+router.delete('/coordinator-delete/:id', async (req, res) => {
+  try {
+    const volunteerId = req.params.id;
+    const { coordinatorId } = req.body;
+    
+    if (!volunteerId || !coordinatorId) {
+      return res.status(400).json({ error: 'Volunteer ID and Coordinator ID are required' });
+    }
+    
+    // Verify the coordinator exists and has the right permissions
+    const coordinatorDoc = await db.collection('user').doc(coordinatorId).get();
+    if (!coordinatorDoc.exists) {
+      return res.status(404).json({ error: 'Coordinator not found' });
+    }
+    
+    const coordinatorData = coordinatorDoc.data();
+    if (coordinatorData.userType !== 1) {
+      return res.status(403).json({ error: 'Only coordinators can delete volunteers' });
+    }
+    
+    // Get volunteer data for logging purposes
+    const volunteerDoc = await db.collection('user').doc(volunteerId).get();
+    if (!volunteerDoc.exists) {
+      return res.status(404).json({ error: 'Volunteer not found' });
+    }
+    
+    const volunteerData = volunteerDoc.data();
+    
+    // Verify this is actually a volunteer (userType = 2)
+    if (volunteerData.userType !== 2) {
+      return res.status(403).json({ error: 'Can only delete volunteer accounts' });
+    }
+    
+    // Check if volunteer has any active assigned inquiries
+    const activeInquiriesSnapshot = await db.collection('inquiry')
+      .where('assignedVolunteers', 'array-contains', volunteerId)
+      .where('status', 'in', ['לפנייה שובץ מתנדב', 'המתנדב בדרך'])
+      .get();
+    
+    if (!activeInquiriesSnapshot.empty) {
+      return res.status(400).json({ 
+        error: 'Cannot delete volunteer while assigned to active inquiries',
+        message: 'המתנדב מוקצה לפניות פעילות. יש לבטל את ההקצאה לפני המחיקה.',
+        activeInquiries: activeInquiriesSnapshot.docs.length
+      });
+    }
+    
+    // Remove volunteer from any completed inquiries (for data consistency)
+    const allInquiriesSnapshot = await db.collection('inquiry')
+      .where('assignedVolunteers', 'array-contains', volunteerId)
+      .get();
+    
+    const batch = db.batch();
+    
+    allInquiriesSnapshot.forEach((doc) => {
+      const inquiry = doc.data();
+      const updatedVolunteers = inquiry.assignedVolunteers.filter(id => id !== volunteerId);
+      batch.update(doc.ref, { 
+        assignedVolunteers: updatedVolunteers,
+        lastModified: admin.firestore.FieldValue.serverTimestamp(),
+        deletedVolunteerInfo: {
+          name: `${volunteerData.firstName || ''} ${volunteerData.lastName || ''}`.trim(),
+          email: volunteerData.email,
+          deletedAt: new Date().toISOString(),
+          deletedBy: coordinatorId
+        }
+      });
+    });
+    
+    // Delete the volunteer document from Firestore
+    batch.delete(db.collection('user').doc(volunteerId));
+    
+    // Commit the batch operation
+    await batch.commit();
+    console.log(`Firestore volunteer document deleted by coordinator: ${volunteerId}`);
+    
+    // Delete the volunteer from Firebase Auth
+    try {
+      await admin.auth().deleteUser(volunteerId);
+      console.log(`Firebase Auth volunteer deleted by coordinator: ${volunteerId}`);
+    } catch (authError) {
+      // Log the error but don't fail the entire operation
+      console.warn(`Warning: Could not delete Firebase Auth volunteer ${volunteerId}:`, authError.message);
+      return res.status(207).json({ 
+        success: true,
+        message: 'Volunteer deleted from database but Auth account could not be removed',
+        warning: 'Manual cleanup of Auth account may be required',
+        volunteerId: volunteerId,
+        email: volunteerData.email
+      });
+    }
+    
+    console.log(`Volunteer deleted by coordinator: ${volunteerData.email} (${volunteerData.firstName} ${volunteerData.lastName}) (UID: ${volunteerId}) by coordinator: ${coordinatorId}`);
+    res.json({ 
+      success: true, 
+      message: 'Volunteer account completely deleted from system including Authentication',
+      deletedVolunteer: {
+        name: `${volunteerData.firstName || ''} ${volunteerData.lastName || ''}`.trim(),
+        email: volunteerData.email
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error deleting volunteer account by coordinator:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete volunteer account',
+      details: error.message 
+    });
+  }
+});
+
 export default router;

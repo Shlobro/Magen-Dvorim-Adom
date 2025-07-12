@@ -48,6 +48,7 @@ import {
   CloudUpload,
 } from "@mui/icons-material"
 import { useNotification } from "../contexts/NotificationContext"
+import { useAuth } from "../contexts/AuthContext"
 
 // Helper function to convert Firestore Timestamp objects to JavaScript Date objects
 const convertFirestoreTimestamp = (timestamp) => {
@@ -100,6 +101,7 @@ const formatDate = (date) => {
 export default function VolunteerManagement() {
   const [volunteers, setVolunteers] = useState([])
   const { showSuccess, showError, showConfirmDialog } = useNotification()
+  const { currentUser } = useAuth()
   const [loading, setLoading] = useState(true)
   const [removingId, setRemovingId] = useState(null)
   
@@ -161,10 +163,12 @@ export default function VolunteerManagement() {
       title: 'אישור הסרת מתנדב',
       message: `האם אתה בטוח שברצונך להסיר את המתנדב ${volunteer.name || `${volunteer.firstName || ""} ${volunteer.lastName || ""}`} מהמערכת? 
       
-⚠️ הערה חשובה: המחיקה תסיר את המתנדב ממסד הנתונים בלבד. חשבון ה-Authentication יישאר פעיל ויידרש ניקוי ידני.
+⚠️ הערה חשובה: המחיקה תסיר את המתנדב לחלוטין כולל חשבון ההזדהות.
+
+המתנדב יוסר מכל הפניות ולא יוכל להתחבר למערכת.
 
 פעולה זו אינה ניתנת לביטול.`,
-      confirmText: 'הסר מתנדב',
+      confirmText: 'הסר מתנדב לחלוטין',
       cancelText: 'ביטול',
       severity: 'error',
     });
@@ -174,16 +178,22 @@ export default function VolunteerManagement() {
     setRemovingId(volunteer.id);
     
     try {
-      const result = await userService.deleteUser(volunteer.id);
+      // Use the new coordinator deletion method for complete removal
+      const result = await userService.deleteVolunteerByCoordinator(volunteer.id, currentUser.uid);
       setVolunteers(volunteers.filter((v) => v.id !== volunteer.id));
       
       if (result.completeDeletion) {
-        showSuccess("המתנדב הוסר בהצלחה מהמערכת לחלוטין");
+        showSuccess(`המתנדב ${result.deletedVolunteer?.name || volunteer.name || `${volunteer.firstName || ""} ${volunteer.lastName || ""}`} הוסר בהצלחה מהמערכת לחלוטין כולל חשבון ההזדהות`);
       } else {
         showSuccess("המתנדב הוסר ממסד הנתונים. שים לב: חשבון ה-Authentication נותר פעיל ויש צורך בניקוי ידני.");
       }
     } catch (e) {
-      showError("שגיאה בהסרת מתנדב")
+      console.error('Error deleting volunteer:', e);
+      if (e.message?.includes('active inquiries')) {
+        showError("לא ניתן להסיר מתנדב שמוקצה לפניות פעילות. יש לבטל את ההקצאה תחילה.");
+      } else {
+        showError("שגיאה בהסרת מתנדב: " + (e.message || 'שגיאה לא ידועה'));
+      }
     }
 
     setRemovingId(null)
