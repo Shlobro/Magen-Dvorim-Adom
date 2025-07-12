@@ -12,7 +12,6 @@ const DashboardTable = ({
   closureOptions,
   handleStatusChange,
   handleClosureChange,
-  handleOpenComment,
   handleOpenDetails,
   volunteers,
   loadingVolunteers,
@@ -88,15 +87,6 @@ const DashboardTable = ({
 
                 <td className="table-cell">
                   <div className="details-container">
-                    {call.additionalDetails && (
-                      <button
-                        onClick={() => handleOpenComment(call.additionalDetails)}
-                        className="comment-button no-select"
-                        title="הצג הערות"
-                      >
-                        💬 הערות
-                      </button>
-                    )}
                     <button
                       onClick={() => handleOpenDetails(call)}
                       className="details-button no-select"

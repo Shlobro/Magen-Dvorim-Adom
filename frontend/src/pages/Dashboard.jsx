@@ -39,8 +39,6 @@ export default function Dashboard() {
   const [reportLink, setReportLink] = useState("")
 
   // Modal states
-  const [selectedComment, setSelectedComment] = useState(null)
-  const [isCommentModalOpen, setIsCommentModalOpen] = useState(false)
   const [selectedCallDetails, setSelectedCallDetails] = useState(null)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
 
@@ -267,16 +265,6 @@ export default function Dashboard() {
   }
 
   // Modal handlers
-  const handleOpenComment = (comment) => {
-    setSelectedComment(comment)
-    setIsCommentModalOpen(true)
-  }
-
-  const handleCloseComment = () => {
-    setSelectedComment(null)
-    setIsCommentModalOpen(false)
-  }
-
   const handleOpenDetails = (call) => {
     setSelectedCallDetails(call)
     setIsDetailsModalOpen(true)
@@ -460,7 +448,6 @@ export default function Dashboard() {
               closureOptions={closureOptions}
               handleStatusChange={handleStatusChange}
               handleClosureChange={handleClosureChange}
-              handleOpenComment={handleOpenComment}
               handleOpenDetails={handleOpenDetails}
               volunteers={volunteers}
               loadingVolunteers={loadingVolunteers}
@@ -510,9 +497,6 @@ export default function Dashboard() {
 
           {/* Modal Components */}
           <DashboardModals
-            isCommentModalOpen={isCommentModalOpen}
-            selectedComment={selectedComment}
-            handleCloseComment={handleCloseComment}
             isDetailsModalOpen={isDetailsModalOpen}
             selectedCallDetails={selectedCallDetails}
             handleCloseDetails={handleCloseDetails}
