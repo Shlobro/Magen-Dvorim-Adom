@@ -106,7 +106,8 @@ export default function CoordinatorApproval() {
             id: doc.id,
             ...data,
             createdAt: convertFirestoreDate(data.createdAt),
-            approvedAt: convertFirestoreDate(data.approvedAt || data.createdAt)
+            approvedAt: convertFirestoreDate(data.approvedAt || data.createdAt),
+            isApproved: data.approved === true || data.approved === undefined // Set the display status
           });
         }
       });
@@ -135,7 +136,17 @@ export default function CoordinatorApproval() {
 
       // Remove from pending list and refresh existing coordinators
       setPendingCoordinators(prev => prev.filter(p => p.id !== pendingCoordinator.id));
-      fetchExistingCoordinators(); // Refresh the existing coordinators list
+      
+      // Also add to existing coordinators list immediately for better UX
+      const approvedCoordinator = {
+        ...pendingCoordinator,
+        approved: true,
+        approvedAt: new Date(),
+        approvedBy: currentUser.uid,
+        isApproved: true
+      };
+      setExistingCoordinators(prev => [approvedCoordinator, ...prev]);
+      
       showSuccess('הרכז אושר בהצלחה!');
     } catch (err) {
       console.error('Error approving coordinator:', err);
