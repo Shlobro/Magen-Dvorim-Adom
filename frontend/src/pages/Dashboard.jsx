@@ -224,12 +224,19 @@ export default function Dashboard() {
         const coordinatorUids = new Set()
 
         fetchedInquiries.forEach((call) => {
-          if (
-            call.assignedVolunteers &&
-            typeof call.assignedVolunteers === "string" &&
-            call.assignedVolunteers.trim() !== ""
-          ) {
-            volunteerUids.add(call.assignedVolunteers)
+          // Handle assignedVolunteers - can be string (legacy) or array (new format)
+          if (call.assignedVolunteers) {
+            if (Array.isArray(call.assignedVolunteers)) {
+              // New format: array of volunteer IDs
+              call.assignedVolunteers.forEach(uid => {
+                if (uid && uid.trim() !== "") {
+                  volunteerUids.add(uid);
+                }
+              });
+            } else if (typeof call.assignedVolunteers === "string" && call.assignedVolunteers.trim() !== "") {
+              // Legacy format: single volunteer ID as string
+              volunteerUids.add(call.assignedVolunteers);
+            }
           }
           if (call.coordinatorId && typeof call.coordinatorId === "string" && call.coordinatorId.trim() !== "") {
             coordinatorUids.add(call.coordinatorId)
@@ -270,13 +277,27 @@ export default function Dashboard() {
         coordinatorNamesRef.current = uidToCoordinatorName // Store for later use if needed
 
         // Merge names and ensure coordinatorId is present (or null)
-        const withNames = fetchedInquiries.map((c) => ({
-          ...c,
-          assignedVolunteerName: uidToVolunteerName[c.assignedVolunteers] ?? "-",
-          coordinatorId: c.coordinatorId || null,
-          coordinatorName:
-            c.coordinatorId && uidToCoordinatorName[c.coordinatorId] ? uidToCoordinatorName[c.coordinatorId] : "-", // Add coordinatorName
-        }))
+        const withNames = fetchedInquiries.map((c) => {
+          // Get assigned volunteer name - handle both array and string formats
+          let assignedVolunteerName = "-";
+          if (c.assignedVolunteers) {
+            if (Array.isArray(c.assignedVolunteers) && c.assignedVolunteers.length > 0) {
+              // New format: get first volunteer name from array
+              assignedVolunteerName = uidToVolunteerName[c.assignedVolunteers[0]] ?? "-";
+            } else if (typeof c.assignedVolunteers === "string") {
+              // Legacy format: get volunteer name from string
+              assignedVolunteerName = uidToVolunteerName[c.assignedVolunteers] ?? "-";
+            }
+          }
+
+          return {
+            ...c,
+            assignedVolunteerName,
+            coordinatorId: c.coordinatorId || null,
+            coordinatorName:
+              c.coordinatorId && uidToCoordinatorName[c.coordinatorId] ? uidToCoordinatorName[c.coordinatorId] : "-", // Add coordinatorName
+          };
+        })
 
         setCalls(withNames)
         setLoading(false)
@@ -522,7 +543,10 @@ export default function Dashboard() {
         return
       }
       
-      const hasVolunteerAssigned = currentCall && currentCall.assignedVolunteers && currentCall.assignedVolunteers !== "-" && currentCall.assignedVolunteers !== null
+      // Check if volunteer is assigned - handle both array and string formats
+      const hasVolunteerAssigned = currentCall && currentCall.assignedVolunteers && 
+        ((Array.isArray(currentCall.assignedVolunteers) && currentCall.assignedVolunteers.length > 0) ||
+         (typeof currentCall.assignedVolunteers === "string" && currentCall.assignedVolunteers !== "-" && currentCall.assignedVolunteers !== null && currentCall.assignedVolunteers.trim() !== ""));
 
       // Check if trying to set a status that requires a volunteer when none is assigned
       if (statusesRequiringVolunteer.includes(newStatus) && !hasVolunteerAssigned) {
@@ -752,7 +776,7 @@ export default function Dashboard() {
           call.id === inquiryId
             ? {
                 ...call,
-                assignedVolunteers: newVolunteerId,
+                assignedVolunteers: [newVolunteerId], // ✅ Array במקום string
                 assignedVolunteerName: newVolunteerName,
                 status: "לפנייה שובץ מתנדב",
               }
@@ -1783,7 +1807,10 @@ export default function Dashboard() {
                           )}
                         </td>
                         <td style={{ padding: "15px 25px", whiteSpace: "nowrap" }}>
-                          {call.assignedVolunteers && call.assignedVolunteers !== "-" ? (
+                          {/* Check if volunteer is assigned - handle both array and string formats */}
+                          {(call.assignedVolunteers && 
+                            ((Array.isArray(call.assignedVolunteers) && call.assignedVolunteers.length > 0) ||
+                             (typeof call.assignedVolunteers === "string" && call.assignedVolunteers !== "-" && call.assignedVolunteers.trim() !== ""))) ? (
                             <div style={{ minWidth: "180px" }}>
                               <div style={{ fontSize: "0.9em", marginBottom: "5px", color: "#666" }}>
                                 נוכחי: {call.assignedVolunteerName}
@@ -1815,7 +1842,11 @@ export default function Dashboard() {
                                   <option
                                     key={volunteer.id}
                                     value={volunteer.id}
-                                    disabled={volunteer.id === call.assignedVolunteers}
+                                    disabled={
+                                      Array.isArray(call.assignedVolunteers) 
+                                        ? call.assignedVolunteers.includes(volunteer.id)
+                                        : volunteer.id === call.assignedVolunteers
+                                    }
                                   >
                                     {volunteer.name || `${volunteer.firstName} ${volunteer.lastName}`}
                                   </option>

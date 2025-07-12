@@ -11,7 +11,6 @@ import { useLocation, useNavigate } from "react-router-dom"
 import { useNotification } from "../contexts/NotificationContext"
 import { useAuth } from "../contexts/AuthContext"
 import { takeOwnership, releaseOwnership } from "../services/inquiryApi"
-import { userService } from "../services/firebaseService"
 import {
   Card,
   CardContent,
@@ -51,17 +50,6 @@ import {
   FilterList,
   Search,
 } from "@mui/icons-material"
-
-// Debug Firebase connection on load
-console.log('🔧 VolunteerMap: Firebase connection check:')
-console.log('  - db object exists:', !!db)
-console.log('  - db app name:', db?.app?.name)
-console.log('  - Environment mode:', import.meta.env.MODE)
-console.log('  - Current URL:', window.location.href)
-
-if (!db) {
-  console.error('❌ Firebase database not initialized in VolunteerMap!')
-}
 
 // Helper function to create bee icon safely
 const createBeeIcon = () => {
@@ -168,7 +156,7 @@ const calculateVolunteerScore = (volunteer, distance) => {
 
 export default function VolunteerMap() {
   // Debug log to confirm new version is loaded
-  console.log('🗺️ VolunteerMap loaded - New unified volunteer list v1.0.2 (Jan 8, 2025)');
+  console.log('🗺️ VolunteerMap loaded - New unified volunteer list v1.0.1 (Jan 6, 2025)');
   
   const [inquiries, setInquiries] = useState([])
   const [allInquiries, setAllInquiries] = useState([]) // Store all inquiries for filtering
@@ -187,28 +175,6 @@ export default function VolunteerMap() {
   const navigate = useNavigate()
   const { showSuccess, showError, showWarning, showConfirmDialog } = useNotification()
   const { currentUser, userRole, loading: authLoading } = useAuth()
-
-  // Validate Firebase connection and auth before proceeding
-  useEffect(() => {
-    console.log('🔧 Component mount - validating environment:')
-    console.log('  - Firebase db:', !!db)
-    console.log('  - Current user:', !!currentUser)
-    console.log('  - User role:', userRole)
-    console.log('  - Auth loading:', authLoading)
-    console.log('  - Environment:', import.meta.env.MODE)
-    
-    if (!db) {
-      console.error('❌ Firebase not initialized!')
-      showError("שגיאה בחיבור למסד הנתונים. אנא רענן את הדף.")
-      return
-    }
-    
-    if (!authLoading && !currentUser) {
-      console.warn('⚠️ User not authenticated')
-      showWarning("נדרש להתחבר למערכת כדי לצפות במתנדבים.")
-      return
-    }
-  }, [currentUser, userRole, authLoading, db])
 
   // Initialize bee icon when component mounts
   useEffect(() => {
@@ -395,29 +361,13 @@ export default function VolunteerMap() {
       
       setLoadingVolunteers(true)
       try {
-        // Debug Firebase connection
-        console.log('🔧 Firebase debug info:')
-        console.log('  - db object:', !!db)
-        console.log('  - Firebase app:', db?.app?.name)
-        console.log('  - Current URL:', window.location.href)
-        console.log('  - Environment:', import.meta.env.MODE)
-        
-        if (!db) {
-          throw new Error('Firebase database not initialized')
-        }
-        
-        // Use userService instead of direct Firestore query (same as VolunteerManagement)
-        console.log('🔍 Fetching all users via userService...')
-        const allUsers = await userService.getAllUsers()
-        console.log('✅ userService query completed, total users:', allUsers.length)
-        
-        // Filter to volunteers only
-        const volunteersData = allUsers.filter(user => user.userType === 2)
-        console.log('✅ Filtered to volunteers:', volunteersData.length)
-        
+        // Use Firebase to fetch all volunteers
+        const q = query(collection(db, "user"), where("userType", "==", 2))
+        const querySnapshot = await getDocs(q)
         const allVolunteers = []
         
-        volunteersData.forEach((data) => {
+        querySnapshot.forEach((doc) => {
+          const data = doc.data()
           const { lat, lng } = extractCoordinates(data)
           
           // Create full name from firstName and lastName
@@ -443,7 +393,7 @@ export default function VolunteerMap() {
           }
           
           allVolunteers.push({
-            id: data.id,
+            id: doc.id,
             ...data,
             name,
             lat,
@@ -478,20 +428,6 @@ export default function VolunteerMap() {
         
       } catch (error) {
         console.error("Error fetching available volunteers:", error)
-        console.error("Error details:", {
-          message: error.message,
-          code: error.code,
-          stack: error.stack,
-          name: error.name
-        })
-        
-        // Show user-friendly error message
-        if (error.message?.includes('Firebase') || error.code?.includes('firestore')) {
-          showError("שגיאה בחיבור למסד הנתונים. אנא נסה שוב מאוחר יותר.")
-        } else {
-          showError("שגיאה בטעינת רשימת המתנדבים. אנא נסה שוב.")
-        }
-        
         setAvailableVolunteers([])
       } finally {
         setLoadingVolunteers(false)

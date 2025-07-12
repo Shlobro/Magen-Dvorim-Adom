@@ -21,6 +21,8 @@ import VolunteerManagement from './pages/VolunteerManagement';
 import CoordinatorApproval from './pages/CoordinatorApproval';
 import CoordinatorProfile from './pages/CoordinatorProfile';
 import InsightsPage from './pages/InsightsPage';
+import EthicsVolunteers from './pages/EthicsVolunteers';
+import EthicsCoordinators from './pages/EthicsCoordinators';
 
 // Component to conditionally render Header
 function AppWithHeader() {
@@ -41,6 +43,10 @@ function AppWithHeader() {
         <Route path="/coordinator-register" element={<CoordinatorSignup />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/feedback" element={<FeedbackForm />} />
+        
+        {/* Ethics Pages - Public Access */}
+        <Route path="/ethics/volunteers" element={<EthicsVolunteers />} />
+        <Route path="/ethics/coordinators" element={<EthicsCoordinators />} />
         
         {/* Protected Routes */}
         <Route path="/dashboard" element={

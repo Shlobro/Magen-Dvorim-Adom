@@ -497,16 +497,24 @@ export const inquiryService = {
   // Get volunteer inquiries
   async getVolunteerInquiries(volunteerId) {
     try {
+      // Temporarily remove orderBy to avoid index requirement
+      // TODO: Create composite index for assignedVolunteers + createdAt
       const inquiryQuery = query(
         collection(db, 'inquiry'),
-        where('assignedVolunteers', 'array-contains', volunteerId),
-        orderBy('createdAt', 'desc')
+        where('assignedVolunteers', 'array-contains', volunteerId)
       );
       
       const snapshot = await getDocs(inquiryQuery);
       const inquiries = [];
       snapshot.forEach(doc => {
         inquiries.push({ id: doc.id, ...doc.data() });
+      });
+      
+      // Sort manually by createdAt in descending order
+      inquiries.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+        return dateB - dateA;
       });
       
       return inquiries;
