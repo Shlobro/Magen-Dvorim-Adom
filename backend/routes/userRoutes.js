@@ -235,9 +235,37 @@ router.post('/', async (req, res) => {
   try {
     const user = { ...req.body };
 
+    // STRICT ADDRESS VALIDATION: If location data is provided, it must be geocodable
     if (user.location) {
       const coords = await geocodeAddress(user.location);
-      if (coords) Object.assign(user, coords);
+      if (coords) {
+        Object.assign(user, coords);
+      } else {
+        return res.status(400).json({
+          error: "Address validation failed",
+          message: "לא ניתן לאתר את הכתובת במפה. אנא ודא שהכתובת מדויקת ותכלול גם את העיר.",
+          address: user.location,
+          details: "המשתמש לא נוצר כיוון שלא ניתן לזהות את המיקום"
+        });
+      }
+    }
+    
+    // Additional validation for volunteers (userType 2) with address components
+    if (user.userType === 2 && user.city && user.streetName) {
+      const fullAddress = `${user.streetName} ${user.houseNumber || ''}, ${user.city}`.trim();
+      const coords = await geocodeAddress(fullAddress);
+      if (coords) {
+        user.lat = coords.lat;
+        user.lng = coords.lng;
+        user.location = fullAddress;
+      } else {
+        return res.status(400).json({
+          error: "Address validation failed",
+          message: "לא ניתן לאתר את הכתובת במפה. אנא ודא שהכתובת מדויקת ותכלול גם את העיר.",
+          address: fullAddress,
+          details: "המתנדב לא נוצר כיוון שלא ניתן לזהות את המיקום"
+        });
+      }
     }
 
     await db.collection('user').doc(user.id).set(user);
