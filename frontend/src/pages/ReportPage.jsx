@@ -65,9 +65,19 @@ export default function ReportPage() {
       const geocodingResult = await validateAddressGeocoding(address, city);
       
       if (!geocodingResult.isValid) {
-        showError(geocodingResult.error);
+        let errorMessage = geocodingResult.error;
+        if (geocodingResult.suggestion) {
+          errorMessage += `\n\n${geocodingResult.suggestion}`;
+        }
+        showError(errorMessage);
         setLoading(false);
         return;
+      }
+
+      // If there's a suggestion even for valid addresses (like street name variations)
+      if (geocodingResult.suggestion) {
+        // You could show a confirmation dialog here, but for now just log it
+        console.log('Address suggestion:', geocodingResult.suggestion);
       }
 
       const inquiryData = {
