@@ -55,9 +55,13 @@ export default function InsightsPage() {
 
   // Calculate statistics for the given inquiries
   const calculateStats = (inquiries) => {
+    console.log('📊 calculateStats: Processing inquiries:', inquiries.length);
+    
     const total = inquiries.length
     const closed = inquiries.filter((i) => i.status === "הפנייה נסגרה").length
     const open = total - closed
+
+    console.log('📊 calculateStats: Basic counts - total:', total, 'closed:', closed, 'open:', open);
 
     // Calculate additional statistics
     const resolvedInquiries = inquiries.filter(inquiry => 
@@ -75,10 +79,12 @@ export default function InsightsPage() {
        (typeof inquiry.assignedVolunteers === "string" && inquiry.assignedVolunteers !== ""))
     ).length
 
+    console.log('📊 calculateStats: Advanced counts - resolved:', resolvedInquiries, 'unresolvable:', unresolvableInquiries, 'assigned:', assignedInquiries);
+
     const avgResponseTime = inquiries.length > 0 ? 
       Math.round(inquiries.reduce((sum, inquiry) => {
-        if (inquiry.timestamp && inquiry.assignedAt) {
-          const start = parseTimestamp(inquiry.timestamp)
+        if ((inquiry.createdAt || inquiry.timestamp) && inquiry.assignedAt) {
+          const start = parseTimestamp(inquiry.createdAt || inquiry.timestamp)
           const assigned = parseTimestamp(inquiry.assignedAt)
           if (start && assigned) {
             return sum + (assigned - start) / (1000 * 60 * 60) // hours
@@ -87,7 +93,9 @@ export default function InsightsPage() {
         return sum
       }, 0) / inquiries.length) : 0
 
-    return { 
+    console.log('📊 calculateStats: Average response time:', avgResponseTime, 'hours');
+
+    const stats = { 
       total, 
       open, 
       closed, 
@@ -96,12 +104,17 @@ export default function InsightsPage() {
       assigned: assignedInquiries,
       avgResponseTime
     }
+    
+    console.log('📊 calculateStats: Final stats:', stats);
+    return stats;
   }
 
   // Update stats when period changes
   useEffect(() => {
+    console.log('⏰ Period changed to:', statsPeriod, 'Raw inquiries:', rawInquiries.length);
     if (rawInquiries.length > 0) {
       const filteredInquiries = filterByTimePeriod(rawInquiries, statsPeriod)
+      console.log('⏰ Filtered inquiries for period:', filteredInquiries.length);
       const newStats = calculateStats(filteredInquiries)
       setStats(newStats)
     }
@@ -111,17 +124,30 @@ export default function InsightsPage() {
   const { showError } = useNotification()
 
   useEffect(() => {
+    console.log('🔍 InsightsPage: Auth loading state:', authLoading);
+    console.log('🔍 InsightsPage: User role:', userRole);
+    
     if (!authLoading && userRole === 1) {
+      console.log('✅ InsightsPage: Starting data fetch for coordinator');
       const fetchData = async () => {
         setLoading(true)
         try {
+          console.log('📡 InsightsPage: Fetching inquiries...');
           // Fetch inquiries
           const snap = await getDocs(collection(db, "inquiry"))
           const inquiries = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          console.log('📊 InsightsPage: Fetched inquiries:', inquiries.length);
+          console.log('📊 InsightsPage: Sample inquiry:', inquiries[0]);
+          console.log('📊 InsightsPage: Sample inquiry createdAt:', inquiries[0]?.createdAt);
+          console.log('📊 InsightsPage: Sample inquiry timestamp:', inquiries[0]?.timestamp);
+          console.log('📊 InsightsPage: Sample inquiry timestamp type:', typeof inquiries[0]?.timestamp);
 
+          console.log('👥 InsightsPage: Fetching users...');
           // Fetch users
           const usersSnap = await getDocs(collection(db, "user"))
           const users = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          console.log('👥 InsightsPage: Fetched users:', users.length);
+          console.log('👥 InsightsPage: Sample user:', users[0]);
 
           setRawInquiries(inquiries)
           setRawUsers(users)
@@ -129,47 +155,109 @@ export default function InsightsPage() {
           // Calculate initial stats for the selected period
           const filteredInquiries = filterByTimePeriod(inquiries, statsPeriod)
           const initialStats = calculateStats(filteredInquiries)
-          setStats(initialStats)        } catch (e) {
-          console.error(e)
-          showError("אירעה שגיאה בטעינת הנתונים.")
+          console.log('📈 InsightsPage: Calculated stats:', initialStats);
+          setStats(initialStats)
+        } catch (e) {
+          console.error('❌ InsightsPage: Error fetching data:', e)
+          console.error('❌ InsightsPage: Error details:', {
+            code: e.code,
+            message: e.message,
+            stack: e.stack
+          });
+          
+          // Try to provide more specific error information
+          if (e.code === 'permission-denied') {
+            showError("אין הרשאות לגשת לנתונים. אנא ודא שאתה מחובר כרכז.")
+          } else if (e.code === 'unavailable') {
+            showError("השירות אינו זמין כרגע. אנא נסה שוב מאוחר יותר.")
+          } else {
+            showError(`אירעה שגיאה בטעינת הנתונים: ${e.message}`)
+          }
         } finally {
           setLoading(false)
         }
       }
 
       fetchData()
+    } else if (!authLoading && userRole !== 1) {
+      console.log('⚠️ InsightsPage: User not authorized, role:', userRole);
+      setLoading(false)
     }
   }, [authLoading, userRole])
 
   // Helper function to parse different timestamp formats
   const parseTimestamp = (timestamp) => {
-    if (!timestamp) return null
+    console.log('🕐 parseTimestamp: Input:', timestamp, 'Type:', typeof timestamp);
+    
+    if (!timestamp) {
+      console.log('🕐 parseTimestamp: No timestamp provided');
+      return null;
+    }
 
     // If it's a Firestore Timestamp object
     if (timestamp && typeof timestamp.toDate === "function") {
+      console.log('🕐 parseTimestamp: Firestore Timestamp detected');
       return timestamp.toDate()
+    }
+
+    // If it's a Firestore Timestamp object with seconds and nanoseconds
+    if (timestamp && typeof timestamp === 'object' && timestamp.seconds !== undefined) {
+      console.log('🕐 parseTimestamp: Firestore Timestamp object with seconds detected');
+      return new Date(timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000);
     }
 
     // If it's an ISO string
     if (typeof timestamp === "string") {
-      return new Date(timestamp)
+      console.log('🕐 parseTimestamp: String timestamp detected');
+      const date = new Date(timestamp);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
     }
 
     // If it's already a Date object
     if (timestamp instanceof Date) {
+      console.log('🕐 parseTimestamp: Date object detected');
       return timestamp
     }
 
+    // If it's a number (Unix timestamp)
+    if (typeof timestamp === 'number') {
+      console.log('🕐 parseTimestamp: Number timestamp detected');
+      // Try both milliseconds and seconds
+      const dateMs = new Date(timestamp);
+      const dateSec = new Date(timestamp * 1000);
+      
+      // Check which one gives a reasonable date (between 2020 and 2030)
+      const currentYear = new Date().getFullYear();
+      if (dateMs.getFullYear() >= 2020 && dateMs.getFullYear() <= 2030) {
+        return dateMs;
+      } else if (dateSec.getFullYear() >= 2020 && dateSec.getFullYear() <= 2030) {
+        return dateSec;
+      }
+    }
+
+    console.warn('🕐 parseTimestamp: Unable to parse timestamp:', timestamp);
     return null
   }
 
   // Helper function to filter data by time period
   const filterByTimePeriod = (inquiries, period) => {
+    console.log('⏰ filterByTimePeriod: Input inquiries:', inquiries.length, 'Period:', period);
+    
+    if (!inquiries || inquiries.length === 0) {
+      console.log('⏰ filterByTimePeriod: No inquiries to filter');
+      return [];
+    }
+    
     const now = new Date()
     const filtered = inquiries.filter((inquiry) => {
-      const inquiryDate = parseTimestamp(inquiry.timestamp)
+      const inquiryDate = parseTimestamp(inquiry.createdAt || inquiry.timestamp)
 
-      if (!inquiryDate) return false
+      if (!inquiryDate) {
+        console.warn('⏰ filterByTimePeriod: Invalid timestamp for inquiry:', inquiry.id);
+        return false;
+      }
 
       switch (period) {
         case "week":
@@ -186,11 +274,14 @@ export default function InsightsPage() {
       }
     })
 
+    console.log('⏰ filterByTimePeriod: Filtered to:', filtered.length);
     return filtered
   }
 
   // Generate chart data for seasonal trends (by month across all years)
   const generateSeasonalChart = () => {
+    console.log('📊 generateSeasonalChart: Processing inquiries:', rawInquiries.length);
+    
     const monthNames = [
       "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
       "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"
@@ -198,11 +289,13 @@ export default function InsightsPage() {
     const monthCount = new Array(12).fill(0)
 
     rawInquiries.forEach((inquiry) => {
-      const date = parseTimestamp(inquiry.timestamp)
+      const date = parseTimestamp(inquiry.createdAt || inquiry.timestamp)
       if (date) {
         monthCount[date.getMonth()]++
       }
     })
+
+    console.log('📊 generateSeasonalChart: Month counts:', monthCount);
 
     return {
       labels: monthNames,
@@ -273,7 +366,7 @@ export default function InsightsPage() {
     }
 
     rawInquiries.forEach((inquiry) => {
-      const date = parseTimestamp(inquiry.timestamp)
+      const date = parseTimestamp(inquiry.createdAt || inquiry.timestamp)
       if (date) {
         hourCount[date.getHours()]++
       }
@@ -301,7 +394,7 @@ export default function InsightsPage() {
     const dayCount = new Array(7).fill(0)
 
     rawInquiries.forEach((inquiry) => {
-      const date = parseTimestamp(inquiry.timestamp)
+      const date = parseTimestamp(inquiry.createdAt || inquiry.timestamp)
       if (date) {
         dayCount[date.getDay()]++
       }
@@ -385,6 +478,7 @@ export default function InsightsPage() {
   })
 
   if (authLoading) {
+    console.log('🔄 InsightsPage: Auth still loading...');
     return (
       <Container maxWidth="lg" sx={{ py: 8, textAlign: "center" }}>
         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
@@ -398,6 +492,7 @@ export default function InsightsPage() {
   }
 
   if (userRole !== 1) {
+    console.log('🚫 InsightsPage: Access denied, user role:', userRole);
     return (
       <Container maxWidth="md" sx={{ py: 8, textAlign: "center" }}>
         <Alert
@@ -408,7 +503,7 @@ export default function InsightsPage() {
             py: 3,
           }}
         >
-          אין לך הרשאה לצפות בדף זה. גישה נדחתה.
+          אין לך הרשאה לצפות בדף זה. גישה נדחתה. (תפקיד: {userRole || 'לא מוגדר'})
         </Alert>
       </Container>
     )
@@ -461,6 +556,17 @@ export default function InsightsPage() {
           </Box>
         ) : (
           <>
+            {/* Debug Information (only visible in development) */}
+            {process.env.NODE_ENV === 'development' && (
+              <Paper sx={{ p: 2, mb: 3, bgcolor: 'grey.100' }}>
+                <Typography variant="h6">Debug Info:</Typography>
+                <Typography>Raw Inquiries: {rawInquiries.length}</Typography>
+                <Typography>Raw Users: {rawUsers.length}</Typography>
+                <Typography>Current Stats: {JSON.stringify(stats)}</Typography>
+                <Typography>Period: {statsPeriod}</Typography>
+              </Paper>
+            )}
+            
             {/* Time Period Filter */}
             <Fade in timeout={600}>
               <Paper
