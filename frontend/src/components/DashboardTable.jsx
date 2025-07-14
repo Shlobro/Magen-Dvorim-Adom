@@ -73,7 +73,7 @@ const DashboardTable = ({
               <tr key={call.id} className={rowClasses}>
                 <td className="table-cell">
                   <div className="name-container">
-                    <span className="full-name">{call.fullName || `${call.firstName ?? ''} ${call.lastName ?? ''}`}</span>
+                    <span className="full-name">{call.fullName}</span>
                   </div>
                 </td>
 
