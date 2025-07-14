@@ -1,24 +1,42 @@
 // backend/controllers/inquiryController.js
-import cloudinary from '../services/cloudinary.js';
-import db from '../services/firebaseAdmin.js';
+import db, { admin } from '../services/firebaseAdmin.js';
 
-export const uploadPhotoAndSave = async (inquiryId, fileBuffer) => {
-  return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      { folder: 'inquiries' },
-      async (error, result) => {
-        if (error) {
-          console.error('Cloudinary upload error:', error);
-          return reject(error);
-        }
-        try {
-          await db.collection('inquiry').doc(inquiryId).set({ photo: result.secure_url }, { merge: true });
-          resolve(result.secure_url);
-        } catch (err) {
-          reject(err);
+export const uploadPhotoAndSave = async (inquiryId, fileBuffer, fileName) => {
+  try {
+    console.log(`📸 Uploading photo for inquiry: ${inquiryId}`);
+    
+    // Create a reference to Firebase Storage
+    const bucket = admin.storage().bucket();
+    const file = bucket.file(`inquiry-photos/${inquiryId}/${Date.now()}_${fileName}`);
+    
+    // Upload the file buffer to Firebase Storage
+    await file.save(fileBuffer, {
+      metadata: {
+        contentType: 'image/jpeg', // Adjust based on file type
+        metadata: {
+          inquiryId: inquiryId,
+          uploadedAt: new Date().toISOString()
         }
       }
-    );
-    uploadStream.end(fileBuffer);
-  });
+    });
+    
+    // Make the file publicly accessible
+    await file.makePublic();
+    
+    // Get the public URL
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${file.name}`;
+    
+    // Update the inquiry document with the photo URL
+    await db.collection('inquiry').doc(inquiryId).update({ 
+      photo: publicUrl,
+      photoUploadedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    console.log(`✅ Photo uploaded successfully: ${publicUrl}`);
+    return publicUrl;
+    
+  } catch (error) {
+    console.error('❌ Firebase Storage upload error:', error);
+    throw error;
+  }
 };

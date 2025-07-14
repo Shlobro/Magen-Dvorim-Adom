@@ -65,27 +65,58 @@ router.post('/', async (req, res) => {
     // קרא לפונקציה saveInquiry וקבל בחזרה את ה-ID של הפנייה שנשמרה/נוצרה
     const { id: newInquiryId } = await saveInquiry(inquiry); 
     
-    // שלח תגובה עם ה-ID של הפנייה החדשה/מעודכנת
-    res.status(200).send({ message: "Inquiry saved ✓", inquiryId: newInquiryId }); 
+    // שלח תגובה עם ה-ID של הפנייה החדשה/מעודכנת והקואורדינטות
+    res.json({ 
+      success: true, 
+      id: newInquiryId,
+      message: "Inquiry saved successfully",
+      coordinates: locationData ? { lat: locationData.latitude, lng: locationData.longitude } : null
+    }); 
   } catch (error) {
     console.error("Error saving inquiry:", error);
     res.status(500).send("Error saving inquiry");
   }
 });
 
-// =======================================================
-// POST /inquiry/upload-photo
-// Upload a photo and update the inquiry with its URL
-// =======================================================
-router.post('/upload-photo', upload.single('photo'), async (req, res) => {
+// ========================================
+// POST /inquiry/:id/photo
+// Upload photo for existing inquiry using Firebase Storage
+// ========================================
+router.post('/:id/photo', upload.single('photo'), async (req, res) => {
   try {
-    const { inquiryId } = req.body;
-    const fileBuffer = req.file.buffer;
-    const photoUrl = await uploadPhotoAndSave(inquiryId, fileBuffer);
-    res.status(200).json({ photoUrl });
+    const inquiryId = req.params.id;
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'No photo file provided' });
+    }
+
+    console.log(`📸 Processing photo upload for inquiry: ${inquiryId}`);
+    console.log(`📁 File details:`, {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    });
+
+    // Upload photo to Firebase Storage and save URL to Firestore
+    const photoUrl = await uploadPhotoAndSave(
+      inquiryId, 
+      req.file.buffer,
+      req.file.originalname
+    );
+
+    console.log(`✅ Photo uploaded successfully: ${photoUrl}`);
+    res.json({ 
+      success: true, 
+      photoUrl: photoUrl,
+      message: 'Photo uploaded successfully'
+    });
+
   } catch (error) {
-    console.error('Error uploading photo:', error);
-    res.status(500).send('Failed to upload photo');
+    console.error('❌ Error uploading photo:', error);
+    res.status(500).json({ 
+      error: 'Failed to upload photo', 
+      details: error.message 
+    });
   }
 });
 

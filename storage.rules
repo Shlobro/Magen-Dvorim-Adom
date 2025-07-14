@@ -1,0 +1,37 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules for Magen Dvorim Adom
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Rules for inquiry photos - allow anonymous uploads for public reports
+    match /inquiry-photos/{inquiryId}/{fileName} {
+      // Allow read access to anyone (for viewing photos)
+      allow read: if true;
+      
+      // Allow write access to anyone (including anonymous users submitting reports)
+      allow write: if true;
+    }
+    
+    // Rules for user profile photos (if needed in the future)
+    match /user-photos/{userId}/{fileName} {
+      // Allow read access to anyone
+      allow read: if true;
+      
+      // Allow write access only to the user themselves or authenticated users
+      allow write: if request.auth != null &&
+                   (request.auth.uid == userId || request.auth != null);
+    }
+    
+    // Rules for test files (for development/testing)
+    match /test-photos/{fileName} {
+      // Allow read/write access to authenticated users only
+      allow read, write: if request.auth != null;
+    }
+    
+    // Default deny rule for any other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

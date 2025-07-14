@@ -18,7 +18,6 @@
     "@mui/material": "^7.1.2",
     "axios": "^1.8.4",
     "chart.js": "^4.4.3",
-    "cloudinary": "^2.6.0",
     "cors": "^2.8.5",
     "csv-stringify": "^6.5.2",
     "date-fns": "^4.1.0",
