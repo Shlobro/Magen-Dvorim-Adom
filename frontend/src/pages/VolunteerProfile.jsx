@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
+import { apiRequest } from '../utils/apiConfig';
 import {
   Container,
   Card,
@@ -110,12 +111,23 @@ export default function VolunteerProfile() {
         return;
       }
 
-      // Update profile via API (using proxy)
-      const response = await fetch(`/api/users/${currentUser.uid}/update`, {
+      console.log('🔧 Volunteer Profile: Sending update request');
+      console.log('📦 Update data:', {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email.trim(),
+        phoneNumber: formData.phoneNumber.trim(),
+        city: formData.city.trim(),
+        location: formData.location.trim(),
+        beeExperience: formData.beeExperience,
+        beekeepingExperience: formData.beekeepingExperience,
+        hasTraining: formData.hasTraining,
+        heightPermit: formData.heightPermit
+      });
+
+      // Update profile via API using the apiRequest utility
+      const response = await apiRequest(`/users/${currentUser.uid}/update`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
@@ -131,8 +143,13 @@ export default function VolunteerProfile() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update profile');
+        const errorData = await response.text();
+        console.error('❌ Response error data:', errorData);
+        throw new Error(`Failed to update profile: ${response.status} ${response.statusText}`);
       }
+
+      const responseData = await response.json();
+      console.log('✅ Response data:', responseData);
 
       // Update local context data manually since the API call succeeded
       setUserData(prev => ({
@@ -152,8 +169,13 @@ export default function VolunteerProfile() {
       showSuccess('הפרופיל עודכן בהצלחה!');
       setEditing(false);
     } catch (error) {
-      console.error('Error updating profile:', error);
-      showError('שגיאה בעדכון הפרופיל');
+      console.error('❌ Error updating profile:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      showError(`שגיאה בעדכון הפרופיל: ${error.message}`);
     } finally {
       setLoading(false);
     }
