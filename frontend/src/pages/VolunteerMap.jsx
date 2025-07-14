@@ -328,12 +328,25 @@ export default function VolunteerMap() {
             return { id: doc.id, ...data, lat, lng }
           })
           
-          // Filter for coordinator's inquiries and unassigned ones
+          // Filter for coordinator's inquiries ONLY (not unassigned ones)
+          console.log('🔍 BEFORE filtering - All inquiries:', allInquiries.map(i => ({
+            id: i.id, 
+            coordinatorId: i.coordinatorId, 
+            address: i.address,
+            isMyInquiry: i.coordinatorId === currentUser.uid
+          })));
+          
           fetched = allInquiries.filter(inquiry => {
-            return !inquiry.coordinatorId || 
-                   inquiry.coordinatorId === '' || 
-                   inquiry.coordinatorId === currentUser.uid;
+            const belongsToMe = inquiry.coordinatorId === currentUser.uid;
+            console.log(`🎯 Filtering inquiry ${inquiry.id} (${inquiry.address}): coordinatorId="${inquiry.coordinatorId}", currentUser="${currentUser.uid}", belongsToMe=${belongsToMe}`);
+            return belongsToMe;
           });
+          
+          console.log('🔍 AFTER filtering - My inquiries:', fetched.map(i => ({
+            id: i.id, 
+            coordinatorId: i.coordinatorId, 
+            address: i.address
+          })));
           
           console.log('✅ Map: Loaded', fetched.length, 'coordinator inquiries from Firestore fallback');
         }
