@@ -266,14 +266,25 @@ export default function VolunteerMap() {
   const extractCoordinates = (data) => {
     let lat = null
     let lng = null
+    
+    console.log(`🗺️ Extracting coordinates for address: ${data.address}`);
+    console.log(`  - data.location:`, data.location);
+    console.log(`  - data.lat:`, data.lat);
+    console.log(`  - data.lng:`, data.lng);
+    
     if (data.location && typeof data.location === "object" && data.location.latitude != null && data.location.longitude != null) {
       // Handle both GeoPoint and regular objects with latitude/longitude
       lat = data.location.latitude
       lng = data.location.longitude
+      console.log(`  - ✅ Using location object: lat=${lat}, lng=${lng}`);
     } else if (data.lat != null && data.lng != null) {
       lat = data.lat
       lng = data.lng
+      console.log(`  - ✅ Using direct lat/lng: lat=${lat}, lng=${lng}`);
+    } else {
+      console.log(`  - ❌ No valid coordinates found`);
     }
+    
     return { lat, lng }
   }
 
@@ -304,13 +315,44 @@ export default function VolunteerMap() {
           }
           const inquiries = await response.json()
           
-          // Filter by status and add coordinates
-          fetched = inquiries
+          // Filter by status and coordinator assignment, then add coordinates
+          const allApiInquiries = inquiries
             .filter(inquiry => ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב", "המתנדב בדרך"].includes(inquiry.status))
             .map((data) => {
               const { lat, lng } = extractCoordinates(data)
               return { id: data.id, ...data, lat, lng }
-            })
+            });
+          
+          console.log('🔍 API BEFORE filtering - All inquiries:', allApiInquiries.map(i => ({
+            id: i.id, 
+            coordinatorId: i.coordinatorId, 
+            address: i.address,
+            isMyInquiry: i.coordinatorId === currentUser.uid
+          })));
+          
+          // Filter for coordinator's inquiries ONLY (same logic as Firestore)
+          fetched = allApiInquiries.filter(inquiry => {
+            const belongsToMe = inquiry.coordinatorId === currentUser.uid;
+            const isUnassigned = !inquiry.coordinatorId || inquiry.coordinatorId === null || inquiry.coordinatorId === undefined;
+            
+            console.log(`🎯 API Filtering inquiry ${inquiry.id} (${inquiry.address}):`);
+            console.log(`   - coordinatorId: "${inquiry.coordinatorId}" (type: ${typeof inquiry.coordinatorId})`);
+            console.log(`   - currentUser.uid: "${currentUser.uid}"`);
+            console.log(`   - belongsToMe: ${belongsToMe}`);
+            console.log(`   - isUnassigned: ${isUnassigned}`);
+            console.log(`   - INCLUDE IN MAP: ${belongsToMe}`);
+            
+            return belongsToMe; // Only include inquiries assigned to current coordinator
+          });
+          
+          console.log('🔍 API AFTER filtering - My inquiries:', fetched.map(i => ({
+            id: i.id, 
+            coordinatorId: i.coordinatorId, 
+            address: i.address,
+            lat: i.lat,
+            lng: i.lng,
+            hasCoordinates: i.lat != null && i.lng != null && !isNaN(i.lat) && !isNaN(i.lng)
+          })));
           
           console.log('✅ Map: Loaded', fetched.length, 'coordinator inquiries from backend API');
         } catch (apiError) {
@@ -338,14 +380,25 @@ export default function VolunteerMap() {
           
           fetched = allInquiries.filter(inquiry => {
             const belongsToMe = inquiry.coordinatorId === currentUser.uid;
-            console.log(`🎯 Filtering inquiry ${inquiry.id} (${inquiry.address}): coordinatorId="${inquiry.coordinatorId}", currentUser="${currentUser.uid}", belongsToMe=${belongsToMe}`);
-            return belongsToMe;
+            const isUnassigned = !inquiry.coordinatorId || inquiry.coordinatorId === null || inquiry.coordinatorId === undefined;
+            
+            console.log(`🎯 Filtering inquiry ${inquiry.id} (${inquiry.address}):`);
+            console.log(`   - coordinatorId: "${inquiry.coordinatorId}" (type: ${typeof inquiry.coordinatorId})`);
+            console.log(`   - currentUser.uid: "${currentUser.uid}"`);
+            console.log(`   - belongsToMe: ${belongsToMe}`);
+            console.log(`   - isUnassigned: ${isUnassigned}`);
+            console.log(`   - INCLUDE IN MAP: ${belongsToMe}`);
+            
+            return belongsToMe; // Only include inquiries assigned to current coordinator
           });
           
           console.log('🔍 AFTER filtering - My inquiries:', fetched.map(i => ({
             id: i.id, 
             coordinatorId: i.coordinatorId, 
-            address: i.address
+            address: i.address,
+            lat: i.lat,
+            lng: i.lng,
+            hasCoordinates: i.lat != null && i.lng != null && !isNaN(i.lat) && !isNaN(i.lng)
           })));
           
           console.log('✅ Map: Loaded', fetched.length, 'coordinator inquiries from Firestore fallback');
@@ -418,8 +471,30 @@ export default function VolunteerMap() {
 
       // 4. Sort by opening timestamp (oldest first)
       validInquiries.sort((a, b) => {
-        const ta = a.timestamp?.toDate()?.getTime() || 0
-        const tb = b.timestamp?.toDate()?.getTime() || 0
+        let ta = 0;
+        let tb = 0;
+        
+        // Handle different timestamp formats
+        if (a.timestamp) {
+          if (typeof a.timestamp.toDate === 'function') {
+            ta = a.timestamp.toDate().getTime();
+          } else if (a.timestamp instanceof Date) {
+            ta = a.timestamp.getTime();
+          } else if (typeof a.timestamp === 'string') {
+            ta = new Date(a.timestamp).getTime();
+          }
+        }
+        
+        if (b.timestamp) {
+          if (typeof b.timestamp.toDate === 'function') {
+            tb = b.timestamp.toDate().getTime();
+          } else if (b.timestamp instanceof Date) {
+            tb = b.timestamp.getTime();
+          } else if (typeof b.timestamp === 'string') {
+            tb = new Date(b.timestamp).getTime();
+          }
+        }
+        
         return ta - tb
       })
 
