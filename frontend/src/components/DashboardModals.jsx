@@ -5,8 +5,7 @@ const DashboardModals = ({
   selectedCallDetails,
   handleCloseDetails,
   formatDateForDisplay,
-  handleOpenPhoto,
-  handleDownloadPhoto
+  handleOpenPhoto
 }) => {
   
   if (!isDetailsModalOpen) {
@@ -74,7 +73,7 @@ const DashboardModals = ({
                 </div>
               </div>
 
-              {/* Photo section with download button */}
+              {/* Photo section */}
               {selectedCallDetails.photo && (
                 <div className="detail-card full-width">
                   <div className="detail-label">תמונת הדיווח:</div>
@@ -86,12 +85,6 @@ const DashboardModals = ({
                       onClick={() => handleOpenPhoto(selectedCallDetails.photo)}
                       title="לחץ לפתיחת התמונה בטאב חדש"
                     />
-                    <button
-                      onClick={() => handleDownloadPhoto(selectedCallDetails.photo, selectedCallDetails.id)}
-                      className="download-photo-button"
-                    >
-                      📥 הורד תמונה
-                    </button>
                   </div>
                 </div>
               )}

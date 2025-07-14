@@ -280,27 +280,6 @@ export default function Dashboard() {
     window.open(photoUrl, '_blank')
   }
 
-  const handleDownloadPhoto = async (photoUrl, inquiryId) => {
-    try {
-      const response = await fetch(photoUrl)
-      const blob = await response.blob()
-      
-      const url = window.URL.createObjectURL(blob)
-      
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `תמונת_דיווח_${inquiryId}_${new Date().toISOString().split('T')[0]}.jpg`
-      document.body.appendChild(a)
-      a.click()
-      
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Error downloading photo:', error)
-      alert('שגיאה בהורדת התמונה')
-    }
-  }
-
   // Action handlers
   const handleAssignVolunteerClick = (inquiryId) => {
     const currentCall = calls.find(c => c.id === inquiryId)
@@ -502,7 +481,6 @@ export default function Dashboard() {
             handleCloseDetails={handleCloseDetails}
             formatDateForDisplay={formatDateForDisplay}
             handleOpenPhoto={handleOpenPhoto}
-            handleDownloadPhoto={handleDownloadPhoto}
           />
         </div>
       </div>

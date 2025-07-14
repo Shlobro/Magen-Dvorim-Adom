@@ -71,6 +71,69 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.get('/ping', (_req, res) => res.send('Server is running ✓'));
 
 // ─────────────────────────────
+// Photo download endpoint
+// ─────────────────────────────
+app.get('/download-photo', async (req, res) => {
+  try {
+    const { url } = req.query; // הURL של התמונה מגיע כquery parameter
+    
+    if (!url) {
+      return res.status(400).json({ error: 'URL נדרש עבור הורדת התמונה' });
+    }
+
+    // בדיקה שזה URL של Firebase Storage
+    if (!url.includes('firebasestorage.googleapis.com')) {
+      return res.status(400).json({ error: 'ניתן להוריד רק תמונות מFirebase Storage' });
+    }
+
+    console.log('📸 Downloading photo from:', url);
+
+    // הורדת התמונה מFirebase Storage
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'MagenDovrumAdom-Backend/1.0'
+      }
+    });
+    
+    if (!response.ok) {
+      console.error(`❌ Firebase Storage response error: ${response.status} ${response.statusText}`);
+      return res.status(response.status).json({ 
+        error: `שגיאה בהורדת התמונה מFirebase: ${response.status} ${response.statusText}` 
+      });
+    }
+
+    // קביעת content type
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    
+    // הגדרת headers לCORS ולתמונה
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+    res.setHeader('Cache-Control', 'no-cache');
+    
+    // הזרמת התמונה
+    const buffer = await response.arrayBuffer();
+    res.send(Buffer.from(buffer));
+    
+    console.log('✅ Photo downloaded and sent successfully');
+    
+  } catch (error) {
+    console.error('❌ Error downloading photo:', error);
+    res.status(500).json({ error: `שגיאה בהורדת התמונה: ${error.message}` });
+  }
+});
+
+// הוספת OPTIONS handler לCORS preflight
+app.options('/download-photo', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+  res.sendStatus(200);
+});
+
+// ─────────────────────────────
 // Mount feature routes
 // ─────────────────────────────
 app.use('/user',        userRoutes);      // legacy

@@ -2,12 +2,30 @@
 import express from 'express';
 import cors from 'cors';
 import { geocodeAddress } from './services/geocodeAddress.js'; // ודא שהנתיב הזה נכון
+import inquiryRoutes from './routes/inquiryRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 
 const app = express();
 
 // Middleware - חובה עבור תקשורת בין frontend ל-backend וניתוח גוף בקשות
-app.use(cors()); // מאפשר בקשות Cross-Origin (למשל מה-frontend ל-backend)
+const corsOptions = {
+  origin: [
+    'https://magendovrimadom.web.app',
+    'https://magendovrimadom.firebaseapp.com', 
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions)); // מאפשר בקשות Cross-Origin עם הגדרות מפורטות
 app.use(express.json()); // מנתח גוף בקשות בפורמט JSON
+
+// Routes
+app.use('/api', inquiryRoutes);
+app.use('/api', userRoutes);
 
 // ==================================================================
 // נקודת קצה חדשה עבור Geocoding (לשימוש ישיר מה-frontend SignUp)
@@ -28,6 +46,69 @@ app.post('/geocode', async (req, res) => {
     console.error('שגיאת Geocoding ב-backend:', error);
     res.status(500).send('שגיאה בביצוע Geocoding לכתובת.');
   }
+});
+
+// ==================================================================
+// נקודת קצה עבור הורדת תמונות מFirebase Storage
+// ==================================================================
+app.get('/download-photo', async (req, res) => {
+  try {
+    const { url } = req.query; // הURL של התמונה מגיע כquery parameter
+    
+    if (!url) {
+      return res.status(400).json({ error: 'URL נדרש עבור הורדת התמונה' });
+    }
+
+    // בדיקה שזה URL של Firebase Storage
+    if (!url.includes('firebasestorage.googleapis.com')) {
+      return res.status(400).json({ error: 'ניתן להוריד רק תמונות מFirebase Storage' });
+    }
+
+    console.log('📸 Downloading photo from:', url);
+
+    // הורדת התמונה מFirebase Storage
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'MagenDovrumAdom-Backend/1.0'
+      }
+    });
+    
+    if (!response.ok) {
+      console.error(`❌ Firebase Storage response error: ${response.status} ${response.statusText}`);
+      return res.status(response.status).json({ 
+        error: `שגיאה בהורדת התמונה מFirebase: ${response.status} ${response.statusText}` 
+      });
+    }
+
+    // קביעת content type
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    
+    // הגדרת headers לCORS ולתמונה
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+    res.setHeader('Cache-Control', 'no-cache');
+    
+    // הזרמת התמונה
+    const buffer = await response.arrayBuffer();
+    res.send(Buffer.from(buffer));
+    
+    console.log('✅ Photo downloaded and sent successfully');
+    
+  } catch (error) {
+    console.error('❌ Error downloading photo:', error);
+    res.status(500).json({ error: `שגיאה בהורדת התמונה: ${error.message}` });
+  }
+});
+
+// הוספת OPTIONS handler לCORS preflight
+app.options('/download-photo', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+  res.sendStatus(200);
 });
 
 // הגדרת השרת להאזנה לפורט
