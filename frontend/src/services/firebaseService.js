@@ -637,9 +637,9 @@ export const inquiryService = {
         console.log('🎯 Automatically assigning ownership to coordinator:', coordinatorId);
       }
       
-      // Attempt client-side geocoding if no coordinates are provided
+      // STRICT VALIDATION: Attempt client-side geocoding if no coordinates are provided
       if (!inquiryData.location && inquiryData.city && inquiryData.address) {
-        console.log('⚠️ No coordinates provided - attempting client-side geocoding...');
+        console.log('📍 No coordinates provided - attempting client-side geocoding...');
         
         try {
           const { geocodeAddress } = await import('./geocoding');
@@ -653,11 +653,18 @@ export const inquiryService = {
             };
             console.log('✅ Client-side geocoding successful:', coords);
           } else {
-            console.warn('⚠️ Client-side geocoding failed for:', fullAddress);
+            console.error('❌ Client-side geocoding failed for:', fullAddress);
+            throw new Error('לא ניתן לאתר את הכתובת במפה. אנא ודא שהכתובת מדויקת ותכלול גם את העיר.');
           }
         } catch (geocodingError) {
           console.error('❌ Client-side geocoding error:', geocodingError);
+          throw new Error('שגיאה בזיהוי הכתובת: ' + geocodingError.message);
         }
+      }
+      
+      // Validate that coordinates exist before creating inquiry
+      if (!inquiryData.location) {
+        throw new Error('לא ניתן ליצור פנייה ללא כתובת תקינה. אנא ודא שהכתובת שהוזנה נכונה.');
       }
       
       const docRef = await addDoc(collection(db, 'inquiry'), {
@@ -666,12 +673,7 @@ export const inquiryService = {
         updatedAt: serverTimestamp()
       });
       
-      if (!inquiryData.location) {
-        console.warn('⚠️ WARNING: Inquiry created without coordinates! ID:', docRef.id);
-        console.warn('   This inquiry may not appear on the map until coordinates are manually added.');
-      } else {
-        console.log('✅ Inquiry created successfully with coordinates. ID:', docRef.id);
-      }
+      console.log('✅ Inquiry created successfully with coordinates. ID:', docRef.id);
       
       return { id: docRef.id, message: 'פנייה נוצרה בהצלחה' };
     } catch (error) {

@@ -39,7 +39,7 @@ router.post('/', async (req, res) => {
 
     let locationData = null; // אתחל את אובייקט המיקום
 
-    // בצע גיאו-קידוד
+    // בצע גיאו-קידוד - STRICT VALIDATION: כתובת חייבת להיות ניתנת לקידוד
     const coords = await geocodeAddress(fullAddress);
     console.log("Geocoding coordinates received:", coords);
     if (coords) {
@@ -49,8 +49,13 @@ router.post('/', async (req, res) => {
         longitude: coords.lng
       };
     } else {
-      console.warn(`Could not geocode address: ${fullAddress}. Location will be null.`);
-      // locationData כבר null, אין צורך להגדיר מחדש
+      console.error(`❌ VALIDATION FAILED: Could not geocode address: ${fullAddress}`);
+      return res.status(400).json({
+        error: "Address validation failed",
+        message: "לא ניתן לאתר את הכתובת במפה. אנא ודא שהכתובת מדויקת ותכלול גם את העיר.",
+        address: fullAddress,
+        details: "הפנייה לא נוצרה כיוון שלא ניתן לזהות את המיקום"
+      });
     }
 
     // הוסף את אובייקט ה-location לאובייקט הפנייה לפני השמירה

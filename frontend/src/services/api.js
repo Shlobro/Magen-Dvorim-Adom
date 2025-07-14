@@ -71,23 +71,20 @@ export const saveInquiry = async (inquiry, coordinatorId = null) => {
           };
           console.log('✅ Client-side geocoding successful:', coords);
         } else {
-          console.warn('⚠️ Client-side geocoding failed - inquiry will be saved without coordinates');
+          console.error('❌ Client-side geocoding also failed');
+          throw new Error('לא ניתן לאתר את הכתובת במפה. אנא ודא שהכתובת מדויקת ותכלול גם את העיר.');
         }
       }
       
-      // Fallback to direct Firestore creation
+      // Fallback to direct Firestore creation only if we have coordinates
       console.log('🔄 Using direct Firestore creation as fallback...');
       const result = await inquiryService.createInquiry(inquiry, coordinatorId);
-      
-      if (!inquiry.location) {
-        console.warn('⚠️ WARNING: Inquiry saved without coordinates! Manual geocoding may be needed.');
-      }
       
       return result;
       
     } catch (fallbackError) {
       console.error('❌ Fallback also failed:', fallbackError);
-      throw new Error(`Failed to save inquiry: ${error.message}. Fallback error: ${fallbackError.message}`);
+      throw new Error(fallbackError.message || `Failed to save inquiry: ${error.message}. Fallback error: ${fallbackError.message}`);
     }
   }
 };
