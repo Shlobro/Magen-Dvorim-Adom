@@ -266,7 +266,7 @@ export default function VolunteerProfile() {
       
       // If password verification succeeds, proceed with deletion
       const API_BASE = import.meta.env.PROD 
-        ? (import.meta.env.VITE_API_BASE || 'https://magen-dvorim-adom-backend.railway.app')
+        ? (import.meta.env.VITE_API_BASE || 'https://magendovrimadom-backend.railway.app')
         : (import.meta.env.VITE_API_BASE || 'http://localhost:3001');
       const response = await fetch(`${API_BASE}/api/users/self/${currentUser.uid}`, {
         method: 'DELETE',

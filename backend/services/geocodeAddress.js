@@ -32,7 +32,7 @@ export async function geocodeAddress(rawAddress) {
         },
         headers: {
           // Nominatim usage policy: identify yourself with a valid e-mail / UA
-          'User-Agent': 'magen-dvorim-adom/1.0 (mathscsandse@gmail.com)',
+          'User-Agent': 'magendovrimadom/1.0 (mathscsandse@gmail.com)',
         },
       }
     );

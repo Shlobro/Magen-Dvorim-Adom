@@ -56,7 +56,7 @@ An advanced inquiry management system that enables:
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd magen-dvorim-adom
+cd magendovrimadom
 
 # Install dependencies
 npm install
@@ -166,7 +166,7 @@ firebase init hosting  # Only needed for first-time setup
 ## Project Structure
 
 ```
-magen-dvorim-adom/
+magendovrimadom/
 ├── backend/                 # Node.js/Express backend
 │   ├── controllers/         # Business logic controllers
 │   ├── routes/             # API routes

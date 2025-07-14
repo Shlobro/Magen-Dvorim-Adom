@@ -82,7 +82,7 @@ export const useDashboardData = (currentUser, userRole, authLoading, showSuccess
           try {
             // Try backend API first
             const backendUrl = import.meta.env.PROD 
-              ? (import.meta.env.VITE_API_BASE || 'https://magen-dvorim-adom-backend.railway.app')
+              ? (import.meta.env.VITE_API_BASE || 'https://magendovrimadom-backend.railway.app')
               : (import.meta.env.VITE_API_BASE || 'http://localhost:3001');
             
             const response = await fetch(`${backendUrl}/api/inquiries?coordinatorId=${currentUser.uid}`)
