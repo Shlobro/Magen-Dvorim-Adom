@@ -272,18 +272,57 @@ router.post('/:id/password', async (req, res) => {
 });
 
 router.post('/:id/update', async (req, res) => {
-  const updateData = { ...req.body };
-  if (updateData.location) {
-    const coords = await geocodeAddress(updateData.location);
-    if (coords) Object.assign(updateData, coords);
-  }
-
   try {
-    await db.collection('user').doc(req.params.id).update(updateData);
-    res.json({ message: 'User updated successfully' });
+    const userId = req.params.id;
+    const updateData = { ...req.body };
+    
+    console.log(`🔧 Updating user profile for ID: ${userId}`);
+    console.log('📦 Update data received:', JSON.stringify(updateData, null, 2));
+    
+    // Add coordinates if location fields are provided
+    if (updateData.city && updateData.streetName && updateData.houseNumber) {
+      const fullAddress = `${updateData.streetName} ${updateData.houseNumber}, ${updateData.city}`;
+      try {
+        console.log(`🌍 Geocoding address: ${fullAddress}`);
+        const coords = await geocodeAddress(fullAddress);
+        if (coords) {
+          updateData.lat = coords.lat;
+          updateData.lng = coords.lng;
+          updateData.location = fullAddress;
+          console.log(`✅ Geocoding successful: lat=${coords.lat}, lng=${coords.lng}`);
+        }
+      } catch (geocodeError) {
+        console.warn('⚠️ Geocoding failed, continuing without coordinates:', geocodeError.message);
+      }
+    } else if (updateData.location) {
+      // Handle case where full location string is provided
+      try {
+        console.log(`🌍 Geocoding location: ${updateData.location}`);
+        const coords = await geocodeAddress(updateData.location);
+        if (coords) {
+          updateData.lat = coords.lat;
+          updateData.lng = coords.lng;
+          console.log(`✅ Geocoding successful: lat=${coords.lat}, lng=${coords.lng}`);
+        }
+      } catch (geocodeError) {
+        console.warn('⚠️ Geocoding failed, continuing without coordinates:', geocodeError.message);
+      }
+    }
+    
+    // Add update timestamp
+    updateData.updatedAt = new Date();
+    console.log('🕒 Added timestamp:', updateData.updatedAt);
+    
+    // Update the user document
+    console.log(`💾 Updating Firestore document for user: ${userId}`);
+    await db.collection('user').doc(userId).update(updateData);
+    console.log('✅ Firestore update successful');
+    
+    res.json({ message: 'הפרופיל עודכן בהצלחה' });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Error updating user' });
+    console.error('❌ Error updating user profile:', e);
+    console.error('❌ Stack trace:', e.stack);
+    res.status(500).json({ error: 'שגיאה בעדכון הפרופיל' });
   }
 });
 
