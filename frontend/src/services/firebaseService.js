@@ -189,7 +189,7 @@ export const userService = {
       
       // Determine the correct backend URL
       const backendUrl = import.meta.env.PROD 
-        ? (import.meta.env.VITE_API_BASE || 'https://magen-dvorim-adom-backend.railway.app')
+        ? (import.meta.env.VITE_API_BASE || 'https://magendovrimadom-backend.railway.app')
         : (import.meta.env.VITE_API_BASE || 'http://localhost:3001');
       
       const response = await fetch(`${backendUrl}/api/users/coordinator-delete/${volunteerId}`, {

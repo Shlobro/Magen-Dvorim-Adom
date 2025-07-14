@@ -10,7 +10,7 @@ import { validateAddressGeocoding } from '../services/geocoding';
 import '../styles/UserProfile.css';
 
 const API_BASE = import.meta.env.PROD 
-  ? (import.meta.env.VITE_API_BASE || 'https://magen-dvorim-adom-backend.railway.app')
+  ? (import.meta.env.VITE_API_BASE || 'https://magendovrimadom-backend.railway.app')
   : (import.meta.env.VITE_API_BASE || 'http://localhost:3001');
 
 export default function UserProfile() {

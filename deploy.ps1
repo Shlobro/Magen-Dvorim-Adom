@@ -21,7 +21,7 @@ try {
     Write-Host ""
     
     # Run firebase deploy (deploys hosting, storage, firestore, etc.)
-    & firebase deploy
+    & firebase deploy --project magendovrimadom
     if ($LASTEXITCODE -ne 0) {
         throw "Deployment failed with exit code $LASTEXITCODE"
     }
