@@ -34,23 +34,22 @@ An advanced inquiry management system that enables:
 - **Node.js** + **Express 5.1.0** - Server and API
 - **Firebase Admin SDK 13.2.0** - Database and authentication
 - **Firestore** - NoSQL database
+- **Firebase Storage** - Cloud image storage
 - **Multer 1.4.5** - File upload handling
-- **Cloudinary 2.6.0** - Cloud image storage
 - **CORS 2.8.5** - Cross-origin resource sharing
 
 ### External Services
 - **OpenStreetMap** + **Nominatim** - Maps and geocoding
 - **Firebase Authentication** - User authentication
 - **Firebase Firestore** - Real-time database
-- **Cloudinary** - Image storage and optimization
+- **Firebase Storage** - Image storage and optimization
 
 ## Installation Guide
 
 ### Prerequisites
 - Node.js (version 18.0.0 or higher)
 - npm or yarn package manager
-- Firebase account
-- Cloudinary account
+- Firebase account with Firestore and Storage enabled
 
 ### 1. Environment Setup
 
@@ -95,11 +94,6 @@ FRONTEND_URL=http://localhost:5173
 FIREBASE_PROJECT_ID=your-project-id
 FIREBASE_PRIVATE_KEY=your-private-key
 FIREBASE_CLIENT_EMAIL=your-client-email
-
-# Cloudinary
-CLOUDINARY_CLOUD_NAME=your-cloud-name
-CLOUDINARY_API_KEY=your-api-key
-CLOUDINARY_API_SECRET=your-api-secret
 ```
 
 ### 4. Firebase Client Configuration
@@ -125,9 +119,9 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 ```
 
-### 5. Cloudinary Configuration
+### 5. Firebase Storage Configuration
 
-Sign up for a [Cloudinary account](https://cloudinary.com/) and add your credentials to the `.env` file.
+Make sure your Firebase project has Storage enabled in a US region for image upload functionality.
 
 ### 6. Running the Application
 
@@ -276,7 +270,7 @@ The system uses a weighted scoring algorithm to match volunteers with inquiries:
 - React.memo for component optimization
 - useMemo/useCallback for expensive calculations
 - Lazy loading for route-based code splitting
-- Image optimization through Cloudinary
+- Image optimization through Firebase Storage
 - Firestore query optimization with indexes
 - Client-side caching for frequently accessed data
 
@@ -300,7 +294,7 @@ The system uses a weighted scoring algorithm to match volunteers with inquiries:
 
 - Azrieli College for providing the educational framework
 - Magen Dvorim Adom organization for the project requirements
-- Firebase and Cloudinary for their services
+- Firebase for their comprehensive services
 - The open-source community for the tools and libraries used
 
 ## Account Management Features

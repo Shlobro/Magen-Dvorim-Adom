@@ -17,11 +17,11 @@ try {
     }
     
     Write-Host ""
-    Write-Host "[2/2] Deploying to Firebase hosting..." -ForegroundColor Yellow
+    Write-Host "[2/2] Deploying to Firebase..." -ForegroundColor Yellow
     Write-Host ""
     
-    # Run firebase deploy
-    & firebase deploy --only hosting
+    # Run firebase deploy (deploys hosting, storage, firestore, etc.)
+    & firebase deploy
     if ($LASTEXITCODE -ne 0) {
         throw "Deployment failed with exit code $LASTEXITCODE"
     }

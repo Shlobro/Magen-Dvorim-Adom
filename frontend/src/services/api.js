@@ -25,32 +25,30 @@ export const saveInquiry = async (inquiry, coordinatorId = null) => {
       ? (import.meta.env.VITE_API_BASE || 'https://magen-dvorim-adom-backend.railway.app')
       : (import.meta.env.VITE_API_BASE || 'http://localhost:3001');
     
-    console.log('🔄 Saving inquiry via backend API with geocoding...');
-    console.log('  - Backend URL:', backendUrl);
-    console.log('  - Inquiry data:', { 
-      city: inquiry.city, 
-      address: inquiry.address,
-      hasCoordinates: !!(inquiry.lat && inquiry.lng) 
-    });
-    
-    // Use backend API to ensure geocoding is applied
+    console.log('🌐 Using backend URL:', backendUrl);
+    console.log('🔄 Sending inquiry to backend for geocoding...');
+
     const response = await fetch(`${backendUrl}/inquiry/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(inquiry)
+      body: JSON.stringify(inquiry),
     });
-    
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Backend API error:', errorText);
-      throw new Error(`Backend error: ${response.status} - ${errorText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.details || errorData.error || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ Backend inquiry creation successful:', result);
+    
+    if (!result.coordinates) {
+      console.warn('⚠️ No coordinates returned from backend geocoding');
     }
     
-    const result = await response.json();
-    console.log('✅ Inquiry saved successfully via backend with coordinates');
-    return { id: result.inquiryId, message: result.message };
+    return result;
     
   } catch (error) {
     console.error('❌ Error saving inquiry via backend:', error);
@@ -96,19 +94,42 @@ export const saveInquiry = async (inquiry, coordinatorId = null) => {
 
 export const uploadPhoto = async (inquiryId, file) => {
   try {
+    if (!storage) {
+      throw new Error('Firebase Storage not initialized');
+    }
+
+    console.log(`📸 Uploading photo for inquiry: ${inquiryId}`);
+    console.log(`📁 File details:`, {
+      name: file.name,
+      type: file.type,
+      size: file.size
+    });
+
     // Create a reference to the file in Firebase Storage
     const fileName = `inquiry-photos/${inquiryId}/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, fileName);
     
     // Upload the file
     const snapshot = await uploadBytes(storageRef, file);
+    console.log('✅ File uploaded to Firebase Storage');
     
     // Get the download URL
     const downloadURL = await getDownloadURL(snapshot.ref);
+    console.log('✅ Download URL obtained:', downloadURL);
+    
+    // Update the inquiry document in Firestore with the photo URL
+    if (db) {
+      await updateDoc(doc(db, 'inquiry', inquiryId), {
+        photo: downloadURL,
+        photoUploadedAt: serverTimestamp()
+      });
+      console.log('✅ Inquiry document updated with photo URL');
+    }
     
     return { data: { photoUrl: downloadURL } };
+    
   } catch (error) {
-    console.error('Error uploading photo:', error);
+    console.error('❌ Error uploading photo to Firebase Storage:', error);
     throw error;
   }
 };

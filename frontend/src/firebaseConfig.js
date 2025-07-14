@@ -6,13 +6,13 @@ import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyB4ndicXgPWzoV9H6vMiCaJlSKet5r7log",
-  authDomain: "magen-dvorim-adom.firebaseapp.com",
-  projectId: "magen-dvorim-adom",
-  storageBucket: "magen-dvorim-adom.firebasestorage.app",
-  messagingSenderId: "789427950312",
-  appId: "1:789427950312:web:83628c8b2456933ece2f5d",
-  measurementId: "G-ZJYS7780XG"
+  apiKey: "AIzaSyA3VpXz9rYCiQqaK7nvcN6rD4W25uZtNtw",
+  authDomain: "magendovrimadom.firebaseapp.com",
+  projectId: "magendovrimadom",
+  storageBucket: "magendovrimadom.firebasestorage.app",
+  messagingSenderId: "3410485302",
+  appId: "1:3410485302:web:0a1aa67ef9372079e33897",
+  measurementId: "G-DRYS62FSP3"
 };
 
 // Initialize Firebase with error handling
@@ -23,8 +23,11 @@ try {
   auth = getAuth(app);
   db = getFirestore(app);
   storage = getStorage(app);
+  
+  console.log('✅ Firebase initialized successfully');
+  console.log('📦 Storage bucket:', firebaseConfig.storageBucket);
 } catch (error) {
-  console.error('Firebase initialization error:', error);
+  console.error('❌ Firebase initialization error:', error);
   // Create fallback objects to prevent constructor errors
   auth = null;
   db = null;

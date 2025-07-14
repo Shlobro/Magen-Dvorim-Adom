@@ -26,10 +26,14 @@ try {
 
 // אתחול Firebase Admin SDK
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.credential.cert(serviceAccount),
+  storageBucket: serviceAccount.project_id + '.appspot.com' // Add storage bucket
 });
 
 // ייצוא מופע ה-Firestore Admin SDK
 const db = admin.firestore();
 
+console.log("✅ Firebase Admin SDK initialized with Storage support");
+
 export default db;
+export { admin }; // Export admin for Storage access
