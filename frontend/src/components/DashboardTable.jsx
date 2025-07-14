@@ -73,14 +73,14 @@ const DashboardTable = ({
               <tr key={call.id} className={rowClasses}>
                 <td className="table-cell">
                   <div className="name-container">
-                    <span className="full-name">{call.fullName}</span>
-                    <span className="phone-number">{call.phoneNumber}</span>
+                    <span className="full-name">{call.fullName || `${call.firstName ?? ''} ${call.lastName ?? ''}`}</span>
                   </div>
                 </td>
 
                 <td className="table-cell nowrap">
                   <div className="address-container">
                     <span className="city">{call.city || "לא צוין"}</span>
+                    {call.city && call.address ? <span> </span> : null}
                     <span className="address">{call.address || "לא צוין"}</span>
                   </div>
                 </td>
