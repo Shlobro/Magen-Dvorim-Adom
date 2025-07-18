@@ -693,7 +693,7 @@ export default function VolunteerMap() {
         console.log(`  - Total volunteers: ${allVolunteers.length}`)
         console.log(`  - With coordinates: ${allVolunteers.filter(v => v.hasCoordinates).length}`)
         console.log(`  - Without coordinates: ${allVolunteers.filter(v => !v.hasCoordinates).length}`)
-        console.log(`  - Top 8 scores: ${allVolunteers.slice(0, 8).map(v => v.score.toFixed(1)).join(', ')}`)
+        console.log(`  - Top scores: ${allVolunteers.slice(0, Math.min(10, allVolunteers.length)).map(v => v.score.toFixed(1)).join(', ')}`)
         
       } catch (error) {
         console.error("Error fetching available volunteers:", error)
@@ -1479,21 +1479,20 @@ export default function VolunteerMap() {
                                     (volunteer.name && volunteer.name.toLowerCase().includes(volunteerSearchTerm.toLowerCase()))
                                   ) : [];
 
-                                // Get top 8 volunteers with highest scores (regardless of coordinates)
-                                const topVolunteers = filteredVolunteers.slice(0, 8);
-                                const otherVolunteers = filteredVolunteers.slice(8);
+                                // Show all volunteers sorted by score (no limit)
+                                const allVolunteers = filteredVolunteers;
 
                                 return filteredVolunteers.length > 0 ? (
                                   <FormControl component="fieldset" fullWidth>
                                     
-                                    {/* Top volunteers section */}
-                                    {topVolunteers.length > 0 && (
+                                    {/* All volunteers section */}
+                                    {allVolunteers.length > 0 && (
                                       <>
                                         <Typography variant="h6" sx={{ mb: 1, color: 'primary.main', fontWeight: 'bold' }}>
-                                          ⭐ 8 המתנדבים עם הציון הגבוה ביותר
+                                          ⭐ המתנדבים הטובים ביותר
                                         </Typography>
                                         <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
-                                          {topVolunteers.length} מתנדבים ממוינים לפי ציון התאמה
+                                          {allVolunteers.length} מתנדבים ממוינים לפי ציון התאמה
                                         </Typography>
                                       </>
                                     )}
@@ -1502,8 +1501,8 @@ export default function VolunteerMap() {
                                       value={selectedVolunteerIds[0] || ""}
                                       onChange={(e) => setSelectedVolunteerIds([e.target.value])}
                                     >
-                                      {/* Display top volunteers */}
-                                      {topVolunteers.map((volunteer) => (
+                                      {/* Display all volunteers */}
+                                      {allVolunteers.map((volunteer) => (
                                         <Paper
                                           key={volunteer.id}
                                           elevation={selectedVolunteerIds[0] === volunteer.id ? 3 : 1}
@@ -1615,130 +1614,6 @@ export default function VolunteerMap() {
                                           />
                                         </Paper>
                                       ))}
-
-                                      {/* Other volunteers section - showing filtered volunteers beyond top 8 */}
-                                      {otherVolunteers.length > 0 && (
-                                        <>
-                                          <Box sx={{ my: 2, borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>
-                                            <Typography variant="h6" sx={{ mb: 1, color: 'text.secondary', fontWeight: 'bold' }}>
-                                              👥 מתנדבים נוספים ({otherVolunteers.length})
-                                            </Typography>
-                                            <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
-                                              נמצאו במונחי החיפוש שלך
-                                            </Typography>
-                                          </Box>
-                                          
-                                          {otherVolunteers.map((volunteer) => (
-                                            <Paper
-                                              key={volunteer.id}
-                                              elevation={selectedVolunteerIds[0] === volunteer.id ? 3 : 1}
-                                              sx={{
-                                                p: 2,
-                                                mb: 1,
-                                                borderRadius: 2,
-                                                bgcolor:
-                                                  selectedVolunteerIds[0] === volunteer.id ? "primary.light" : "background.paper",
-                                                opacity: isSelectedInquiryAssigned ? 0.5 : 1,
-                                                transition: "all 0.2s ease-in-out",
-                                                "&:hover": {
-                                                  elevation: 2,
-                                                  bgcolor: selectedVolunteerIds[0] === volunteer.id ? "primary.light" : "grey.50",
-                                                },
-                                              }}
-                                            >
-                                              <FormControlLabel
-                                                value={volunteer.id}
-                                                control={<Radio disabled={isSelectedInquiryAssigned} />}
-                                                label={
-                                                  <Box sx={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
-                                                    <Box sx={{ flex: 1 }}>
-                                                      <Typography variant="subtitle2" fontWeight="bold">
-                                                        {volunteer.name}
-                                                      </Typography>
-                                                      <Typography variant="body2" color="text.secondary">
-                                                        {volunteer.hasCoordinates ? 
-                                                          `מרחק: ${volunteer.distance?.toFixed(1)} ק"מ` : 
-                                                          'מיקום לא זמין במפה'
-                                                        }
-                                                      </Typography>
-                                                      {volunteer.city && (
-                                                        <Typography variant="body2" color="text.secondary">
-                                                          עיר: {volunteer.city}
-                                                        </Typography>
-                                                      )}
-
-                                                      {/* Experience indicators */}
-                                                      <Box sx={{ display: "flex", gap: 0.5, mt: 0.5, flexWrap: "wrap" }}>
-                                                        {volunteer.beeExperience && (
-                                                          <Chip
-                                                            label="פינוי נחילים"
-                                                            size="small"
-                                                            color="success"
-                                                            variant="outlined"
-                                                            sx={{ fontSize: "0.65rem", height: "18px" }}
-                                                          />
-                                                        )}
-                                                        {volunteer.beekeepingExperience && (
-                                                          <Chip
-                                                            label="גידול דבורים"
-                                                            size="small"
-                                                            color="info"
-                                                            variant="outlined"
-                                                            sx={{ fontSize: "0.65rem", height: "18px" }}
-                                                          />
-                                                        )}
-                                                        {volunteer.hasTraining && (
-                                                          <Chip
-                                                            label="הדרכות"
-                                                            size="small"
-                                                            color="primary"
-                                                            variant="outlined"
-                                                            sx={{ fontSize: "0.65rem", height: "18px" }}
-                                                          />
-                                                        )}
-                                                        {volunteer.heightPermit && (
-                                                          <Chip
-                                                            label="היתר גובה"
-                                                            size="small"
-                                                            color="warning"
-                                                            variant="outlined"
-                                                            sx={{ fontSize: "0.65rem", height: "18px" }}
-                                                          />
-                                                        )}
-                                                      </Box>
-                                                    </Box>
-                                                    <Box
-                                                      sx={{
-                                                        display: "flex",
-                                                        flexDirection: "column",
-                                                        alignItems: "center",
-                                                        ml: 1,
-                                                      }}
-                                                    >
-                                                      <Chip
-                                                        label={`${volunteer.score?.toFixed(1)}/100`}
-                                                        size="small"
-                                                        color={
-                                                          volunteer.score >= 80
-                                                            ? "success"
-                                                            : volunteer.score >= 60
-                                                            ? "warning"
-                                                            : "default"
-                                                        }
-                                                        sx={{ fontFamily: "monospace", fontWeight: "bold" }}
-                                                      />
-                                                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                                                        ציון התאמה
-                                                      </Typography>
-                                                    </Box>
-                                                  </Box>
-                                                }
-                                                sx={{ width: "100%", m: 0 }}
-                                              />
-                                            </Paper>
-                                          ))}
-                                        </>
-                                      )}
                                     </RadioGroup>
                                   </FormControl>
                                 ) : (
