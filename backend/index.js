@@ -4,6 +4,7 @@ import cors from 'cors';
 import { geocodeAddress } from './services/geocodeAddress.js'; // ודא שהנתיב הזה נכון
 import inquiryRoutes from './routes/inquiryRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import coordinatorRoutes from './routes/coordinatorRoutes.js';
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use(express.json()); // מנתח גוף בקשות בפורמט JSON
 // Routes
 app.use('/api', inquiryRoutes);
 app.use('/api', userRoutes);
+app.use('/api/coordinators', coordinatorRoutes);
 
 // ==================================================================
 // נקודת קצה חדשה עבור Geocoding (לשימוש ישיר מה-frontend SignUp)
