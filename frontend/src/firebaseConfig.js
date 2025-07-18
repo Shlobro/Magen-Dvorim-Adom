@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -16,13 +17,14 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase with error handling
-let app, auth, db, storage;
+let app, auth, db, storage, functions;
 
 try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
   storage = getStorage(app);
+  functions = getFunctions(app);
   
   console.log('✅ Firebase initialized successfully');
   console.log('📦 Storage bucket:', firebaseConfig.storageBucket);
@@ -32,6 +34,7 @@ try {
   auth = null;
   db = null;
   storage = null;
+  functions = null;
 }
 
-export { auth, db, storage };
+export { auth, db, storage, functions };

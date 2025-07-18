@@ -185,7 +185,7 @@ export default function VolunteerManagement() {
       if (result.completeDeletion) {
         showSuccess(`המתנדב ${result.deletedVolunteer?.name || volunteer.name || `${volunteer.firstName || ""} ${volunteer.lastName || ""}`} הוסר בהצלחה מהמערכת לחלוטין כולל חשבון ההזדהות`);
       } else {
-        showSuccess("המתנדב הוסר ממסד הנתונים. שים לב: חשבון ה-Authentication נותר פעיל ויש צורך בניקוי ידני.");
+        showSuccess(`המתנדב ${result.deletedVolunteer?.name || volunteer.name || `${volunteer.firstName || ""} ${volunteer.lastName || ""}`} הוסר בהצלחה מהמערכת. חשבון ה-Authentication נותר פעיל ויש צורך בניקוי ידני.`);
       }
     } catch (e) {
       console.error('Error deleting volunteer:', e);

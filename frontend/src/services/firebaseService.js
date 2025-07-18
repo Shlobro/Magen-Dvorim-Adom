@@ -7,6 +7,7 @@ import {
   getDocs, 
   updateDoc, 
   deleteDoc, 
+  writeBatch,
   setDoc,
   query, 
   where, 
@@ -20,8 +21,9 @@ import {
   updatePassword,
   deleteUser as deleteAuthUser
 } from 'firebase/auth';
-import { db, auth } from '../firebaseConfig';
+import { db, auth, functions } from '../firebaseConfig';
 import { validateAddressGeocoding } from './geocoding';
+import { httpsCallable } from 'firebase/functions';
 
 // User Management
 export const userService = {
@@ -182,36 +184,89 @@ export const userService = {
     }
   },
 
-  // Delete volunteer completely by coordinator (Firestore + Auth via backend)
+  // Delete volunteer completely by coordinator (Firestore only - temporary solution)
   async deleteVolunteerByCoordinator(volunteerId, coordinatorId) {
     try {
       console.log(`🗑️ Coordinator deleting volunteer: ${volunteerId}`);
       
-      // Determine the correct backend URL
-      const backendUrl = import.meta.env.PROD 
-        ? (import.meta.env.VITE_API_BASE || 'https://magendovrimadom-backend.railway.app')
-        : (import.meta.env.VITE_API_BASE || 'http://localhost:3001');
-      
-      const response = await fetch(`${backendUrl}/api/users/coordinator-delete/${volunteerId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ coordinatorId })
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || result.message || 'Failed to delete volunteer');
+      // 1. Get volunteer data before deletion (for logging and validation)
+      const volunteerDoc = await getDoc(doc(db, 'user', volunteerId));
+      if (!volunteerDoc.exists()) {
+        throw new Error('מתנדב לא נמצא במערכת');
       }
       
-      console.log(`✅ Volunteer completely deleted by coordinator: ${volunteerId}`);
+      const volunteerData = volunteerDoc.data();
+      
+      // 2. Verify this is actually a volunteer (userType = 2)
+      if (volunteerData.userType !== 2) {
+        throw new Error('ניתן למחוק רק חשבונות מתנדבים');
+      }
+      
+      // 3. Check if volunteer has any active assigned inquiries
+      const activeInquiriesQuery = query(
+        collection(db, 'inquiry'),
+        where('assignedVolunteers', 'array-contains', volunteerId),
+        where('status', 'in', ['לפנייה שובץ מתנדב', 'המתנדב בדרך'])
+      );
+      
+      const activeInquiriesSnapshot = await getDocs(activeInquiriesQuery);
+      if (!activeInquiriesSnapshot.empty) {
+        throw new Error('לא ניתן למחוק מתנדב שמוקצה לפניות פעילות. יש לבטל את ההקצאה תחילה.');
+      }
+      
+      // 4. Remove volunteer from any completed inquiries (for data consistency)
+      const allInquiriesQuery = query(
+        collection(db, 'inquiry'),
+        where('assignedVolunteers', 'array-contains', volunteerId)
+      );
+      
+      const allInquiriesSnapshot = await getDocs(allInquiriesQuery);
+      
+      // Use batch operations for atomic updates
+      const batch = writeBatch(db);
+      
+      allInquiriesSnapshot.docs.forEach((inquiryDoc) => {
+        const inquiry = inquiryDoc.data();
+        const updatedVolunteers = inquiry.assignedVolunteers.filter(id => id !== volunteerId);
+        batch.update(inquiryDoc.ref, { 
+          assignedVolunteers: updatedVolunteers,
+          lastModified: serverTimestamp(),
+          deletedVolunteerInfo: {
+            name: `${volunteerData.firstName || ''} ${volunteerData.lastName || ''}`.trim(),
+            email: volunteerData.email,
+            deletedAt: new Date().toISOString(),
+            deletedBy: coordinatorId
+          }
+        });
+      });
+      
+      // 5. Delete the volunteer document from Firestore
+      batch.delete(doc(db, 'user', volunteerId));
+      
+      // 6. Commit the batch operation
+      await batch.commit();
+      
+      console.log(`✅ Volunteer deleted from Firestore by coordinator: ${volunteerId}`);
+      
       return { 
         success: true, 
-        message: result.message,
-        completeDeletion: true,
-        deletedVolunteer: result.deletedVolunteer
+        message: 'המתנדב הוסר מהמערכת בהצלחה. חשבון ה-Authentication נותר פעיל ויש צורך בניקוי ידני.',
+        completeDeletion: false,
+        deletedVolunteer: {
+          name: `${volunteerData.firstName || ''} ${volunteerData.lastName || ''}`.trim(),
+          email: volunteerData.email
+        },
+        warning: 'חשבון ה-Authentication של המתנדב נותר פעיל ויש צורך בניקוי ידני מקונסול Firebase',
+        cleanupInstructions: {
+          email: volunteerData.email,
+          uid: volunteerId,
+          steps: [
+            'פתח Firebase Console > Authentication > Users',
+            `חפש את: ${volunteerData.email}`,
+            'מחק את המשתמש ידנית',
+            `או השתמש ב-CLI: firebase auth:delete ${volunteerId}`
+          ]
+        }
       };
       
     } catch (error) {

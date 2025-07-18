@@ -16,7 +16,7 @@ exports.deleteVolunteerByCoordinator = functions.https.onCall(async (data, conte
 
     // Verify the user is a coordinator (userType === 1)
     const callerUID = context.auth.uid;
-    const callerDoc = await admin.firestore().collection('users').doc(callerUID).get();
+    const callerDoc = await admin.firestore().collection('user').doc(callerUID).get();
     
     if (!callerDoc.exists || callerDoc.data().userType !== 1) {
       throw new functions.https.HttpsError('permission-denied', 'Only coordinators can delete volunteers');
@@ -31,7 +31,7 @@ exports.deleteVolunteerByCoordinator = functions.https.onCall(async (data, conte
     console.log(`🗑️ Coordinator ${callerUID} deleting volunteer: ${volunteerUID}`);
 
     // Get volunteer data before deletion
-    const volunteerDoc = await admin.firestore().collection('users').doc(volunteerUID).get();
+    const volunteerDoc = await admin.firestore().collection('user').doc(volunteerUID).get();
     const volunteerData = volunteerDoc.exists ? volunteerDoc.data() : null;
     
     // Verify the target is actually a volunteer
@@ -41,21 +41,29 @@ exports.deleteVolunteerByCoordinator = functions.https.onCall(async (data, conte
 
     // 1. Remove volunteer from all inquiries
     const inquiriesSnapshot = await admin.firestore()
-      .collection('inquiries')
-      .where('assignedVolunteer', '==', volunteerUID)
+      .collection('inquiry')
+      .where('assignedVolunteers', 'array-contains', volunteerUID)
       .get();
 
     const batch = admin.firestore().batch();
     
     inquiriesSnapshot.forEach(doc => {
+      const inquiry = doc.data();
+      const updatedVolunteers = inquiry.assignedVolunteers.filter(id => id !== volunteerUID);
       batch.update(doc.ref, {
-        assignedVolunteer: admin.firestore.FieldValue.delete(),
-        status: 'open' // Reset status to open
+        assignedVolunteers: updatedVolunteers,
+        lastModified: admin.firestore.FieldValue.serverTimestamp(),
+        deletedVolunteerInfo: {
+          name: `${volunteerData.firstName || ''} ${volunteerData.lastName || ''}`.trim(),
+          email: volunteerData.email,
+          deletedAt: new Date().toISOString(),
+          deletedBy: callerUID
+        }
       });
     });
 
     // 2. Delete Firestore document
-    batch.delete(admin.firestore().collection('users').doc(volunteerUID));
+    batch.delete(admin.firestore().collection('user').doc(volunteerUID));
     
     // Execute batch operations
     await batch.commit();
