@@ -20,7 +20,6 @@ export default function VolunteerDashboard() {
   const [itemsPerPage] = useState(5);
   const statusOptions = [
     'לפנייה שובץ מתנדב',
-    'המתנדב בדרך',
     'הטיפול בנחיל הסתיים',
     'הפנייה נסגרה',
   ];
@@ -394,7 +393,6 @@ export default function VolunteerDashboard() {
                     const getStatusColor = (status) => {
                       switch (status) {
                         case 'לפנייה שובץ מתנדב': return '#007bff';
-                        case 'המתנדב בדרך': return '#ffc107';
                         case 'הטיפול בנחיל הסתיים': return '#28a745';
                         case 'הפנייה נסגרה': return '#6c757d';
                         default: return '#17a2b8';

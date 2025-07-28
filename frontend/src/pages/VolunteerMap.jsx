@@ -263,6 +263,35 @@ export default function VolunteerMap() {
     setVolunteerIcon(volunteerIconInstance);
   }, []);
 
+  // Manual cleanup function for stuck inquiries
+  const handleManualCleanup = async () => {
+    if (!currentUser) return;
+    
+    const stuckInquiryIds = [
+      '8eCcZgkdtMQN5js4zV0k',
+      'QcRsbyuTkctv4BoRWoli'
+    ];
+    
+    try {
+      console.log('🧹 Starting manual cleanup...');
+      const { inquiryService } = await import('../services/firebaseService');
+      
+      const result = await inquiryService.markInquiriesAsDeleted(stuckInquiryIds, currentUser.uid);
+      
+      console.log('✅ Manual cleanup completed:', result);
+      addNotification(result.message, 'success');
+      
+      // Refresh inquiries
+      setTimeout(() => {
+        fetchInquiries();
+      }, 1000);
+      
+    } catch (error) {
+      console.error('❌ Manual cleanup failed:', error);
+      addNotification('שגיאה בניקוי ידני: ' + error.message, 'error');
+    }
+  };
+
   const extractCoordinates = (data) => {
     let lat = null
     let lng = null
@@ -315,53 +344,35 @@ export default function VolunteerMap() {
           }
           const inquiries = await response.json()
           
-          // Filter by status and coordinator assignment, then add coordinates
+          // Backend API already filters for coordinator inquiries and excludes deleted ones
+          // Just filter by status and add coordinates - the backend handles deleted filtering
           const allApiInquiries = inquiries
-            .filter(inquiry => ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב", "המתנדב בדרך"].includes(inquiry.status))
+            .filter(inquiry => 
+              ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב"].includes(inquiry.status)
+            )
             .map((data) => {
               const { lat, lng } = extractCoordinates(data)
               return { id: data.id, ...data, lat, lng }
             });
           
-          console.log('🔍 API BEFORE filtering - All inquiries:', allApiInquiries.map(i => ({
+          console.log('🔍 API inquiries for coordinator (backend already filtered):', allApiInquiries.map(i => ({
             id: i.id, 
             coordinatorId: i.coordinatorId, 
             address: i.address,
+            deleted: i.deleted,
             isMyInquiry: i.coordinatorId === currentUser.uid
           })));
           
-          // Filter for coordinator's inquiries ONLY (same logic as Firestore)
-          fetched = allApiInquiries.filter(inquiry => {
-            const belongsToMe = inquiry.coordinatorId === currentUser.uid;
-            const isUnassigned = !inquiry.coordinatorId || inquiry.coordinatorId === null || inquiry.coordinatorId === undefined;
-            
-            console.log(`🎯 API Filtering inquiry ${inquiry.id} (${inquiry.address}):`);
-            console.log(`   - coordinatorId: "${inquiry.coordinatorId}" (type: ${typeof inquiry.coordinatorId})`);
-            console.log(`   - currentUser.uid: "${currentUser.uid}"`);
-            console.log(`   - belongsToMe: ${belongsToMe}`);
-            console.log(`   - isUnassigned: ${isUnassigned}`);
-            console.log(`   - INCLUDE IN MAP: ${belongsToMe}`);
-            
-            return belongsToMe; // Only include inquiries assigned to current coordinator
-          });
-          
-          console.log('🔍 API AFTER filtering - My inquiries:', fetched.map(i => ({
-            id: i.id, 
-            coordinatorId: i.coordinatorId, 
-            address: i.address,
-            lat: i.lat,
-            lng: i.lng,
-            hasCoordinates: i.lat != null && i.lng != null && !isNaN(i.lat) && !isNaN(i.lng)
-          })));
-          
-          console.log('✅ Map: Loaded', fetched.length, 'coordinator inquiries from backend API');
+          // Use the inquiries as-is since backend already did the filtering
+          fetched = allApiInquiries;
+          console.log('✅ Map: Loaded', fetched.length, 'coordinator inquiries from backend API (backend filtered)');
         } catch (apiError) {
           console.warn('Backend API failed, falling back to direct Firestore:', apiError.message);
           
           // Fallback to direct Firestore query
           const q = query(
             collection(db, "inquiry"),
-            where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב", "המתנדב בדרך"]),
+            where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב"]),
           )
           const querySnapshot = await getDocs(q)
           const allInquiries = querySnapshot.docs.map((doc) => {
@@ -379,6 +390,11 @@ export default function VolunteerMap() {
           })));
           
           fetched = allInquiries.filter(inquiry => {
+            // First filter out deleted inquiries
+            if (inquiry.deleted === true) {
+              return false;
+            }
+            
             const belongsToMe = inquiry.coordinatorId === currentUser.uid;
             const isUnassigned = !inquiry.coordinatorId || inquiry.coordinatorId === null || inquiry.coordinatorId === undefined;
             
@@ -407,16 +423,19 @@ export default function VolunteerMap() {
         // Non-coordinator users - get all inquiries (existing behavior)
         const q = query(
           collection(db, "inquiry"),
-          where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב", "המתנדב בדרך"]),
+          where("status", "in", ["נפתחה פנייה (טופס מולא)", "לפנייה שובץ מתנדב"]),
         )
         console.log('📡 Querying Firebase for all inquiries...');
         const querySnapshot = await getDocs(q)
-        fetched = querySnapshot.docs.map((doc) => {
+        const allInquiries = querySnapshot.docs.map((doc) => {
           const data = doc.data()
           const { lat, lng } = extractCoordinates(data)
           return { id: doc.id, ...data, lat, lng }
         })
-        console.log('✅ Map: Loaded', fetched.length, 'inquiries for non-coordinator');
+        
+        // Filter out deleted inquiries for non-coordinators too
+        fetched = allInquiries.filter(inquiry => inquiry.deleted !== true)
+        console.log('✅ Map: Loaded', fetched.length, 'inquiries for non-coordinator (excluding deleted)');
       }
 
       console.log(`📊 Raw results: ${fetched.length} inquiries`);
@@ -562,9 +581,6 @@ export default function VolunteerMap() {
              ((Array.isArray(inquiry.assignedVolunteers) && inquiry.assignedVolunteers.length > 0) ||
               (typeof inquiry.assignedVolunteers === "string" && inquiry.assignedVolunteers !== ""))),
         )
-        break
-      case "in-progress":
-        filtered = allInquiries.filter((inquiry) => inquiry.status === "המתנדב בדרך")
         break
       case "all":
       default:
@@ -1034,7 +1050,6 @@ export default function VolunteerMap() {
                 >
                   <MenuItem value="unassigned">מתנדב לא שובץ</MenuItem>
                   <MenuItem value="assigned">מתנדב שובץ</MenuItem>
-                  <MenuItem value="in-progress">בדרך</MenuItem>
                   <MenuItem value="all">הכל</MenuItem>
                 </Select>
               </FormControl>
@@ -1047,6 +1062,29 @@ export default function VolunteerMap() {
                   fontSize: "0.75rem",
                 }}
               />
+              
+              {/* Manual Cleanup Button - Only show if there are stuck inquiries */}
+              {inquiries.length > 0 && inquiries.some(inq => inq.deleted === undefined) && (
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="warning"
+                  onClick={handleManualCleanup}
+                  sx={{
+                    fontSize: "0.75rem",
+                    minWidth: "auto",
+                    px: 2,
+                    py: 0.5,
+                    bgcolor: "orange",
+                    color: "white",
+                    "&:hover": {
+                      bgcolor: "darkorange",
+                    },
+                  }}
+                >
+                  🧹 ניקוי ידני
+                </Button>
+              )}
             </Box>
           </Box>
         </Paper>
@@ -1092,6 +1130,21 @@ export default function VolunteerMap() {
               console.log(`  - beeIcon available: ${!!beeIcon}`);
               console.log(`  - availableVolunteers array: ${Array.isArray(availableVolunteers)} (length: ${availableVolunteers?.length || 0})`);
               console.log(`  - volunteerIcon available: ${!!volunteerIcon}`);
+              
+              // Debug the 2 stuck inquiries
+              if (Array.isArray(inquiries) && inquiries.length > 0) {
+                console.log('🔍 DEBUGGING STUCK INQUIRIES:');
+                inquiries.forEach((inquiry, index) => {
+                  console.log(`  📍 Inquiry ${index + 1}:`);
+                  console.log(`     - ID: ${inquiry.id}`);
+                  console.log(`     - Address: ${inquiry.address}`);
+                  console.log(`     - Coordinator ID: ${inquiry.coordinatorId}`);
+                  console.log(`     - Status: ${inquiry.status}`);
+                  console.log(`     - Deleted: ${inquiry.deleted}`);
+                  console.log(`     - Has coordinates: ${inquiry.lat != null && inquiry.lng != null}`);
+                  console.log(`     - Created: ${inquiry.createdAt?.toDate?.() || inquiry.createdAt || 'Unknown'}`);
+                });
+              }
               
               const validInquiryMarkers = Array.isArray(inquiries) ? inquiries.filter(inquiry => 
                 inquiry.lat != null && inquiry.lng != null && !isNaN(inquiry.lat) && !isNaN(inquiry.lng) && beeIcon

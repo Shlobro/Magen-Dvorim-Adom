@@ -133,6 +133,23 @@
   box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
 }
 
+.remove-all-button {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
+  box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3) !important;
+}
+
+.remove-all-button:hover {
+  background: linear-gradient(135deg, #c82333 0%, #bd2130 100%) !important;
+  box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4) !important;
+}
+
+.remove-all-button:disabled {
+  background: #6c757d !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+}
+
 /* Filters Section */
 .filters-section {
   margin-bottom: 30px;
