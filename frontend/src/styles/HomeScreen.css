@@ -180,3 +180,21 @@
   font-size: 14px;
   color: #000000;
 }
+
+/* Info button - non-clickable info display */
+.info-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 8px;
+  padding: 12px 20px;
+  text-decoration: none;
+  justify-content: center;
+  background-color: #e5e7eb;
+  color: #6b7280;
+  border: 2px solid #d1d5db;
+  cursor: default;
+  opacity: 0.8;
+}

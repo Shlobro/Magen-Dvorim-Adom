@@ -27,13 +27,13 @@ export default function HomeScreen() {
             <FaBell className="card-icon bell" />
             <h2 className="card-title">נתקלתם בנחיל דבורים?</h2>
             <p className="card-text">
-              דווחו לנו על מיקום הנחיל ואנחנו נשלח מתנדב מוסמך להעברה בטוחה של הדבורים.
+              לדיווח על נחיל דבורים, יש לפנות לרכז המקומי שלכם. הרכז יספק לכם קישור ייעודי לביצוע הדיווח בצורה בטוחה ויעילה.
             </p>
-            <Link to="/report" className="filled-button">
+            <div className="info-button">
               <FaBell className="button-icon" />
-              דווח על נחיל
+              פנו לרכז המקומי
               <FaArrowLeft className="arrow-icon" />
-            </Link>
+            </div>
           </div>
 
           <div className="card">

@@ -70,7 +70,6 @@ export default function Header() {
   navItemsLoggedIn.push({ label: 'התנתק', icon: <FaSignOutAlt />, onClick: handleLogout, isButton: true });
 
   const navItemsLoggedOut = [
-    { label: 'דיווח על נחיל', icon: <FaBell />, to: '/report', isButton: false },
     { label: 'בואו להתנדב!', icon: <FaUsers />, to: '/signup', isButton: false },
     { label: 'התחבר', icon: <FaSignInAlt />, to: '/login', isButton: false },
   ];
