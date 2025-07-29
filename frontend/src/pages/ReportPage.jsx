@@ -1,41 +1,46 @@
 // src/pages/ReportPage.jsx
-import React, { useState, useEffect } from 'react'; // CHANGED: Added useEffect
-import { useLocation } from 'react-router-dom'; // NEW: Import useLocation hook
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import '../styles/ReportPage.css'; // Importing the CSS file for styling
 import { FaBell, FaUpload } from 'react-icons/fa';
-import { saveInquiry, uploadPhoto } from '../services/api'; // ייבוא saveInquiry ו-uploadPhoto משירות ה-API שלך
+import { saveInquiry, uploadPhoto } from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { validateAddressGeocoding } from '../services/geocoding';
 
 export default function ReportPage() {
-  const [fullName, setFullName] = useState('');
+  const [swarmType, setSwarmType] = useState('דבורים');
+  const [wasSprayed, setWasSprayed] = useState('לא');
+  const [hadPreviousContact, setHadPreviousContact] = useState('לא');
+  const [previousCoordinatorName, setPreviousCoordinatorName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [city, setCity] = useState(''); // New state for city
-  const [address, setAddress] = useState(''); // New state for address (street and house number)
+  const [city, setCity] = useState('');
+  const [address, setAddress] = useState('');
   const [heightFloor, setHeightFloor] = useState('');
-  const [additionalDetails, setAdditionalDetails] = useState('');
-  const [locationDescription, setLocationDescription] = useState(''); // New required field
-  const [appearanceDate, setAppearanceDate] = useState(''); // New required field
-  const [imageFile, setImageFile] = useState(null); // Single photo (required)
-  const [imageName, setImageName] = useState(''); // Photo name
+  const [email, setEmail] = useState('');
+  const [coordinatorPhoneNumber, setCoordinatorPhoneNumber] = useState('');
+  const [locationDescription, setLocationDescription] = useState('');
+  const [firstSeenDate, setFirstSeenDate] = useState('');
+  const [reporterComments, setReporterComments] = useState('');
+  const [imageFile, setImageFile] = useState(null);
+  const [imageName, setImageName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [coordinatorId, setCoordinatorId] = useState(''); // NEW: State to store coordinatorId from URL
-  const [agreeToTerms, setAgreeToTerms] = useState(false); // State for terms agreement
+  const [coordinatorId, setCoordinatorId] = useState('');
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
   
   const { showSuccess, showError } = useNotification();
+  const location = useLocation();
 
-  const location = useLocation(); // NEW: Initialize useLocation hook
-
-  // NEW: useEffect to read coordinatorId from URL when the component mounts
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
     const idFromUrl = queryParams.get('coordinatorId');
     if (idFromUrl) {
       setCoordinatorId(idFromUrl);
-      console.log('Coordinator ID from URL:', idFromUrl); // For debugging
+      console.log('Coordinator ID from URL:', idFromUrl);
     }
-  }, [location.search]); // Depend on location.search so it re-runs if URL query changes
+  }, [location.search]);
 
   // Check if coordinator ID is required but missing
   if (!coordinatorId) {
@@ -72,24 +77,27 @@ export default function ReportPage() {
       setImageFile(null);
       setImageName('');
     }
-  };  const handleSubmit = async (e) => {
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    // Basic validation
-    if (!fullName || !phoneNumber || !city || !address || !locationDescription || !appearanceDate) {
-      showError('אנא מלא את כל שדות החובה: שם מלא, טלפון, עיר, כתובת, תיאור מיקום ותאריך הופעת הנחיל.');
+    if (!swarmType || !wasSprayed || !hadPreviousContact || !firstName || !lastName || !phoneNumber || !city || !address || !heightFloor || !email || !coordinatorPhoneNumber || !locationDescription) {
+      showError('אנא מלא את כל שדות החובה המסומנים בכוכבית (*).');
       setLoading(false);
       return;
     }
-
-    // Image validation
+    if (hadPreviousContact === 'כן' && !previousCoordinatorName) {
+        showError('נא לציין את שם הרכז אליו פנית בעבר.');
+        setLoading(false);
+        return;
+    }
     if (!imageFile) {
       showError('חובה להעלות תמונה של הנחיל.');
       setLoading(false);
       return;
     }
-    
     if (!agreeToTerms) {
       showError('חובה לאשר את תנאי השירות כדי לשלוח דיווח.');
       setLoading(false);
@@ -97,9 +105,7 @@ export default function ReportPage() {
     }
 
     try {
-      // Validate address geocoding before submitting
       const geocodingResult = await validateAddressGeocoding(address, city);
-      
       if (!geocodingResult.isValid) {
         let errorMessage = geocodingResult.error;
         if (geocodingResult.suggestion) {
@@ -109,54 +115,58 @@ export default function ReportPage() {
         setLoading(false);
         return;
       }
-
-      // If there's a suggestion even for valid addresses (like street name variations)
-      if (geocodingResult.suggestion) {
-        // You could show a confirmation dialog here, but for now just log it
-        console.log('Address suggestion:', geocodingResult.suggestion);
-      }
-
+      
       const inquiryData = {
-        fullName,
+        swarmType,
+        wasSprayed,
+        hadPreviousContact,
+        previousCoordinatorName: hadPreviousContact === 'כן' ? previousCoordinatorName : '',
+        firstName,
+        lastName,
+        fullName: `${firstName} ${lastName}`,
         phoneNumber,
-        city, // Send city
-        address, // Send address (street and house number)
+        city,
+        address,
         heightFloor,
-        additionalDetails,
-        locationDescription, // New required field
-        appearanceDate, // New required field
-        status: "נפתחה פנייה (טופס מולא)", // Initial status
-        date: new Date().toLocaleDateString('he-IL'), // Current date
-        time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), // Current time
-        coordinatorId: coordinatorId || null, // CHANGED: Add coordinatorId to the inquiry data
-                                             // Use null if coordinatorId is an empty string, or '' if you prefer
+        email,
+        coordinatorPhoneNumber,
+        locationDescription,
+        firstSeenDate,
+        reporterComments,
+        status: "נפתחה פנייה (טופס מולא)",
+        inquiryDate: new Date().toLocaleDateString('he-IL'),
+        inquiryTime: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+        coordinatorId: coordinatorId || null,
       };
 
-      // Save inquiry to Firestore via your backend API
-      // saveInquiry returns { id: docRef.id, message: 'success message' }
       const response = await saveInquiry(inquiryData, coordinatorId);
-      // Get the inquiry ID from the response
-      const inquiryId = response.id; 
+      const inquiryId = response.id;
 
-      // Upload photo
       if (imageFile && inquiryId) {
         await uploadPhoto(inquiryId, imageFile, 'single');
       }
 
       showSuccess('הפנייה נשלחה בהצלחה! תודה רבה על הדיווח.');
-      // Clear form fields
-      setFullName('');
+      
+      setSwarmType('דבורים');
+      setWasSprayed('לא');
+      setHadPreviousContact('לא');
+      setPreviousCoordinatorName('');
+      setFirstName('');
+      setLastName('');
       setPhoneNumber('');
       setCity('');
       setAddress('');
       setHeightFloor('');
-      setAdditionalDetails('');
+      setEmail('');
+      setCoordinatorPhoneNumber('');
       setLocationDescription('');
-      setAppearanceDate('');
+      setFirstSeenDate('');
+      setReporterComments('');
       setImageFile(null);
       setImageName('');
-      setCoordinatorId(''); // NEW: Clear coordinatorId after successful submission
-      setAgreeToTerms(false); // Clear terms agreement
+      setCoordinatorId('');
+      setAgreeToTerms(false);
     } catch (error) {
       console.error('שגיאה בשליחת הפנייה:', error);
       showError(`שגיאה בשליחת הפנייה: ${error.message || 'נסה שוב מאוחר יותר.'}`);
@@ -165,111 +175,87 @@ export default function ReportPage() {
     }
   };
 
+
   return (
     <div className="report-page">
       <div className="report-card">
         <h2 className="form-title">דיווח על נחיל דבורים</h2>
 
         <form className="report-form" onSubmit={handleSubmit}>
-          <input
-            type="text"
-            placeholder="שם מלא *"
-            required
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-          />
-          <input
-            type="tel"
-            placeholder="מספר טלפון *"
-            required
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
-            style={{ direction: 'rtl', textAlign: 'right' }} // ⬅️ הוספת יישור RTL
-          />
-          <input
-            type="text"
-            placeholder="עיר *" // Input for city
-            required
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="כתובת מדויקת (רחוב ומספר בית) *" // Input for address (street + house number)
-            required
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="גובה/קומה"
-            value={heightFloor}
-            onChange={(e) => setHeightFloor(e.target.value)}
-          />
-          <textarea
-            placeholder="תיאור מיקום מדויק של הנחיל (חובה) - למשל: על העץ הגדול ליד הכניסה הראשית, גובה 3 מטר מהקרקע *"
-            rows={3}
-            required
-            value={locationDescription}
-            onChange={(e) => setLocationDescription(e.target.value)}
-          ></textarea>
-          
-          <div className="date-field-container">
-            <div className="date-explanation">
-              תאריך הופעת הנחיל: הפונה יזין את התאריך שבו הופיע הנחיל לראשונה
-            </div>
-            <input
-              type="date"
-              placeholder="תאריך הופעת הנחיל *"
-              required
-              value={appearanceDate}
-              onChange={(e) => setAppearanceDate(e.target.value)}
-              className="date-input"
-            />
+
+          <div className="readonly-field">
+            <label>תאריך הפניה:</label>
+            <span>{new Date().toLocaleDateString('he-IL')}</span>
           </div>
-          
-          <textarea
-            placeholder="פרטים נוספים שיעזרו למתנדב למצוא את הנחיל"
-            rows={4}
-            value={additionalDetails}
-            onChange={(e) => setAdditionalDetails(e.target.value)}
-          ></textarea>
-          
+
+          <div className="radio-group">
+            <label>* נחיל:</label>
+            <input type="radio" id="bees" name="swarmType" value="דבורים" checked={swarmType === 'דבורים'} onChange={(e) => setSwarmType(e.target.value)} />
+            <label htmlFor="bees">דבורים</label>
+            <input type="radio" id="other" name="swarmType" value="חרק אחר" checked={swarmType === 'חרק אחר'} onChange={(e) => setSwarmType(e.target.value)} />
+            <label htmlFor="other">חרק אחר</label>
+          </div>
+          <div className="radio-group">
+            <label>* האם בוצע ריסוס:</label>
+            <input type="radio" id="sprayedYes" name="wasSprayed" value="כן" checked={wasSprayed === 'כן'} onChange={(e) => setWasSprayed(e.target.value)} />
+            <label htmlFor="sprayedYes">כן</label>
+            <input type="radio" id="sprayedNo" name="wasSprayed" value="לא" checked={wasSprayed === 'לא'} onChange={(e) => setWasSprayed(e.target.value)} />
+            <label htmlFor="sprayedNo">לא</label>
+          </div>
+          <div className="radio-group">
+            <label>* הייתה פנייה קודמת לרכז אחר:</label>
+            <input type="radio" id="contactYes" name="hadPreviousContact" value="כן" checked={hadPreviousContact === 'כן'} onChange={(e) => setHadPreviousContact(e.target.value)} />
+            <label htmlFor="contactYes">כן</label>
+            <input type="radio" id="contactNo" name="hadPreviousContact" value="לא" checked={hadPreviousContact === 'לא'} onChange={(e) => setHadPreviousContact(e.target.value)} />
+            <label htmlFor="contactNo">לא</label>
+          </div>
+          {hadPreviousContact === 'כן' && (
+            <input type="text" placeholder="שם הרכז אליו פנית *" required value={previousCoordinatorName} onChange={(e) => setPreviousCoordinatorName(e.target.value)} />
+          )}
+          <input type="text" placeholder="* שם פרטי" required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          <input type="text" placeholder="* שם משפחה" required value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          <input type="tel" placeholder="* טלפון/נייד" required value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} style={{ direction: 'rtl', textAlign: 'right' }} />
+          <input type="email" placeholder="* דואר אלקטרוני (פונה)" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input type="text" placeholder="* עיר/ישוב" required value={city} onChange={(e) => setCity(e.target.value)} />
+          <input type="text" placeholder="* כתובת מלאה (רחוב ומספר בית)" required value={address} onChange={(e) => setAddress(e.target.value)} />
+          <input type="text" placeholder="* קומה/גובה" required value={heightFloor} onChange={(e) => setHeightFloor(e.target.value)} />
+          <input type="tel" placeholder="* נייד רכז (אליו פנו)" required value={coordinatorPhoneNumber} onChange={(e) => setCoordinatorPhoneNumber(e.target.value)} style={{ direction: 'rtl', textAlign: 'right' }}/>
+          <textarea placeholder="* תיאור מיקום הנחיל (לא דבורים בודדות)" rows={3} required value={locationDescription} onChange={(e) => setLocationDescription(e.target.value)}></textarea>
+          <label className="date-label">מתי נראה לראשונה:</label>
+          <input type="date" value={firstSeenDate} onChange={(e) => setFirstSeenDate(e.target.value)} className="date-input" />
+          <textarea placeholder="הערות הפונה" rows={4} value={reporterComments} onChange={(e) => setReporterComments(e.target.value)}></textarea>
+
           <label className="file-upload required-upload">
             <input type="file" onChange={handleFileChange} accept="image/*" required />
             <FaUpload className="upload-icon" />
-            {imageName ? imageName : 'העלאת תמונה של הנחיל (חובה) *'}
+            {imageName ? imageName : 'העלאת תמונה של הנחיל (פתח כניסה/יציאה) *'}
           </label>
-
-          {/* Submit Button - moved before terms */}
           <button type="submit" className="submit-button" disabled={loading}>
-            {loading ? 'שולח...' : (
-              <>
-                <FaBell className="button-icon" />
-                שלח דיווח
-              </>
-            )}
+            {loading ? 'שולח...' : (<><FaBell className="button-icon" /> שלח דיווח</>)}
           </button>
 
-          {/* Terms and Conditions */}
           <div className="terms-container">
-            <input
-              type="checkbox"
-              id="agreeToTerms"
-              checked={agreeToTerms}
-              onChange={(e) => setAgreeToTerms(e.target.checked)}
-              required
-              className="terms-checkbox"
-            />
-            <label htmlFor="agreeToTerms" className="terms-label">
+            <div className="terms-text-block">
               <span className="terms-highlight">לידיעת הפונה - עצם מילוי בקשת הפינוי מהווה הסכמת הפונה:</span>
               <br /><br />
               ידוע לי שאם יתברר שהפינוי כרוך בפירוק / הסרה / פגיעה בקיר / תריס / חרת עץ וכיו"ב, שבמסמך נתחיל והוסכם על דעת הפונה והמתנדב ו/או לעמותת "מגן דברים אדום", אין למתנדב על ביצוע הפינוי הנ"ל, כמו כן אין ולא תהיה שום אחריות או התחייבות להחזיר את המצב לקדמותו או לתקן את הנפגע. כמו כן לא תהיה שום אחריות למתנדב ו/או לעמותת "מגן דברים אדום" לגבי כל פגיעה בנפש או כל צד ג' במהלך הפינוי.
               <br /><br />
               עמותת "מגן דברים אדום", רשאים לשלול אלי טופס משוב לגבי הפינוי ו/או דיווח אחר.
-              <br /><br />
-              <span className="terms-highlight">אני מאשר/ת שקראתי והבנתי את התנאים הנ"ל ומסכים/ה לפעול על פיהם.</span>
-            </label>
+            </div>
+            
+            <div className="terms-agreement-row">
+              <input
+                type="checkbox"
+                id="agreeToTerms"
+                checked={agreeToTerms}
+                onChange={(e) => setAgreeToTerms(e.target.checked)}
+                required
+                className="terms-checkbox"
+              />
+              <label htmlFor="agreeToTerms" className="terms-agreement-label">
+                <span className="terms-highlight">אני מאשר/ת שקראתי והבנתי את התנאים הנ"ל ומסכים/ה לפעול על פיהם.</span>
+              </label>
+            </div>
           </div>
         </form>
       </div>
