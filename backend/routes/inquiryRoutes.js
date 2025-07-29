@@ -273,6 +273,56 @@ router.post('/:id/delete', async (req, res) => {
   }
 });
 
+// ===================================================
+// POST /inquiry/bulk-delete
+// Bulk soft-delete multiple inquiries (mark as deleted)
+// ===================================================
+router.post('/bulk-delete', async (req, res) => {
+  try {
+    const { inquiryIds, coordinatorId } = req.body;
+
+    if (!Array.isArray(inquiryIds) || inquiryIds.length === 0) {
+      return res.status(400).json({ error: 'inquiryIds array is required' });
+    }
+
+    if (!coordinatorId) {
+      return res.status(400).json({ error: 'coordinatorId is required' });
+    }
+
+    const batch = db.batch();
+    const deletedAt = new Date().toISOString();
+    let deletedCount = 0;
+
+    for (const inquiryId of inquiryIds) {
+      const inquiryRef = db.collection("inquiry").doc(inquiryId);
+      
+      // Only delete inquiries that are owned by this coordinator or unassigned
+      const inquiryDoc = await inquiryRef.get();
+      if (inquiryDoc.exists) {
+        const data = inquiryDoc.data();
+        if (!data.coordinatorId || data.coordinatorId === coordinatorId) {
+          batch.update(inquiryRef, {
+            deleted: true,
+            deletedAt: deletedAt,
+            deletedBy: coordinatorId
+          });
+          deletedCount++;
+        }
+      }
+    }
+
+    await batch.commit();
+
+    res.status(200).json({ 
+      message: `${deletedCount} inquiries deleted successfully`,
+      deletedCount 
+    });
+  } catch (error) {
+    console.error("Error bulk deleting inquiries:", error);
+    res.status(500).json({ error: "Failed to bulk delete inquiries" });
+  }
+});
+
 
 // =======================================================
 // POST /inquiry/:id/visibility
@@ -309,6 +359,12 @@ router.get('/', async (req, res) => {
       snap = await db.collection('inquiry').get();
       const filtered = snap.docs
         .filter(d => {
+          const data = d.data();
+          // First filter out deleted inquiries
+          if (data.deleted === true) {
+            return false;
+          }
+          
           const cId = d.get('coordinatorId');
           return (
             cId === undefined ||
@@ -321,7 +377,14 @@ router.get('/', async (req, res) => {
       res.json(filtered);
     } else {
       snap = await db.collection('inquiry').get();
-      res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const filtered = snap.docs
+        .filter(d => {
+          const data = d.data();
+          // Filter out deleted inquiries
+          return data.deleted !== true;
+        })
+        .map(d => ({ id: d.id, ...d.data() }));
+      res.json(filtered);
     }
   } catch (e) {
     console.error(e);
@@ -387,7 +450,11 @@ router.get('/volunteer/:volunteerId', async (req, res) => {
         .get();
       
       arraySnap.docs.forEach(d => {
-        inquiries.push({ id: d.id, ...d.data() });
+        const data = d.data();
+        // Only include non-deleted inquiries
+        if (data.deleted !== true) {
+          inquiries.push({ id: d.id, ...data });
+        }
       });
     } catch (error) {
       console.warn('Array query failed:', error.message);
@@ -400,9 +467,11 @@ router.get('/volunteer/:volunteerId', async (req, res) => {
         .get();
       
       stringSnap.docs.forEach(d => {
+        const data = d.data();
         const existingIds = inquiries.map(inq => inq.id);
-        if (!existingIds.includes(d.id)) {
-          inquiries.push({ id: d.id, ...d.data() });
+        // Only include non-deleted inquiries and avoid duplicates
+        if (data.deleted !== true && !existingIds.includes(d.id)) {
+          inquiries.push({ id: d.id, ...data });
         }
       });
     } catch (error) {
