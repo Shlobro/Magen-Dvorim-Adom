@@ -8,6 +8,34 @@ import { geocodeAddress } from '../services/geocodeAddress.js';
 
 const router = express.Router();
 
+// Helper function to check if coordinator is approved
+async function checkCoordinatorApproval(coordinatorId) {
+  if (!coordinatorId) return { approved: false, error: 'Coordinator ID is required' };
+  
+  try {
+    const coordinatorDoc = await db.collection('user').doc(coordinatorId).get();
+    if (!coordinatorDoc.exists()) {
+      return { approved: false, error: 'Coordinator not found' };
+    }
+    
+    const coordinatorData = coordinatorDoc.data();
+    if (coordinatorData.userType !== 1) {
+      return { approved: false, error: 'User is not a coordinator' };
+    }
+    
+    // Check approval status (true or undefined for legacy users)
+    const isApproved = coordinatorData.approved === true || coordinatorData.approved === undefined;
+    if (!isApproved) {
+      return { approved: false, error: 'Coordinator is not approved' };
+    }
+    
+    return { approved: true, coordinatorData };
+  } catch (error) {
+    console.error('Error checking coordinator approval:', error);
+    return { approved: false, error: 'Database error' };
+  }
+}
+
 // ========================================
 // POST /inquiry/
 // Create or update an inquiry document
@@ -142,6 +170,14 @@ router.post('/:id/assign', async (req, res) => {
     if (!Array.isArray(volunteerIds) || volunteerIds.length === 0) {
       console.warn("Validation failed: volunteerIds is not an array or is empty."); // LOG
       return res.status(400).send("Volunteer IDs array is required");
+    }
+    
+    // Check if coordinator is approved (if coordinatorId is provided)
+    if (coordinatorId) {
+      const approvalCheck = await checkCoordinatorApproval(coordinatorId);
+      if (!approvalCheck.approved) {
+        return res.status(403).send(approvalCheck.error);
+      }
     }
 
     // Get the current inquiry to check ownership
@@ -397,6 +433,13 @@ router.get('/', async (req, res) => {
 router.post('/:id/take-ownership', async (req, res) => {
   const { coordinatorId } = req.body;
   if (!coordinatorId) return res.status(400).send('coordinatorId required');
+  
+  // Check if coordinator is approved
+  const approvalCheck = await checkCoordinatorApproval(coordinatorId);
+  if (!approvalCheck.approved) {
+    return res.status(403).send(approvalCheck.error);
+  }
+  
   try {
     const docRef = db.collection('inquiry').doc(req.params.id);
     const doc = await docRef.get();
@@ -417,6 +460,13 @@ router.post('/:id/take-ownership', async (req, res) => {
 router.post('/:id/release-ownership', async (req, res) => {
   const { coordinatorId } = req.body;
   if (!coordinatorId) return res.status(400).send('coordinatorId required');
+  
+  // Check if coordinator is approved
+  const approvalCheck = await checkCoordinatorApproval(coordinatorId);
+  if (!approvalCheck.approved) {
+    return res.status(403).send(approvalCheck.error);
+  }
+  
   try {
     const docRef = db.collection('inquiry').doc(req.params.id);
     const doc = await docRef.get();

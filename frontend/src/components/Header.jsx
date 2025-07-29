@@ -16,7 +16,7 @@ export default function Header() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const navigate = useNavigate();
 
-  const { currentUser, loading, userRole } = useAuth(); // הוסף userRole כדי לבדוק תפקיד
+  const { currentUser, loading, userRole, userData } = useAuth(); // הוסף userData כדי לבדוק סטטוס אישור
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -46,16 +46,26 @@ export default function Header() {
   // Convert userRole to number for consistent comparison
   const userRoleNum = Number(userRole);
   
-  // רכזים (userType === 1) יראו את כל האפשרויות
+  // רכזים (userType === 1) יראו את כל האפשרויות רק אם הם מאושרים
   if (userRoleNum === 1 || userRole === 1 || userRole === '1') {
-    navItemsLoggedIn.push(
-      { label: 'מסך הקריאות', icon: <FaBell />, to: '/dashboard', isButton: false },
-      { label: 'מפת מתנדבים', icon: <FaMapMarkedAlt />, to: '/volunteer-map', isButton: false },
-      { label: 'תובנות', icon: <FaChartBar />, to: '/insights', isButton: false },
-      { label: 'ניהול מתנדבים', icon: <FaUsers />, to: '/volunteer-management', isButton: false },
-      { label: 'אישור רכזים', icon: <FaUserCheck />, to: '/coordinator-approval', isButton: false },
-      { label: 'הפרופיל שלי', icon: <FaUserCog />, to: '/coordinator-profile', isButton: false }
-    );
+    // Check if coordinator is approved (approved: true or undefined for legacy users)
+    const isApproved = userData?.approved === true || userData?.approved === undefined;
+    
+    if (isApproved) {
+      navItemsLoggedIn.push(
+        { label: 'מסך הקריאות', icon: <FaBell />, to: '/dashboard', isButton: false },
+        { label: 'מפת מתנדבים', icon: <FaMapMarkedAlt />, to: '/volunteer-map', isButton: false },
+        { label: 'תובנות', icon: <FaChartBar />, to: '/insights', isButton: false },
+        { label: 'ניהול מתנדבים', icon: <FaUsers />, to: '/volunteer-management', isButton: false },
+        { label: 'אישור רכזים', icon: <FaUserCheck />, to: '/coordinator-approval', isButton: false },
+        { label: 'הפרופיל שלי', icon: <FaUserCog />, to: '/coordinator-profile', isButton: false }
+      );
+    } else {
+      // For unapproved coordinators, show a limited menu with message
+      navItemsLoggedIn.push(
+        { label: 'ממתין לאישור', icon: <FaUserCheck />, onClick: () => console.log('Coordinator pending approval'), isButton: true, disabled: true }
+      );
+    }
   }
   
   // מתנדבים (userType === 2) יראו את לוח המחוונים שלהם
@@ -77,7 +87,11 @@ export default function Header() {
   const currentNavItems = currentUser ? navItemsLoggedIn : navItemsLoggedOut;
   
   // If we have a logged in user but no nav items (except logout), something is wrong
-  if (currentUser && navItemsLoggedIn.length <= 1) {
+  // BUT: Don't add fallback for unapproved coordinators - they should just see logout
+  const isUnapprovedCoordinator = (userRoleNum === 1 || userRole === 1 || userRole === '1') && 
+                                   userData && userData.approved === false;
+  
+  if (currentUser && navItemsLoggedIn.length <= 1 && !isUnapprovedCoordinator) {
     console.warn('Header - WARNING: Logged in user but no nav items! userRole might not be loaded correctly');
     console.warn('Header - Adding fallback navigation items...');
     console.warn('Header - userRole value:', userRole, 'type:', typeof userRole);
@@ -113,10 +127,19 @@ export default function Header() {
                 <button 
                   key={index} 
                   onClick={() => {
-                    item.onClick();
+                    if (!item.disabled) {
+                      item.onClick();
+                    }
                   }} 
                   className="nav-link"
-                  style={{ position: 'relative', zIndex: 1001, pointerEvents: 'auto' }}
+                  style={{ 
+                    position: 'relative', 
+                    zIndex: 1001, 
+                    pointerEvents: item.disabled ? 'none' : 'auto',
+                    opacity: item.disabled ? 0.6 : 1,
+                    cursor: item.disabled ? 'default' : 'pointer'
+                  }}
+                  disabled={item.disabled}
                 >
                   {item.icon}
                   <span>{item.label}</span>
@@ -151,9 +174,16 @@ export default function Header() {
                 <button 
                   key={index} 
                   onClick={() => {
-                    item.onClick();
+                    if (!item.disabled) {
+                      item.onClick();
+                    }
                   }} 
                   className="menu-item"
+                  style={{ 
+                    opacity: item.disabled ? 0.6 : 1,
+                    cursor: item.disabled ? 'default' : 'pointer'
+                  }}
+                  disabled={item.disabled}
                 >
                   {item.icon}
                   <span>{item.label}</span>
