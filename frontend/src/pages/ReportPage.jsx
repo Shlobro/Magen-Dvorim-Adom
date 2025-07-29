@@ -187,14 +187,19 @@ export default function ReportPage() {
             onChange={(e) => setLocationDescription(e.target.value)}
           ></textarea>
           
-          <input
-            type="date"
-            placeholder="תאריך הופעת הנחיל *"
-            required
-            value={appearanceDate}
-            onChange={(e) => setAppearanceDate(e.target.value)}
-            className="date-input"
-          />
+          <div className="date-field-container">
+            <div className="date-explanation">
+              תאריך הופעת הנחיל: הפונה יזין את התאריך שבו הופיע הנחיל לראשונה
+            </div>
+            <input
+              type="date"
+              placeholder="תאריך הופעת הנחיל *"
+              required
+              value={appearanceDate}
+              onChange={(e) => setAppearanceDate(e.target.value)}
+              className="date-input"
+            />
+          </div>
           
           <textarea
             placeholder="פרטים נוספים שיעזרו למתנדב למצוא את הנחיל"
