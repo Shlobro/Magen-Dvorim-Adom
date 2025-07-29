@@ -202,19 +202,7 @@ export const userService = {
         throw new Error('ניתן למחוק רק חשבונות מתנדבים');
       }
       
-      // 3. Check if volunteer has any active assigned inquiries
-      const activeInquiriesQuery = query(
-        collection(db, 'inquiry'),
-        where('assignedVolunteers', 'array-contains', volunteerId),
-        where('status', 'in', ['לפנייה שובץ מתנדב', 'המתנדב בדרך'])
-      );
-      
-      const activeInquiriesSnapshot = await getDocs(activeInquiriesQuery);
-      if (!activeInquiriesSnapshot.empty) {
-        throw new Error('לא ניתן למחוק מתנדב שמוקצה לפניות פעילות. יש לבטל את ההקצאה תחילה.');
-      }
-      
-      // 4. Remove volunteer from any completed inquiries (for data consistency)
+      // 3. Remove volunteer from ALL inquiries (both active and completed) before deletion
       const allInquiriesQuery = query(
         collection(db, 'inquiry'),
         where('assignedVolunteers', 'array-contains', volunteerId)
@@ -582,7 +570,11 @@ export const inquiryService = {
           const snapshot = await getDocs(inquiryQuery);
           const inquiries = [];
           snapshot.forEach(doc => {
-            inquiries.push({ id: doc.id, ...doc.data() });
+            const data = doc.data();
+            // Only include non-deleted inquiries
+            if (data.deleted !== true) {
+              inquiries.push({ id: doc.id, ...data });
+            }
           });
           return inquiries;
         } catch (indexError) {
@@ -603,7 +595,11 @@ export const inquiryService = {
       const snapshot = await getDocs(inquiryQuery);
       const inquiries = [];
       snapshot.forEach(doc => {
-        inquiries.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        // Only include non-deleted inquiries
+        if (data.deleted !== true) {
+          inquiries.push({ id: doc.id, ...data });
+        }
       });
       
       // If we used the fallback query, sort manually
@@ -637,7 +633,11 @@ export const inquiryService = {
         
         const arraySnapshot = await getDocs(arrayQuery);
         arraySnapshot.forEach(doc => {
-          inquiries.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          // Only include non-deleted inquiries
+          if (data.deleted !== true) {
+            inquiries.push({ id: doc.id, ...data });
+          }
         });
       } catch (error) {
         console.warn('Array query failed:', error.message);
@@ -652,9 +652,11 @@ export const inquiryService = {
         
         const stringSnapshot = await getDocs(stringQuery);
         stringSnapshot.forEach(doc => {
+          const data = doc.data();
           const existingIds = inquiries.map(inq => inq.id);
-          if (!existingIds.includes(doc.id)) {
-            inquiries.push({ id: doc.id, ...doc.data() });
+          // Only include non-deleted inquiries and avoid duplicates
+          if (data.deleted !== true && !existingIds.includes(doc.id)) {
+            inquiries.push({ id: doc.id, ...data });
           }
         });
       } catch (error) {
@@ -799,6 +801,114 @@ export const inquiryService = {
       return { message: 'מתנדב הוקצה מחדש בהצלחה' };
     } catch (error) {
       console.error('Error reassigning volunteer:', error);
+      throw error;
+    }
+  },
+
+  // Delete single inquiry
+  async deleteInquiry(inquiryId, coordinatorId) {
+    try {
+      const backendUrl = import.meta.env.PROD 
+        ? (import.meta.env.VITE_API_BASE || 'https://magendovrimadom-backend.railway.app')
+        : (import.meta.env.VITE_API_BASE || 'http://localhost:3001');
+
+      const response = await fetch(`${backendUrl}/api/inquiry/${inquiryId}/delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ coordinatorId })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete inquiry');
+      }
+
+      return { message: 'הפנייה נמחקה בהצלחה' };
+    } catch (error) {
+      console.error('Error deleting inquiry:', error);
+      // Fallback to direct Firestore update
+      await updateDoc(doc(db, 'inquiry', inquiryId), {
+        deleted: true,
+        deletedAt: new Date().toISOString(),
+        deletedBy: coordinatorId
+      });
+      return { message: 'הפנייה נמחקה בהצלחה' };
+    }
+  },
+
+  // Bulk delete inquiries
+  async bulkDeleteInquiries(inquiryIds, coordinatorId) {
+    try {
+      const backendUrl = import.meta.env.PROD 
+        ? (import.meta.env.VITE_API_BASE || 'https://magendovrimadom-backend.railway.app')
+        : (import.meta.env.VITE_API_BASE || 'http://localhost:3001');
+
+      const response = await fetch(`${backendUrl}/api/inquiry/bulk-delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ inquiryIds, coordinatorId })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to bulk delete inquiries');
+      }
+
+      const result = await response.json();
+      return { message: `${result.deletedCount} פניות נמחקו בהצלחה`, deletedCount: result.deletedCount };
+    } catch (error) {
+      console.error('Error bulk deleting inquiries:', error);
+      // Fallback to direct Firestore updates
+      const batch = writeBatch(db);
+      const deletedAt = new Date().toISOString();
+      let deletedCount = 0;
+
+      for (const inquiryId of inquiryIds) {
+        const inquiryRef = doc(db, 'inquiry', inquiryId);
+        batch.update(inquiryRef, {
+          deleted: true,
+          deletedAt: deletedAt,
+          deletedBy: coordinatorId
+        });
+        deletedCount++;
+      }
+
+      await batch.commit();
+      return { message: `${deletedCount} פניות נמחקו בהצלחה`, deletedCount };
+    }
+  },
+
+  // Manual cleanup utility - mark specific inquiries as deleted
+  async markInquiriesAsDeleted(inquiryIds, coordinatorId) {
+    try {
+      console.log(`🧹 Manually marking ${inquiryIds.length} inquiries as deleted...`);
+      
+      const batch = writeBatch(db);
+      const deletedAt = new Date().toISOString();
+      
+      for (const inquiryId of inquiryIds) {
+        const inquiryRef = doc(db, 'inquiry', inquiryId);
+        batch.update(inquiryRef, {
+          deleted: true,
+          deletedAt: deletedAt,
+          deletedBy: coordinatorId,
+          manualCleanup: true // Mark as manually cleaned up
+        });
+        console.log(`  - Marking inquiry ${inquiryId} as deleted`);
+      }
+      
+      await batch.commit();
+      console.log(`✅ Successfully marked ${inquiryIds.length} inquiries as deleted`);
+      
+      return { 
+        success: true, 
+        message: `${inquiryIds.length} פניות סומנו כמחוקות בהצלחה`,
+        cleanedCount: inquiryIds.length 
+      };
+    } catch (error) {
+      console.error('Error marking inquiries as deleted:', error);
       throw error;
     }
   }

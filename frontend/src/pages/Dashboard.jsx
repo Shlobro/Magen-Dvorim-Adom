@@ -32,7 +32,8 @@ export default function Dashboard() {
     handleTakeOwnership,
     handleReleaseOwnership,
     fetchVolunteers,
-    handleReassignVolunteer
+    handleReassignVolunteer,
+    handleBulkDeleteInquiries
   } = useDashboardData(currentUser, userRole, authLoading, showSuccess, showError, showWarning, showConfirmDialog)
 
   // State for coordinator report link
@@ -65,7 +66,6 @@ export default function Dashboard() {
     "נשלח קישור אך לא מולא טופס",
     "נפתחה פנייה (טופס מולא)",
     "לפנייה שובץ מתנדב",
-    "המתנדב בדרך",
     "הטיפול בנחיל הסתיים",
     "הפנייה נסגרה",
   ]
@@ -370,15 +370,24 @@ export default function Dashboard() {
                 <div className="coordinator-links-title">
                   קישורים לניהול המערכת
                 </div>
-                <div className="report-link-description">
-                  תאריך הופעת הנחיל: הפונה יזין את התאריך שבו הופיע הנחיל לראשונה
-                </div>
                 <div className="coordinator-links-buttons">
                   <button
                     onClick={copyReportLink}
                     className="report-link-button no-select"
                   >
                     📋 העתק קישור לדיווח
+                  </button>
+                  <button
+                    onClick={() => handleBulkDeleteInquiries(filteredCalls.map(call => call.id))}
+                    disabled={filteredCalls.length === 0}
+                    className="report-link-button remove-all-button no-select"
+                    style={{
+                      backgroundColor: '#dc3545',
+                      borderColor: '#dc3545',
+                      marginLeft: '10px'
+                    }}
+                  >
+                    🗑️ מחק את כל הפניות
                   </button>
                 </div>
               </div>

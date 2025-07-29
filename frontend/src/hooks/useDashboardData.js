@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import { collection, getDocs, getDoc, doc, updateDoc } from "firebase/firestore"
 import { db } from "../firebaseConfig"
 import { takeOwnership, releaseOwnership, reassignVolunteer } from "../services/inquiryApi"
-import { userService } from "../services/firebaseService"
+import { userService, inquiryService } from "../services/firebaseService"
 
 export const useDashboardData = (currentUser, userRole, authLoading, showSuccess, showError, showWarning, showConfirmDialog) => {
   const [calls, setCalls] = useState([])
@@ -100,8 +100,13 @@ export const useDashboardData = (currentUser, userRole, authLoading, showSuccess
             const inquirySnap = await getDocs(allInquiriesQuery)
             const allInquiries = inquirySnap.docs.map((d) => ({ id: d.id, ...d.data() }))
             
-            // Filter for coordinator's inquiries and unassigned ones
+            // Filter for coordinator's inquiries and unassigned ones, excluding deleted ones
             fetchedInquiries = allInquiries.filter(inquiry => {
+              // First check if the inquiry is deleted
+              if (inquiry.deleted === true) {
+                return false;
+              }
+              
               return !inquiry.coordinatorId || 
                      inquiry.coordinatorId === '' || 
                      inquiry.coordinatorId === currentUser.uid;
@@ -112,7 +117,10 @@ export const useDashboardData = (currentUser, userRole, authLoading, showSuccess
           const inquiriesRef = collection(db, "inquiry")
           const allInquiriesQuery = inquiriesRef
           const inquirySnap = await getDocs(allInquiriesQuery)
-          fetchedInquiries = inquirySnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          const allInquiries = inquirySnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          
+          // Filter out deleted inquiries for non-coordinators too
+          fetchedInquiries = allInquiries.filter(inquiry => inquiry.deleted !== true)
         }
 
         console.log('📊 Dashboard: Sample inquiry data:');
@@ -216,7 +224,6 @@ export const useDashboardData = (currentUser, userRole, authLoading, showSuccess
       // Define statuses that require a volunteer to be assigned
       const statusesRequiringVolunteer = [
         "לפנייה שובץ מתנדב",
-        "המתנדב בדרך",
         "הטיפול בנחיל הסתיים"
       ]
 
@@ -471,6 +478,48 @@ export const useDashboardData = (currentUser, userRole, authLoading, showSuccess
     }
   }
 
+  // Handle bulk delete inquiries
+  const handleBulkDeleteInquiries = async (inquiryIds) => {
+    if (!currentUser || !inquiryIds || inquiryIds.length === 0) {
+      showError("שגיאה: אין פניות למחיקה או משתמש לא מחובר")
+      return
+    }
+
+    const confirmed = await showConfirmDialog({
+      title: 'אישור מחיקת כל הפניות',
+      message: `האם אתה בטוח שברצונך למחוק את כל ${inquiryIds.length} הפניות מהמערכת?
+      
+⚠️ אזהרה קריטית: פעולה זו תמחק את כל הפניות הנבחרות מהמערכת.
+
+הפניות יסומנו כמחוקות ולא יופיעו יותר ברשימות.
+
+פעולה זו אינה ניתנת לביטול ותשפיע על כל הנתונים הקשורים.`,
+      confirmText: 'מחק את כל הפניות',
+      cancelText: 'ביטול',
+      severity: 'error',
+    });
+    
+    if (!confirmed) return;
+
+    try {
+      const result = await inquiryService.bulkDeleteInquiries(inquiryIds, currentUser.uid)
+      
+      // Remove deleted inquiries from local state
+      setCalls(prevCalls => prevCalls.filter(call => !inquiryIds.includes(call.id)))
+      
+      showSuccess(result.message)
+      
+      // Refresh the page to ensure all components (including VolunteerMap) refetch data
+      setTimeout(() => {
+        window.location.reload()
+      }, 1500) // Give time for success message to show
+      
+    } catch (error) {
+      console.error('Error bulk deleting inquiries:', error)
+      showError("שגיאה במחיקת הפניות: " + (error.message || 'שגיאה לא ידועה'))
+    }
+  }
+
   return {
     calls,
     setCalls,
@@ -486,6 +535,7 @@ export const useDashboardData = (currentUser, userRole, authLoading, showSuccess
     handleReleaseOwnership,
     fetchVolunteers,
     handleReassignVolunteer,
+    handleBulkDeleteInquiries,
     coordinatorNamesRef
   }
 }

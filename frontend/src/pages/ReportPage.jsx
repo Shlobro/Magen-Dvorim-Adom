@@ -42,6 +42,33 @@ export default function ReportPage() {
     }
   }, [location.search]);
 
+  // Check if coordinator ID is required but missing
+  if (!coordinatorId) {
+    return (
+      <div className="report-page">
+        <div className="report-card">
+          <h2 className="form-title">גישה מוגבלת</h2>
+          <div style={{
+            textAlign: 'center',
+            padding: '40px 20px',
+            color: '#666',
+            fontSize: '1.1em',
+            lineHeight: '1.6'
+          }}>
+            <div style={{ fontSize: '3em', marginBottom: '20px' }}>🔒</div>
+            <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>דיווח על נחיל זמין רק דרך רכז</h3>
+            <p style={{ margin: '0 0 10px 0' }}>
+              כדי לדווח על נחיל דבורים, יש לפנות לרכז המקומי שלכם.
+            </p>
+            <p style={{ margin: '0', fontSize: '0.9em', opacity: '0.8' }}>
+              הרכז יספק לכם קישור ייעודי לביצוע הדיווח.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
       setImageFile(e.target.files[0]);
@@ -197,6 +224,7 @@ export default function ReportPage() {
           <label className="date-label">מתי נראה לראשונה:</label>
           <input type="date" value={firstSeenDate} onChange={(e) => setFirstSeenDate(e.target.value)} className="date-input" />
           <textarea placeholder="הערות הפונה" rows={4} value={reporterComments} onChange={(e) => setReporterComments(e.target.value)}></textarea>
+
           <label className="file-upload required-upload">
             <input type="file" onChange={handleFileChange} accept="image/*" required />
             <FaUpload className="upload-icon" />

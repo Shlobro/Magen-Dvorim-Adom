@@ -182,6 +182,49 @@ export default function CoordinatorApproval() {
     showSuccess('קישור הרשמת רכזים הועתק בהצלחה!');
   };
 
+  const handleBulkDeleteCoordinators = async () => {
+    // Filter out the current user from deletion
+    const coordinatorsToDelete = existingCoordinators.filter(coord => coord.id !== currentUser.uid);
+    
+    if (coordinatorsToDelete.length === 0) {
+      showInfo('אין רכזים נוספים למחיקה (למעט המשתמש הנוכחי)');
+      return;
+    }
+
+    const confirmMessage = `האם אתה בטוח שברצונך למחוק את כל ${coordinatorsToDelete.length} הרכזים הקיימים? (למעט עצמך)\nפעולה זו לא ניתנת לביטול.`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setLoadingExisting(true);
+      
+      // Delete coordinators in batches
+      const batchSize = 10;
+      for (let i = 0; i < coordinatorsToDelete.length; i += batchSize) {
+        const batch = coordinatorsToDelete.slice(i, i + batchSize);
+        const deletePromises = batch.map(coordinator => 
+          deleteDoc(doc(db, 'user', coordinator.id))
+        );
+        
+        await Promise.all(deletePromises);
+      }
+
+      // Update local state to remove deleted coordinators (keep current user)
+      setExistingCoordinators(prev => prev.filter(coord => coord.id === currentUser.uid));
+      
+      showSuccess(`${coordinatorsToDelete.length} רכזים נמחקו בהצלחה!`);
+    } catch (error) {
+      console.error('Error deleting coordinators:', error);
+      showError('שגיאה במחיקת הרכזים');
+      // Refresh the list in case of partial failure
+      fetchExistingCoordinators();
+    } finally {
+      setLoadingExisting(false);
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="coordinator-approval-loading-container">
@@ -319,7 +362,21 @@ export default function CoordinatorApproval() {
                     לא נמצאו רכזים קיימים במערכת
                   </div>
                 ) : (
-                  <div className="table-wrapper">
+                  <>
+                    {/* Bulk Delete Section for Existing Coordinators */}
+                    {existingCoordinators.filter(coord => coord.id !== currentUser.uid).length > 0 && (
+                      <div className="bulk-actions-section">
+                        <button
+                          onClick={handleBulkDeleteCoordinators}
+                          className="bulk-delete-button"
+                          disabled={loadingExisting}
+                        >
+                          🗑️ מחק את כל הרכזים (למעט עצמי)
+                        </button>
+                      </div>
+                    )}
+                    
+                    <div className="table-wrapper">
                     <table className="coordinator-table">
                       <thead className="existing-table-header">
                         <tr>
@@ -359,6 +416,7 @@ export default function CoordinatorApproval() {
                       </tbody>
                     </table>
                   </div>
+                  </>
                 )}
               </div>
             )}
