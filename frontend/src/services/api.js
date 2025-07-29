@@ -89,13 +89,13 @@ export const saveInquiry = async (inquiry, coordinatorId = null) => {
   }
 };
 
-export const uploadPhoto = async (inquiryId, file) => {
+export const uploadPhoto = async (inquiryId, file, photoType = 'single') => {
   try {
     if (!storage) {
       throw new Error('Firebase Storage not initialized');
     }
 
-    console.log(`📸 Uploading photo for inquiry: ${inquiryId}`);
+    console.log(`📸 Uploading ${photoType} photo for inquiry: ${inquiryId}`);
     console.log(`📁 File details:`, {
       name: file.name,
       type: file.type,
@@ -103,7 +103,7 @@ export const uploadPhoto = async (inquiryId, file) => {
     });
 
     // Create a reference to the file in Firebase Storage
-    const fileName = `inquiry-photos/${inquiryId}/${Date.now()}_${file.name}`;
+    const fileName = `inquiry-photos/${inquiryId}/${photoType}_${Date.now()}_${file.name}`;
     const storageRef = ref(storage, fileName);
     
     // Upload the file
@@ -116,17 +116,27 @@ export const uploadPhoto = async (inquiryId, file) => {
     
     // Update the inquiry document in Firestore with the photo URL
     if (db) {
-      await updateDoc(doc(db, 'inquiry', inquiryId), {
-        photo: downloadURL,
-        photoUploadedAt: serverTimestamp()
-      });
-      console.log('✅ Inquiry document updated with photo URL');
+      const updateData = {};
+      if (photoType === 'entry') {
+        updateData.entryPhoto = downloadURL;
+        updateData.entryPhotoUploadedAt = serverTimestamp();
+      } else if (photoType === 'exit') {
+        updateData.exitPhoto = downloadURL;
+        updateData.exitPhotoUploadedAt = serverTimestamp();
+      } else {
+        // Backward compatibility for single photo
+        updateData.photo = downloadURL;
+        updateData.photoUploadedAt = serverTimestamp();
+      }
+      
+      await updateDoc(doc(db, 'inquiry', inquiryId), updateData);
+      console.log(`✅ Inquiry document updated with ${photoType} photo URL`);
     }
     
     return { data: { photoUrl: downloadURL } };
     
   } catch (error) {
-    console.error('❌ Error uploading photo to Firebase Storage:', error);
+    console.error(`❌ Error uploading ${photoType} photo to Firebase Storage:`, error);
     throw error;
   }
 };

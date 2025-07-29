@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm update:*)",
+      "Bash(npm install:*)",
+      "Bash(firebase deploy:*)",
+      "Bash(.deploy.ps1)",
+      "Bash(powershell:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": []
+  }
+}

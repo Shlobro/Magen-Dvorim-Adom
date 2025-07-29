@@ -75,6 +75,7 @@
 /* Input Styles */
 .report-form input[type="text"],
 .report-form input[type="tel"],
+.report-form input[type="date"],
 .report-form textarea {
   width: 100%;
   padding: 16px 20px;
@@ -89,6 +90,7 @@
 
 .report-form input[type="text"]:focus,
 .report-form input[type="tel"]:focus,
+.report-form input[type="date"]:focus,
 .report-form textarea:focus {
   outline: none;
   border-color: #667eea;
@@ -159,6 +161,28 @@
 .upload-icon {
   font-size: 18px;
   color: #667eea;
+}
+
+/* Date Input Specific Styles */
+.date-input {
+  direction: ltr;
+  text-align: left;
+}
+
+.date-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.5);
+  cursor: pointer;
+}
+
+/* Required Upload Styles */
+.required-upload {
+  border-color: #f56565 !important;
+  background: #fef5e7 !important;
+}
+
+.required-upload:hover {
+  border-color: #e53e3e !important;
+  background: #fed7d7 !important;
 }
 
 /* Terms Container */
@@ -271,6 +295,7 @@
   
   .report-form input[type="text"],
   .report-form input[type="tel"],
+  .report-form input[type="date"],
   .report-form textarea {
     padding: 14px 16px;
     font-size: 15px;
@@ -301,6 +326,7 @@
   
   .report-form input[type="text"],
   .report-form input[type="tel"],
+  .report-form input[type="date"],
   .report-form textarea {
     padding: 12px 14px;
   }
@@ -341,6 +367,7 @@
 .report-form > *:nth-child(7) { animation-delay: 0.7s; }
 .report-form > *:nth-child(8) { animation-delay: 0.8s; }
 .report-form > *:nth-child(9) { animation-delay: 0.9s; }
+.report-form > *:nth-child(10) { animation-delay: 1.0s; }
 
 /* Loading state for submit button */
 .submit-button:disabled {

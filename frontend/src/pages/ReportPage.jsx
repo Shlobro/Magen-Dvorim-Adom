@@ -15,8 +15,10 @@ export default function ReportPage() {
   const [address, setAddress] = useState(''); // New state for address (street and house number)
   const [heightFloor, setHeightFloor] = useState('');
   const [additionalDetails, setAdditionalDetails] = useState('');
-  const [imageFile, setImageFile] = useState(null); // To store the actual file
-  const [imageName, setImageName] = useState(''); // To display file name
+  const [locationDescription, setLocationDescription] = useState(''); // New required field
+  const [appearanceDate, setAppearanceDate] = useState(''); // New required field
+  const [imageFile, setImageFile] = useState(null); // Single photo (required)
+  const [imageName, setImageName] = useState(''); // Photo name
   const [loading, setLoading] = useState(false);
   const [coordinatorId, setCoordinatorId] = useState(''); // NEW: State to store coordinatorId from URL
   const [agreeToTerms, setAgreeToTerms] = useState(false); // State for terms agreement
@@ -48,8 +50,15 @@ export default function ReportPage() {
     setLoading(true);
 
     // Basic validation
-    if (!fullName || !phoneNumber || !city || !address) {
-      showError('אנא מלא את כל שדות החובה: שם מלא, טלפון, עיר וכתובת.');
+    if (!fullName || !phoneNumber || !city || !address || !locationDescription || !appearanceDate) {
+      showError('אנא מלא את כל שדות החובה: שם מלא, טלפון, עיר, כתובת, תיאור מיקום ותאריך הופעת הנחיל.');
+      setLoading(false);
+      return;
+    }
+
+    // Image validation
+    if (!imageFile) {
+      showError('חובה להעלות תמונה של הנחיל.');
       setLoading(false);
       return;
     }
@@ -87,6 +96,8 @@ export default function ReportPage() {
         address, // Send address (street and house number)
         heightFloor,
         additionalDetails,
+        locationDescription, // New required field
+        appearanceDate, // New required field
         status: "נפתחה פנייה (טופס מולא)", // Initial status
         date: new Date().toLocaleDateString('he-IL'), // Current date
         time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), // Current time
@@ -100,8 +111,9 @@ export default function ReportPage() {
       // Get the inquiry ID from the response
       const inquiryId = response.id; 
 
+      // Upload photo
       if (imageFile && inquiryId) {
-        await uploadPhoto(inquiryId, imageFile);
+        await uploadPhoto(inquiryId, imageFile, 'single');
       }
 
       showSuccess('הפנייה נשלחה בהצלחה! תודה רבה על הדיווח.');
@@ -110,7 +122,10 @@ export default function ReportPage() {
       setPhoneNumber('');
       setCity('');
       setAddress('');
-      setHeightFloor('');      setAdditionalDetails('');
+      setHeightFloor('');
+      setAdditionalDetails('');
+      setLocationDescription('');
+      setAppearanceDate('');
       setImageFile(null);
       setImageName('');
       setCoordinatorId(''); // NEW: Clear coordinatorId after successful submission
@@ -165,15 +180,46 @@ export default function ReportPage() {
             onChange={(e) => setHeightFloor(e.target.value)}
           />
           <textarea
+            placeholder="תיאור מיקום מדויק של הנחיל (חובה) - למשל: על העץ הגדול ליד הכניסה הראשית, גובה 3 מטר מהקרקע *"
+            rows={3}
+            required
+            value={locationDescription}
+            onChange={(e) => setLocationDescription(e.target.value)}
+          ></textarea>
+          
+          <input
+            type="date"
+            placeholder="תאריך הופעת הנחיל *"
+            required
+            value={appearanceDate}
+            onChange={(e) => setAppearanceDate(e.target.value)}
+            className="date-input"
+          />
+          
+          <textarea
             placeholder="פרטים נוספים שיעזרו למתנדב למצוא את הנחיל"
             rows={4}
             value={additionalDetails}
             onChange={(e) => setAdditionalDetails(e.target.value)}
-          ></textarea>          <label className="file-upload">
-            <input type="file" onChange={handleFileChange} accept="image/*" />
+          ></textarea>
+          
+          <label className="file-upload required-upload">
+            <input type="file" onChange={handleFileChange} accept="image/*" required />
             <FaUpload className="upload-icon" />
-            {imageName ? imageName : 'הוסף תמונה של הנחיל (אופציונלי)'}
-          </label>          {/* Terms and Conditions */}
+            {imageName ? imageName : 'העלאת תמונה של הנחיל (חובה) *'}
+          </label>
+
+          {/* Submit Button - moved before terms */}
+          <button type="submit" className="submit-button" disabled={loading}>
+            {loading ? 'שולח...' : (
+              <>
+                <FaBell className="button-icon" />
+                שלח דיווח
+              </>
+            )}
+          </button>
+
+          {/* Terms and Conditions */}
           <div className="terms-container">
             <input
               type="checkbox"
@@ -192,14 +238,7 @@ export default function ReportPage() {
               <br /><br />
               <span className="terms-highlight">אני מאשר/ת שקראתי והבנתי את התנאים הנ"ל ומסכים/ה לפעול על פיהם.</span>
             </label>
-          </div>          <button type="submit" className="submit-button" disabled={loading}>
-            {loading ? 'שולח...' : (
-              <>
-                <FaBell className="button-icon" />
-                שלח דיווח
-              </>
-            )}
-          </button>
+          </div>
         </form>
       </div>
     </div>

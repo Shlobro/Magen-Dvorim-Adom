@@ -1,5 +1,9 @@
-const functions = require('firebase-functions');
+const { onCall } = require('firebase-functions/v2/https');
+const { setGlobalOptions } = require('firebase-functions/v2');
 const admin = require('firebase-admin');
+
+// Set global options for all functions
+setGlobalOptions({ region: 'us-central1' });
 
 // Initialize Firebase Admin (if not already initialized)
 if (!admin.apps.length) {
@@ -7,25 +11,26 @@ if (!admin.apps.length) {
 }
 
 // Callable function for coordinators to delete volunteers completely
-exports.deleteVolunteerByCoordinator = functions.https.onCall(async (data, context) => {
+exports.deleteVolunteerByCoordinator = onCall(async (request) => {
+  const { data, auth } = request;
   try {
     // Verify the user is authenticated
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    if (!auth) {
+      throw new Error('User must be authenticated');
     }
 
     // Verify the user is a coordinator (userType === 1)
-    const callerUID = context.auth.uid;
+    const callerUID = auth.uid;
     const callerDoc = await admin.firestore().collection('user').doc(callerUID).get();
     
     if (!callerDoc.exists || callerDoc.data().userType !== 1) {
-      throw new functions.https.HttpsError('permission-denied', 'Only coordinators can delete volunteers');
+      throw new Error('Only coordinators can delete volunteers');
     }
 
     const { volunteerUID } = data;
     
     if (!volunteerUID) {
-      throw new functions.https.HttpsError('invalid-argument', 'volunteerUID is required');
+      throw new Error('volunteerUID is required');
     }
 
     console.log(`🗑️ Coordinator ${callerUID} deleting volunteer: ${volunteerUID}`);
@@ -36,7 +41,7 @@ exports.deleteVolunteerByCoordinator = functions.https.onCall(async (data, conte
     
     // Verify the target is actually a volunteer
     if (!volunteerData || volunteerData.userType !== 2) {
-      throw new functions.https.HttpsError('invalid-argument', 'Target user is not a volunteer');
+      throw new Error('Target user is not a volunteer');
     }
 
     // 1. Remove volunteer from all inquiries
@@ -115,27 +120,23 @@ exports.deleteVolunteerByCoordinator = functions.https.onCall(async (data, conte
 
   } catch (error) {
     console.error('Error in deleteVolunteerByCoordinator:', error);
-    
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    
-    throw new functions.https.HttpsError('internal', 'Internal server error: ' + error.message);
+    throw new Error('Internal server error: ' + error.message);
   }
 });
 
 // Callable function to get volunteer details (for verification)
-exports.getVolunteerDetails = functions.https.onCall(async (data, context) => {
+exports.getVolunteerDetails = onCall(async (request) => {
+  const { data, auth } = request;
   try {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    if (!auth) {
+      throw new Error('User must be authenticated');
     }
 
     const { volunteerUID } = data;
     const volunteerDoc = await admin.firestore().collection('users').doc(volunteerUID).get();
     
     if (!volunteerDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'Volunteer not found');
+      throw new Error('Volunteer not found');
     }
 
     const volunteerData = volunteerDoc.data();
@@ -152,11 +153,6 @@ exports.getVolunteerDetails = functions.https.onCall(async (data, context) => {
 
   } catch (error) {
     console.error('Error in getVolunteerDetails:', error);
-    
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    
-    throw new functions.https.HttpsError('internal', 'Internal server error: ' + error.message);
+    throw new Error('Internal server error: ' + error.message);
   }
 });

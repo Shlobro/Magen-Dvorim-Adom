@@ -66,6 +66,31 @@ const DashboardModals = ({
                 </div>
               </div>
 
+              {/* Appearance Date */}
+              {selectedCallDetails.appearanceDate && (
+                <div className="detail-card full-width">
+                  <div className="detail-label">תאריך הופעת הנחיל:</div>
+                  <div className="detail-value appearance-date">
+                    {new Date(selectedCallDetails.appearanceDate).toLocaleDateString('he-IL', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Location Description */}
+              {selectedCallDetails.locationDescription && (
+                <div className="detail-card full-width">
+                  <div className="detail-label">תיאור מיקום מדויק:</div>
+                  <div className="detail-value location-description">
+                    {selectedCallDetails.locationDescription}
+                  </div>
+                </div>
+              )}
+
               <div className="detail-card full-width">
                 <div className="detail-label">הערות נוספות:</div>
                 <div className="detail-value notes">

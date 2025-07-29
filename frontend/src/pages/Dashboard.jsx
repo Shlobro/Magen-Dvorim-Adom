@@ -370,6 +370,9 @@ export default function Dashboard() {
                 <div className="coordinator-links-title">
                   קישורים לניהול המערכת
                 </div>
+                <div className="report-link-description">
+                  תאריך הופעת הנחיל: הפונה יזין את התאריך שבו הופיע הנחיל לראשונה
+                </div>
                 <div className="coordinator-links-buttons">
                   <button
                     onClick={copyReportLink}
