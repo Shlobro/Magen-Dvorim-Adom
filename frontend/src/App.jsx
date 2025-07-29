@@ -35,7 +35,7 @@ function AppWithHeader() {
     <>
       {showHeader && <Header />}
       <Routes>
-        <Route path="/" element={<HomeScreen />} />
+        <Route path="/" element={<Login />} />
         <Route path="/report" element={<ReportPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
