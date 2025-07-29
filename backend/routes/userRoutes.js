@@ -405,7 +405,7 @@ router.delete('/self/:id', async (req, res) => {
     // Check if volunteer has any active assigned inquiries
     const activeInquiriesSnapshot = await db.collection('inquiry')
       .where('assignedVolunteers', 'array-contains', volunteerId)
-      .where('status', 'in', ['לפנייה שובץ מתנדב', 'המתנדב בדרך'])
+      .where('status', 'in', ['לפנייה שובץ מתנדב'])
       .get();
     
     if (!activeInquiriesSnapshot.empty) {
@@ -709,21 +709,7 @@ router.delete('/coordinator-delete/:id', async (req, res) => {
       return res.status(403).json({ error: 'Can only delete volunteer accounts' });
     }
     
-    // Check if volunteer has any active assigned inquiries
-    const activeInquiriesSnapshot = await db.collection('inquiry')
-      .where('assignedVolunteers', 'array-contains', volunteerId)
-      .where('status', 'in', ['לפנייה שובץ מתנדב', 'המתנדב בדרך'])
-      .get();
-    
-    if (!activeInquiriesSnapshot.empty) {
-      return res.status(400).json({ 
-        error: 'Cannot delete volunteer while assigned to active inquiries',
-        message: 'המתנדב מוקצה לפניות פעילות. יש לבטל את ההקצאה לפני המחיקה.',
-        activeInquiries: activeInquiriesSnapshot.docs.length
-      });
-    }
-    
-    // Remove volunteer from any completed inquiries (for data consistency)
+    // Remove volunteer from ALL inquiries (both active and completed) before deletion
     const allInquiriesSnapshot = await db.collection('inquiry')
       .where('assignedVolunteers', 'array-contains', volunteerId)
       .get();

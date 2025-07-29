@@ -165,7 +165,7 @@ export default function VolunteerManagement() {
       
 ⚠️ הערה חשובה: המחיקה תסיר את המתנדב לחלוטין כולל חשבון ההזדהות.
 
-המתנדב יוסר מכל הפניות ולא יוכל להתחבר למערכת.
+המתנדב יוסר מכל הפניות (כולל פניות פעילות) ולא יוכל להתחבר למערכת.
 
 פעולה זו אינה ניתנת לביטול.`,
       confirmText: 'הסר מתנדב לחלוטין',
@@ -189,14 +189,77 @@ export default function VolunteerManagement() {
       }
     } catch (e) {
       console.error('Error deleting volunteer:', e);
-      if (e.message?.includes('active inquiries')) {
-        showError("לא ניתן להסיר מתנדב שמוקצה לפניות פעילות. יש לבטל את ההקצאה תחילה.");
-      } else {
-        showError("שגיאה בהסרת מתנדב: " + (e.message || 'שגיאה לא ידועה'));
-      }
+      showError("שגיאה בהסרת מתנדב: " + (e.message || 'שגיאה לא ידועה'));
     }
 
     setRemovingId(null)
+  }
+
+  // Handle remove all volunteers
+  const handleRemoveAllVolunteers = async () => {
+    if (volunteers.length === 0) return;
+
+    const confirmed = await showConfirmDialog({
+      title: 'אישור הסרת כל המתנדבים',
+      message: `האם אתה בטוח שברצונך להסיר את כל ${volunteers.length} המתנדבים מהמערכת?
+      
+⚠️ אזהרה קריטית: פעולה זו תסיר את כל המתנדבים לחלוטין כולל חשבונות ההזדהות שלהם.
+
+כל המתנדבים יוסרו מכל הפניות (כולל פניות פעילות) ולא יוכלו להתחבר למערכת.
+
+פעולה זו אינה ניתנת לביטול ותשפיע על כל הפניות הקיימות.`,
+      confirmText: 'הסר את כל המתנדבים',
+      cancelText: 'ביטול',
+      severity: 'error',
+    });
+    
+    if (!confirmed) return;
+    
+    setRemovingId('all');
+    
+    try {
+      let successCount = 0;
+      let failureCount = 0;
+      const failures = [];
+
+      // Remove volunteers one by one
+      for (const volunteer of volunteers) {
+        try {
+          await userService.deleteVolunteerByCoordinator(volunteer.id, currentUser.uid);
+          successCount++;
+        } catch (error) {
+          console.error(`Error deleting volunteer ${volunteer.name || volunteer.email}:`, error);
+          failureCount++;
+          failures.push({
+            name: volunteer.name || `${volunteer.firstName || ""} ${volunteer.lastName || ""}` || volunteer.email,
+            error: error.message
+          });
+        }
+      }
+
+      // Update the volunteers list
+      setVolunteers([]);
+      
+      // Show results
+      if (successCount > 0 && failureCount === 0) {
+        showSuccess(`כל ${successCount} המתנדבים הוסרו בהצלחה מהמערכת!`);
+      } else if (successCount > 0 && failureCount > 0) {
+        showError(`${successCount} מתנדבים הוסרו בהצלחה, ${failureCount} נכשלו. בדוק את הקונסול לפרטים נוספים.`);
+      } else {
+        showError(`נכשל להסיר את כל המתנדבים. בדוק את הקונסול לפרטים.`);
+      }
+
+      // Log failures for debugging
+      if (failures.length > 0) {
+        console.error('Failed to delete volunteers:', failures);
+      }
+
+    } catch (error) {
+      console.error('Error in bulk delete operation:', error);
+      showError("שגיאה כללית בהסרת המתנדבים: " + (error.message || 'שגיאה לא ידועה'));
+    }
+
+    setRemovingId(null);
   }
 
   // Handle opening volunteer details modal
@@ -988,20 +1051,38 @@ export default function VolunteerManagement() {
                     </Box>
                   </Box>
                   
-                  {/* Upload Excel Button */}
-                  <Button
-                    variant="contained"
-                    startIcon={<CloudUpload />}
-                    onClick={openUploadDialog}
-                    sx={{
-                      bgcolor: "#4caf50",
-                      "&:hover": { bgcolor: "#45a049" },
-                      borderRadius: 2,
-                      fontWeight: "bold",
-                    }}
-                  >
-                    העלאת קובץ Excel
-                  </Button>
+                  {/* Action Buttons */}
+                  <Box sx={{ display: "flex", gap: 2 }}>
+                    <Button
+                      variant="contained"
+                      startIcon={<CloudUpload />}
+                      onClick={openUploadDialog}
+                      sx={{
+                        bgcolor: "#4caf50",
+                        "&:hover": { bgcolor: "#45a049" },
+                        borderRadius: 2,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      העלאת קובץ Excel
+                    </Button>
+                    
+                    <Button
+                      variant="contained"
+                      color="error"
+                      startIcon={<PersonRemove />}
+                      onClick={handleRemoveAllVolunteers}
+                      disabled={volunteers.length === 0 || removingId === 'all'}
+                      sx={{
+                        borderRadius: 2,
+                        fontWeight: "bold",
+                        bgcolor: "#f44336",
+                        "&:hover": { bgcolor: "#d32f2f" },
+                      }}
+                    >
+                      {removingId === 'all' ? 'מסיר הכל...' : 'הסר כל המתנדבים'}
+                    </Button>
+                  </Box>
                 </Box>
               </Box>
 
