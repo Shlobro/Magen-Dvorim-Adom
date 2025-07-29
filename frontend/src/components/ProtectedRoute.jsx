@@ -65,6 +65,17 @@ const ProtectedRoute = ({ children, requiredRole }) => {
       console.log('ProtectedRoute - Access denied, redirecting to home');
       return <Navigate to="/" replace />;
     }
+    
+    // Additional check for coordinators: they must be approved
+    if (requiredRole === 'coordinator' && userData) {
+      const isApproved = userData.approved === true || userData.approved === undefined; // undefined for legacy users
+      console.log('ProtectedRoute - Coordinator approval check - approved:', userData.approved, 'isApproved:', isApproved);
+      
+      if (!isApproved) {
+        console.log('ProtectedRoute - Coordinator not approved, redirecting to home');
+        return <Navigate to="/" replace />;
+      }
+    }
   }
 
   // Check if user needs to change password (for Excel imported users)

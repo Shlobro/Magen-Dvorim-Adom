@@ -696,6 +696,12 @@ router.delete('/coordinator-delete/:id', async (req, res) => {
       return res.status(403).json({ error: 'Only coordinators can delete volunteers' });
     }
     
+    // Check if coordinator is approved (prevent unapproved coordinators from deleting volunteers)
+    const isApproved = coordinatorData.approved === true || coordinatorData.approved === undefined; // undefined for legacy users
+    if (!isApproved) {
+      return res.status(403).json({ error: 'Only approved coordinators can delete volunteers' });
+    }
+    
     // Get volunteer data for logging purposes
     const volunteerDoc = await db.collection('user').doc(volunteerId).get();
     if (!volunteerDoc.exists) {
