@@ -267,13 +267,23 @@ export default function VolunteerMap() {
   const handleManualCleanup = async () => {
     if (!currentUser) return;
     
-    const stuckInquiryIds = [
-      '8eCcZgkdtMQN5js4zV0k',
-      'QcRsbyuTkctv4BoRWoli'
-    ];
+    // Dynamically find stuck inquiries (those with deleted: undefined)
+    const stuckInquiries = allInquiries.filter(inquiry => inquiry.deleted === undefined);
+    const stuckInquiryIds = stuckInquiries.map(inquiry => inquiry.id);
+    
+    if (stuckInquiryIds.length === 0) {
+      showWarning('לא נמצאו פניות תקועות לניקוי');
+      return;
+    }
+    
+    console.log('🧹 Found stuck inquiries to clean:', stuckInquiries.map(inq => ({
+      id: inq.id,
+      address: inq.address,
+      deleted: inq.deleted
+    })));
     
     try {
-      console.log('🧹 Starting manual cleanup...');
+      console.log(`🧹 Starting manual cleanup of ${stuckInquiryIds.length} stuck inquiries...`);
       const { inquiryService } = await import('../services/firebaseService');
       
       const result = await inquiryService.markInquiriesAsDeleted(stuckInquiryIds, currentUser.uid);
@@ -1064,7 +1074,7 @@ export default function VolunteerMap() {
               />
               
               {/* Manual Cleanup Button - Only show if there are stuck inquiries */}
-              {inquiries.length > 0 && inquiries.some(inq => inq.deleted === undefined) && (
+              {allInquiries.length > 0 && allInquiries.some(inq => inq.deleted === undefined) && (
                 <Button
                   size="small"
                   variant="contained"
