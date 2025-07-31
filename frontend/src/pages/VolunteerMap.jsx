@@ -279,7 +279,7 @@ export default function VolunteerMap() {
       const result = await inquiryService.markInquiriesAsDeleted(stuckInquiryIds, currentUser.uid);
       
       console.log('✅ Manual cleanup completed:', result);
-      addNotification(result.message, 'success');
+      showSuccess(result.message);
       
       // Refresh inquiries
       setTimeout(() => {
@@ -288,7 +288,7 @@ export default function VolunteerMap() {
       
     } catch (error) {
       console.error('❌ Manual cleanup failed:', error);
-      addNotification('שגיאה בניקוי ידני: ' + error.message, 'error');
+      showError('שגיאה בניקוי ידני: ' + error.message);
     }
   };
 
